@@ -7,27 +7,142 @@ from pathlib import Path
 from io import BytesIO
 from PIL import Image
 import re
+import json
 
 st.set_page_config(page_title="LEGO Parts Finder", layout="wide")
 st.title("🧱 LEGO Parts Finder with Location Highlights")
 
 # ---------------------------------------------------------------------
-# --- Directories for Cache and Resources ---
+# --- Persistent configuration (last used directories)
 # ---------------------------------------------------------------------
-CACHE_DIR = Path("cached_images")
-CACHE_DIR.mkdir(exist_ok=True)
+CONFIG_FILE = Path("lego_finder_config.json")
 
+def load_config():
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def save_config(config):
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+    except Exception as e:
+        st.warning(f"⚠️ Could not save config: {e}")
+
+config = load_config()
+
+# ---------------------------------------------------------------------
+# --- Sidebar: Ask user for directories
+# ---------------------------------------------------------------------
+st.sidebar.markdown("## 📁 Directory Settings")
+
+# Helper function for directory selection
+def choose_directory(label, default_path, config_key):
+    #placeholder = st.sidebar.empty()
+    if config_key not in st.session_state:
+        st.session_state[config_key] = default_path
+
+    #if placeholder.button(f"📂 Select {label}", key=f"btn_{config_key}"):
+    with st.sidebar.expander(f"Select {label} folder", expanded=True):
+        new_path = st.text_input(f"Enter or paste path for {label}:", value=st.session_state[config_key])
+        col_ok, col_cancel = st.columns(2)
+        with col_ok:
+            if st.button("✅ Confirm", key=f"ok_{config_key}"):
+                st.session_state[config_key] = new_path
+                st.rerun()
+        with col_cancel:
+            if st.button("❌ Cancel", key=f"cancel_{config_key}"):
+                st.rerun()
+
+    return Path(st.session_state[config_key]).expanduser()
+
+# Choose folders with intuitive expand
+DEFAULT_COLLECTION_DIR = choose_directory(
+    "Collection folder", config.get("collection_dir", "collection"), "collection_dir"
+)
+
+# Create folders
+DEFAULT_COLLECTION_DIR.mkdir(parents=True, exist_ok=True)
+
+st.sidebar.success(f"Collection folder: {DEFAULT_COLLECTION_DIR.resolve()}")
+
+# Choose folders with intuitive expand
+BASE_CACHE_DIR = choose_directory(
+    "Base cache folder (images + progress)", config.get("base_cache_dir", "cache"), "base_cache_dir"
+)
+
+# Create folders
+BASE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+# Inside base cache: subfolders for separation
+CACHE_IMAGES_DIR = BASE_CACHE_DIR / "images"
+CACHE_PROGRESS_DIR = BASE_CACHE_DIR / "progress"
+CACHE_IMAGES_DIR.mkdir(exist_ok=True)
+CACHE_PROGRESS_DIR.mkdir(exist_ok=True)
+
+st.sidebar.success(f"Cache folder: {BASE_CACHE_DIR.resolve()}")
+
+# Save config if changed
+if (
+    config.get("collection_dir") != str(DEFAULT_COLLECTION_DIR)
+    or config.get("base_cache_dir") != str(BASE_CACHE_DIR)
+):
+    config["collection_dir"] = str(DEFAULT_COLLECTION_DIR)
+    config["base_cache_dir"] = str(BASE_CACHE_DIR)
+    save_config(config)
+
+# ---------------------------------------------------------------------
+# --- Progress persistence: Load & Save found parts CSV ---
+# ---------------------------------------------------------------------
+progress_file = CACHE_PROGRESS_DIR / "found_progress.csv"
+
+def load_progress():
+    if progress_file.exists():
+        try:
+            df = pd.read_csv(progress_file)
+            return {
+                (str(r["Part"]), str(r["Color"]), str(r["Location"])): int(r["Found"])
+                for _, r in df.iterrows()
+            }
+        except Exception as e:
+            st.warning(f"⚠️ Could not load found parts progress: {e}")
+    return {}
+
+def save_progress(found_counts_dict):
+    try:
+        rows = [
+            {"Part": part, "Color": color, "Location": location, "Found": found}
+            for (part, color, location), found in found_counts_dict.items()
+        ]
+        pd.DataFrame(rows).to_csv(progress_file, index=False)
+    except Exception as e:
+        st.warning(f"⚠️ Could not save progress: {e}")
+
+# Load persisted progress into session state
+if "found_counts" not in st.session_state:
+    st.session_state["found_counts"] = load_progress()
+
+# Helper to update progress and persist
+def update_progress(key, delta, max_value):
+    found_counts = st.session_state["found_counts"]
+    found = found_counts.get(key, 0)
+    found = max(0, min(found + delta, max_value))
+    found_counts[key] = found
+    st.session_state["found_counts"] = found_counts
+    save_progress(found_counts)
+
+# ---------------------------------------------------------------------
+# --- Directories for resources (colors.csv etc.)
+# ---------------------------------------------------------------------
 RESOURCES_DIR = Path("resources")
 
-DEFAULT_COLLECTION_DIR = Path("collection")
-DEFAULT_COLLECTION_DIR.mkdir(exist_ok=True)
-
 # ---------------------------------------------------------------------
-# --- File uploads and API key ---
+# --- File uploads ---
 # ---------------------------------------------------------------------
-st.markdown("## 🔑 Rebrickable API (for part images)")
-api_key = st.text_input("API Key (not needed for Brick Architect images)", type="password")
-
 st.markdown("## 📂 WANTED & COLLECTION Lists")
 
 # --- Search for CSV files in the directory ---
@@ -111,7 +226,7 @@ def get_part_image(part_num: str) -> str:
         return ""
     part_str = match.group(1)
     
-    local_path = CACHE_DIR / f"{part_str}.png"
+    local_path = CACHE_IMAGES_DIR / f"{part_str}.png"
 
     # Check if image is already cached
     if local_path.exists():
@@ -195,7 +310,7 @@ if wanted_files and collection_files:
     # --- Expandable previews ---
     with st.expander("🔍 Preview Wanted Parts (merged)"):
         st.dataframe(wanted.head(30), use_container_width=True)
-    with st.expander("📦 Preview Collection Parts (merged)"):
+    with st.expander("🔍 Preview Collection Parts (merged)"):
         st.dataframe(collection.head(30), use_container_width=True)
 
     # --- Merge by Part + Color ---
@@ -224,76 +339,72 @@ if wanted_files and collection_files:
         ]
 
     # -----------------------------------------------------------------
-    # --- Visual grouped display with collapsible sections ---
+    # --- Visual grouped display with collapsible sections (clean Streamlit style) ---
     # -----------------------------------------------------------------
     st.markdown("### 🧩 Parts Grouped by Location")
 
     if "found_counts" not in st.session_state:
         st.session_state["found_counts"] = {}
 
-    for location, group in merged.groupby("Location"):
-        with st.expander(f"📍 {location}", expanded=False):
-            for idx, row in group.iterrows():
-                bg = color_for_location(row["Location"])
-                key = (str(row["Part"]), str(row["Color"]), str(row["Location"]))
-                if key not in st.session_state["found_counts"]:
-                    st.session_state["found_counts"][key] = 0
+    for location, loc_group in merged.groupby("Location"):
+        with st.expander(f"📦 {location}", expanded=False):
 
-                found = st.session_state["found_counts"][key]
-                qty_wanted = int(row["Quantity_wanted"])
-                complete = found >= qty_wanted
+            for part_num, part_group in loc_group.groupby("Part"):
+                img_url = get_part_image(part_num)
 
-                cols = st.columns([1, 1.8, 2, 1.5, 1.8, 2])  # Added column for Found parts
+                # Layout: left = image + part ID, right = table of color variants
+                left_col, right_col = st.columns([1, 4])
 
-                # --- Part image ---
-                with cols[0]:
-                    img_url = get_part_image(row["Part"])
+                with left_col:
                     if img_url:
-                        st.image(img_url, width=80)
+                        st.image(img_url, width=100)
                     else:
                         st.markdown("🚫 No image")
+                    st.markdown(f"### **{part_num}**")
 
-                # --- Color cell ---
-                with cols[1]:
-                    st.markdown(render_color_cell(row["Color"]), unsafe_allow_html=True)
+                with right_col:
+                    header_cols = st.columns([2.5, 1, 1, 2])
+                    header_cols[0].markdown("**Color**")
+                    header_cols[1].markdown("**Wanted**")
+                    header_cols[2].markdown("**Available**")
+                    header_cols[3].markdown("**Found**")
 
-                # --- Part number ---
-                with cols[2]:
-                    st.markdown(f"**{row['Part']}**")
+                    for _, row in part_group.iterrows():
+                        color_html = render_color_cell(row["Color"])
+                        qty_wanted = int(row["Quantity_wanted"])
+                        qty_have = int(row["Quantity_have"])
+                        key = (str(row["Part"]), str(row["Color"]), str(row["Location"]))
 
-                # --- Wanted quantity + location ---
-                with cols[3]:
-                    st.markdown(f"**Wanted:** {qty_wanted}")
-                    st.markdown(
-                        f"<div style='background:{bg};padding:6px;border-radius:6px;text-align:center'>"
-                        f"📦 {row['Location']}</div>",
-                        unsafe_allow_html=True
-                    )
+                        if key not in st.session_state["found_counts"]:
+                            st.session_state["found_counts"][key] = 0
+                        found = st.session_state["found_counts"][key]
+                        complete = found >= qty_wanted
+                        check = "✅" if complete else ""
 
-                # --- Availability ---
-                with cols[4]:
-                    if row["Available"]:
-                        st.markdown(f"✅ {int(row['Quantity_have'])} available")
-                    else:
-                        st.markdown("❌ Not Found")
+                        have_display = f"✅ {qty_have}" if row["Available"] else "❌"
+                        found_display = f"✅ Found all ({found}/{qty_wanted})" if complete else f"**Found:** {found}/{qty_wanted}"
 
-                # --- Found parts counter (+ / - buttons) ---
-                with cols[5]:
-                    display = f"✅ Found all ({found}/{qty_wanted})" if complete else f"**Found:** {found}/{qty_wanted}"
-                    st.markdown(display)
-                    col_minus, col_plus = st.columns(2)
-                    with col_minus:
-                        if st.button("➖", key=f"minus_{idx}"):
-                            if found > 0:
-                                st.session_state["found_counts"][key] -= 1
-                                st.rerun()
-                    with col_plus:
-                        if st.button("➕", key=f"plus_{idx}"):
-                            if found < qty_wanted:
-                                st.session_state["found_counts"][key] += 1
-                                st.rerun()
+                        cols = st.columns([2.5, 1, 1, 2])
+                        with cols[0]:
+                            st.markdown(color_html, unsafe_allow_html=True)
+                        with cols[1]:
+                            st.markdown(f"{qty_wanted}")
+                        with cols[2]:
+                            st.markdown(have_display)
+                        with cols[3]:
+                            
+                            st.markdown(found_display, help="Found so far")
+                            bcols = st.columns([1, 1, 4])
+                            with bcols[0]:
+                                if st.button("➖", key=f"minus_btn_{location}_{part_num}_{row['Color']}", use_container_width=True):
+                                    update_progress(key, -1, qty_wanted)
+                                    st.rerun()
+                            with bcols[1]:
+                                if st.button("➕", key=f"plus_btn_{location}_{part_num}_{row['Color']}", use_container_width=True):
+                                    update_progress(key, +1, qty_wanted)
+                                    st.rerun()
 
-            st.divider()
+                st.markdown("---")
 
     # -----------------------------------------------------------------
     # --- Append found counts to merged DataFrame ---
@@ -322,19 +433,29 @@ if wanted_files and collection_files:
         100 * group_summary["found_parts"] / group_summary["total_wanted"]
     ).round(1)
 
-    # --- Progress bars per location ---
-    st.markdown("### 📈 Progress per Location")
-    for _, row in group_summary.iterrows():
-        loc = row["Location"]
-        pct = row["completion_%"]
-        st.markdown(f"**📍 {loc}** — {pct}% complete "
-                    f"({int(row['found_parts'])}/{int(row['total_wanted'])} parts found)")
-        st.progress(min(int(pct), 100))
-
-    # --- Table with summary per location ---
-    st.markdown("### 📊 Summary by Location (with Found parts)")
-    st.dataframe(group_summary, use_container_width=True)
-
+    # -----------------------------------------------------------------
+    # --- Display the summary table per location with progress bars ---
+    # -----------------------------------------------------------------
+    st.markdown("### 📈 Summary & Progress by Location")
+    
+    #st.dataframe(group_summary, use_container_width=True)
+    st.data_editor(
+        group_summary,
+        column_config={
+            "completion_%": st.column_config.ProgressColumn(
+                "completion_%",
+                help="Percentage of parts found vs wanted",
+                format="%d%%",
+                min_value=0,
+                max_value=100,
+            ),
+            "total_wanted": st.column_config.NumberColumn("total_wanted", min_value=0),
+            "found_parts": st.column_config.NumberColumn("found_parts", min_value=0),
+        },
+        use_container_width=True,
+        hide_index=True,
+    )
+    
     # -----------------------------------------------------------------
     # --- Export merged CSV including Found column ---
     # -----------------------------------------------------------------
