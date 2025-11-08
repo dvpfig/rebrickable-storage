@@ -1,5 +1,3 @@
-# RB_catalogue_v0_22.py
-
 import streamlit as st
 import pandas as pd
 import requests
@@ -9,6 +7,8 @@ import re
 import json
 import hashlib
 import time
+import os
+import sys
 
 # ---------------------------------------------------------------------
 # --- Page setup
@@ -17,20 +17,34 @@ st.set_page_config(page_title="Rebrickable Collection - Parts Finder", layout="w
 st.title("🧱 Rebrickable Collection - Parts Finder")
 
 # ---------------------------------------------------------------------
-# --- Paths & global dirs
+# --- Base path resolution (cross-platform)
 # ---------------------------------------------------------------------
-GLOBAL_CACHE_DIR = Path("cache")
-CACHE_IMAGES_DIR = GLOBAL_CACHE_DIR / "images"
+# Resolve root directory of the script
+try:
+    ROOT_DIR = Path(__file__).resolve().parent
+except NameError:
+    # Fallback if running interactively (e.g., streamlit run)
+    ROOT_DIR = Path(os.getcwd()).resolve()
 
-RESOURCES_DIR = Path("resources")
+# Define main folders relative to the script
+GLOBAL_CACHE_DIR = ROOT_DIR / "cache"
+CACHE_IMAGES_DIR = GLOBAL_CACHE_DIR / "images"
+RESOURCES_DIR = ROOT_DIR / "resources"
+DEFAULT_COLLECTION_DIR = ROOT_DIR / "collection"
+
+# Define main resource files
 MAPPING_PATH = RESOURCES_DIR / "part number - BA vs RB - filled.xlsx"
 COLORS_PATH = RESOURCES_DIR / "colors.csv"
 
-GLOBAL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-CACHE_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
-RESOURCES_DIR.mkdir(parents=True, exist_ok=True)
+# Ensure directories exist
+for d in [GLOBAL_CACHE_DIR, CACHE_IMAGES_DIR, RESOURCES_DIR, DEFAULT_COLLECTION_DIR]:
+    d.mkdir(parents=True, exist_ok=True)
 
-DEFAULT_COLLECTION_DIR = Path("collection")
+# Print environment info in logs (useful when deployed)
+print(f"Running on platform: {sys.platform}")
+print(f"Root dir: {ROOT_DIR}")
+print(f"Cache dir: {GLOBAL_CACHE_DIR}")
+print(f"Resources dir: {RESOURCES_DIR}")
 
 # ---------------------------------------------------------------------
 # --- Session-state initialization
@@ -140,18 +154,23 @@ def get_part_image_cached(identifier: str) -> str:
     """Return local path for identifier image; download once and cache on disk."""
     if not identifier:
         return ""
+    # check if png image with BA part nr exists
     local_png = CACHE_IMAGES_DIR / f"{identifier}.png"
     if local_png.exists():
         return str(local_png)
-    # attempt png
+    # fallback try jpg
+    local_jpg = CACHE_IMAGES_DIR / f"{identifier}.jpg"
+    if local_jpg.exists():
+        return str(local_jpg)
+        
+    # attempt to fetch image online, first png then jpg
     url = f"https://brickarchitect.com/content/parts-large/{identifier}.png"
     data = fetch_image_bytes(url)
     if data:
         with open(local_png, "wb") as f:
             f.write(data)
         return str(local_png)
-    # fallback try jpg
-    local_jpg = CACHE_IMAGES_DIR / f"{identifier}.jpg"
+    
     url_jpg = f"https://brickarchitect.com/content/parts-large/{identifier}.jpg"
     data = fetch_image_bytes(url_jpg)
     if data:
