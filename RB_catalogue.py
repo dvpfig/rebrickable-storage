@@ -23,6 +23,13 @@ st.title("🧱 Rebrickable Collection - Parts Finder")
 # ---------------------------------------------------------------------
 st.session_state["theme"] = "dark-enhanced"
 
+# Always apply dark CSS on load
+st.markdown("""
+    <script>
+    document.documentElement.setAttribute('data-theme', 'dark-enhanced');
+    </script>
+""", unsafe_allow_html=True)
+
 if st.session_state["theme"] == "dark-enhanced":
     st.markdown("""
         <style>
