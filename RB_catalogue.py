@@ -407,17 +407,18 @@ for f in selected_files:
 if uploaded_collection_files:
     collection_files_stream.extend(uploaded_collection_files)
 
-with col3:
-    st.markdown("### 🗂️ Restore previous found progress")
-    uploaded_locations_json = st.file_uploader("Upload locations_index.json", type=["json"], key="upload_locations_json")
-    if uploaded_locations_json:
-        try:
-            loaded = json.load(uploaded_locations_json)
-            if isinstance(loaded, dict):
-                st.session_state["locations_index"] = loaded
-                st.success("locations_index restored.")
-        except Exception as e:
-            st.error(f"Could not read JSON: {e}")
+## TEMPORARY SKIP PROGRESS RESTORE
+#with col3:
+#    st.markdown("### 🗂️ Restore previous found progress")
+#    uploaded_locations_json = st.file_uploader("Upload locations_index.json", type=["json"], key="upload_locations_json")
+#    if uploaded_locations_json:
+#        try:
+#            loaded = json.load(uploaded_locations_json)
+#            if isinstance(loaded, dict):
+#                st.session_state["locations_index"] = loaded
+#                st.success("locations_index restored.")
+#        except Exception as e:
+#            st.error(f"Could not read JSON: {e}")
 
 # ---------------------------------------------------------------------
 # --- Start Processing Button
@@ -633,13 +634,14 @@ if st.session_state.get("start_processing"):
     csv = merged.to_csv(index=False).encode("utf-8")
     st.download_button("💾 Download merged CSV", csv, "lego_wanted_with_location.csv")
 
-    if st.button("Download locations_index as JSON"):
-        st.download_button(
-            "Click to download locations_index.json",
-            json.dumps(st.session_state.get("locations_index", {}), indent=2),
-            "locations_index.json",
-            key="download_locations_json"
-        )
+## TEMPORARY SKIP PROGRESS RESTORE
+#    if st.button("Download locations_index as JSON"):
+#        st.download_button(
+#            "Click to download locations_index.json",
+#            json.dumps(st.session_state.get("locations_index", {}), indent=2),
+#            "locations_index.json",
+#            key="download_locations_json"
+#        )
 
     if st.session_state["mapping_warnings"]["missing_mappings"]:
         st.warning(f"Missing BA mapping for {len(st.session_state['mapping_warnings']['missing_mappings'])} parts.")
