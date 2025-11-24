@@ -385,7 +385,8 @@ def render_color_cell(color_id) -> str:
 # ---------------------------------------------------------------------
 # --- File upload section
 # ---------------------------------------------------------------------
-col1, col2, col3 = st.columns(3)
+#col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 with col1:
     st.markdown("### 🗂️ Wanted parts: Upload")
     wanted_files = st.file_uploader("Upload Wanted CSVs", type=["csv"], accept_multiple_files=True)
