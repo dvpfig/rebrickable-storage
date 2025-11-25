@@ -1,0 +1,12 @@
+streamlit
+pandas
+requests
+pathlib
+io
+re
+json
+haslib
+os
+sys
+shutil
+glob
