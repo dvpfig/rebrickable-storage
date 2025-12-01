@@ -6,15 +6,13 @@ from io import BytesIO
 import re
 import json
 import hashlib
-import time
-import os
-import sys
 
 # ---------------------------------------------------------------------
 # --- Local Libraries
 # ---------------------------------------------------------------------
 from ui.theme import apply_dark_theme
 from ui.layout import ensure_session_state_keys, short_key
+from ui.summary import render_summary_table
 from core.paths import init_paths
 from core.mapping import load_ba_mapping
 from core.preprocess import load_wanted_files, load_collection_files, merge_wanted_collection
@@ -265,24 +263,8 @@ if st.session_state.get("start_processing"):
     merged["Found"] = [found_map.get(k, 0) for k in keys_tuples]
     merged["Complete"] = merged["Found"] >= merged["Quantity_wanted"]
 
-    summary = merged.groupby("Location").agg(
-        parts_count=("Part", "count"),
-        found_parts=("Found", "sum"),
-        total_wanted=("Quantity_wanted", "sum"),
-    ).reset_index()
-    summary["completion_%"] = (100 * summary["found_parts"] / summary["total_wanted"]).round(1).fillna(0)
-
-    st.markdown("### 📈 Summary & Progress by Location")
-    st.data_editor(
-        summary,
-        column_config={
-            "completion_%": st.column_config.ProgressColumn(
-                "completion_%", format="%d%%", min_value=0, max_value=100
-            )
-        },
-        hide_index=True,
-        width='stretch'
-    )
+    # Render summary table
+    render_summary_table(merged)
 
     csv = merged.to_csv(index=False).encode("utf-8")
     st.download_button("💾 Download merged CSV", csv, "lego_wanted_with_location.csv")
