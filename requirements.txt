@@ -3,7 +3,3 @@ pandas
 requests
 openpyxl
 pathlib
-hashlib
-io
-re
-json
