@@ -1,6 +1,7 @@
 # ui/summary.py
 import streamlit as st
 
+
 def render_summary_table(merged_df):
     summary = merged_df.groupby("Location").agg(
         parts_count=("Part", "count"),

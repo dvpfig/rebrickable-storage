@@ -1,6 +1,8 @@
 # core/colors.py
 import pandas as pd
+from streamlit import cache_data
 
+@cache_data(show_spinner=False)
 def load_colors(colors_path):
     try:
         colors = pd.read_csv(colors_path)
@@ -16,6 +18,7 @@ def load_colors(colors_path):
     except Exception:
         return pd.DataFrame(columns=["id", "name", "rgb", "is_trans"])
 
+@cache_data(show_spinner=False)
 def build_color_lookup(colors_df):
     lookup = {}
     for _, r in colors_df.iterrows():
@@ -30,6 +33,7 @@ def build_color_lookup(colors_df):
         }
     return lookup
 
+@cache_data(show_spinner=False)
 def render_color_cell(color_id, color_lookup):
     try:
         cid = int(color_id)

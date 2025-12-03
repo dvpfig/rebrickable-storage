@@ -60,6 +60,7 @@ colors_df = load_colors(COLORS_PATH)
 color_lookup = build_color_lookup(colors_df)
 #st.session_state["color_lookup_index"] = color_lookup
 
+st.write("Status: Set up app completed. Loaded mappings of parts and colors!")
 
 # ---------------------------------------------------------------------
 # --- File upload section
@@ -126,7 +127,7 @@ if st.session_state.get("start_processing"):
             st.stop()
 
         st.session_state["collection_df"] = collection
-        st.write("Status: Loaded collection and wanted parts. Starting to precompute image locations.")
+        st.write("Status: Loaded collection and wanted parts.")
 
         def _df_bytes(df):
             return df.to_csv(index=False).encode('utf-8')
@@ -140,14 +141,20 @@ if st.session_state.get("start_processing"):
         merged = st.session_state["merged_df"]
         
         collection_bytes = _df_bytes(collection)
-        images_index = precompute_location_images(collection_bytes, st.session_state.get("ba_mapping", {}), CACHE_IMAGES_DIR)
+        
+    with st.spinner("Computing image locations..."):
+        ba_mapping = st.session_state.get("ba_mapping")
+        if st.session_state["ba_mapping"] is None:
+            st.error("Error: BA mapping not present!")
+    
+        images_index = precompute_location_images(collection_bytes, ba_mapping, CACHE_IMAGES_DIR)
         st.session_state["locations_index"] = images_index
         st.write("Status: Loaded image locations for parts.")
         
-        st.markdown("### 🧩 Parts Grouped by Location")
+    st.markdown("### 🧩 Parts Grouped by Location")
 
-        loc_summary = merged.groupby("Location").agg(parts_count=("Part", "count"), total_wanted=("Quantity_wanted", "sum")).reset_index()
-        loc_summary = loc_summary.sort_values("Location")
+    loc_summary = merged.groupby("Location").agg(parts_count=("Part", "count"), total_wanted=("Quantity_wanted", "sum")).reset_index()
+    loc_summary = loc_summary.sort_values("Location")
 
     for _, loc_row in loc_summary.iterrows():
         location = loc_row["Location"]

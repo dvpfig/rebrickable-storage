@@ -5,6 +5,7 @@ import requests
 from io import BytesIO
 from pathlib import Path
 from streamlit import cache_data
+#import streamlit as st
 
 @cache_data(show_spinner=False)
 def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict, cache_images_dir):
@@ -21,7 +22,7 @@ def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict
             if p:
                 imgs.append(p)
         out[location] = imgs
-        # Debug
+        #Debug
         #st.write(imgs)
     return out
     
@@ -41,38 +42,17 @@ def fetch_image_bytes(url: str):
 
 @cache_data(show_spinner=False)
 def get_cached_image(identifier: str, cache_dir: Path) -> str:
-    if not identifier:
-        return ""
     local_png = cache_dir / f"{identifier}.png"
-    local_jpg = cache_dir / f"{identifier}.jpg"
     if local_png.exists():
         return str(local_png)
+    
+    local_jpg = cache_dir / f"{identifier}.jpg"
     if local_jpg.exists():
         return str(local_jpg)
-    url = f"https://brickarchitect.com/content/parts-large/{identifier}.png"
-    data = fetch_image_bytes(url)
-    if data:
-        try:
-            with open(local_png, "wb") as f:
-                f.write(data)
-            return str(local_png)
-        except Exception:
-            return ""
+
     return ""
 
+#@cache_data(show_spinner=False)
 def resolve_part_image(part_num: str, ba_mapping: dict, cache_dir: Path) -> str:
-    if not part_num or str(part_num).strip().lower() in ["nan", "none", ""]:
-        return ""
-    part_original = str(part_num).strip()
-    cleaned = re.sub(r"pr\d+$", "", part_original, flags=re.IGNORECASE)
-    candidates = []
-    if ba_mapping:
-        mapped = ba_mapping.get(cleaned)
-        if mapped:
-            candidates.append(mapped)
-    candidates.append(cleaned)
-    for cid in candidates:
-        p = get_cached_image(cid, cache_dir)
-        if p:
-            return p
-    return ""
+    cleaned = re.sub(r"pr\d+$", "", part_num, flags=re.IGNORECASE)
+    return get_cached_image(ba_mapping.get(cleaned), cache_dir)

@@ -2,6 +2,7 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
+from streamlit import cache_data
 
 @st.cache_data(show_spinner=False)
 def read_ba_mapping_from_excel_bytes(excel_bytes: bytes) -> dict:
@@ -29,7 +30,7 @@ def read_ba_mapping_from_excel_bytes(excel_bytes: bytes) -> dict:
                 continue
             mapping[rv_str] = ba_val
     return mapping
-    
+
 
 def load_ba_mapping(mapping_path):
     if mapping_path.exists():

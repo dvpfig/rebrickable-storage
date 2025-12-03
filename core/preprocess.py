@@ -1,5 +1,6 @@
 # core/preprocess.py
 import pandas as pd
+from streamlit import cache_data
 
 def sanitize_and_validate(df, required, label):
     df.columns = df.columns.str.strip().str.title()
@@ -8,6 +9,7 @@ def sanitize_and_validate(df, required, label):
         raise ValueError(f"File {label} missing required columns: {', '.join(missing)}")
     return df
 
+@cache_data(show_spinner=False)
 def load_wanted_files(files):
     dfs = []
     for file in files:
@@ -17,6 +19,7 @@ def load_wanted_files(files):
         dfs.append(df)
     return pd.concat(dfs, ignore_index=True)
 
+@cache_data(show_spinner=False)
 def load_collection_files(files):
     dfs = []
     for file in files:
@@ -30,6 +33,7 @@ def load_collection_files(files):
         dfs.append(df)
     return pd.concat(dfs, ignore_index=True)
 
+@cache_data(show_spinner=False)
 def merge_wanted_collection(wanted, collection):
     merged = pd.merge(
         wanted,
