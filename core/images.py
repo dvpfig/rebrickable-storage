@@ -5,7 +5,7 @@ import requests
 from io import BytesIO
 from pathlib import Path
 from streamlit import cache_data
-#import streamlit as st
+import streamlit as st
 
 @cache_data(show_spinner=False)
 def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict, cache_images_dir):
@@ -45,11 +45,20 @@ def get_cached_image(identifier: str, cache_dir: Path) -> str:
     local_png = cache_dir / f"{identifier}.png"
     if local_png.exists():
         return str(local_png)
-    
+
+    url = f"https://brickarchitect.com/content/parts-large/{identifier}.png"
+    data = fetch_image_bytes(url)
+    if data:
+        try:
+            with open(local_png, "wb") as f:
+                f.write(data)
+            return str(local_png)
+        except Exception:
+            return ""
     local_jpg = cache_dir / f"{identifier}.jpg"
     if local_jpg.exists():
         return str(local_jpg)
-
+        
     return ""
 
 #@cache_data(show_spinner=False)
