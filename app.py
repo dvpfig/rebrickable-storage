@@ -13,16 +13,129 @@ import hashlib
 from ui.theme import apply_dark_theme
 from ui.layout import ensure_session_state_keys, short_key
 from ui.summary import render_summary_table
-from core.paths import init_paths
+from core.paths import init_paths, save_uploadedfiles, manage_default_collection
 from core.mapping import load_ba_mapping
 from core.preprocess import load_wanted_files, load_collection_files, merge_wanted_collection
 from core.images import precompute_location_images, resolve_part_image
 from core.colors import load_colors, build_color_lookup, render_color_cell
+from core.auth import AuthManager
 
 # ---------------------------------------------------------------------
 # --- Page setup
 # ---------------------------------------------------------------------
 st.set_page_config(page_title="Rebrickable Storage - Parts Finder", layout="wide")
+
+#st.title("🧱 Rebrickable Storage - Parts Finder")
+#st.markdown("### Welcome! Please login or register to continue.")
+
+# ---------------------------------------------------------------------
+# --- Authentication Setup (FULL PATCH)
+# ---------------------------------------------------------------------
+paths = init_paths()
+auth_config_path = paths.resources_dir / "auth_config.yaml"
+
+# Initialize AuthManager once
+if "auth_manager" not in st.session_state:
+    st.session_state.auth_manager = AuthManager(auth_config_path)
+
+auth_manager = st.session_state.auth_manager
+
+# -------------------------------------------------
+# 1) Attempt silent cookie login BEFORE any UI
+# -------------------------------------------------
+auth_manager.authenticator.login(
+    location="unrendered",
+    max_login_attempts=0   # suppress login form → cookie-only check
+)
+
+# -------------------------------------------------
+# 2) Read authentication state
+# -------------------------------------------------
+auth_status = st.session_state.get("authentication_status", None)
+name = st.session_state.get("name", None)
+username = st.session_state.get("username", None)
+
+# -------------------------------------------------
+# 3) Evaluate authentication result
+# -------------------------------------------------
+if auth_status is True:
+    # Authenticated via cookie or fresh login
+    pass
+
+elif auth_status is False:
+    # Wrong credentials
+    st.error("❌ Incorrect username or password.")
+    st.stop()
+
+else:
+    # -------------------------------------------------
+    # 4) No cookie → Show Login + Registration UI
+    # -------------------------------------------------
+    st.title("🧱 Rebrickable Storage - Parts Finder")
+    st.markdown("### Welcome! Please login or register to continue.")
+
+    tab1, tab2 = st.tabs(["Login", "Register"])
+
+    with tab1:
+        # Render login form (no return value needed)
+        auth_manager.authenticator.login(location="main")
+
+    with tab2:
+        auth_manager.register_user()
+
+    st.stop()
+
+# -------------------------------------------------
+# 5) Authenticated area
+# -------------------------------------------------
+if auth_status is True:
+    with st.sidebar:
+        display_name = st.session_state.get("name", username)
+        st.write(f"👤 Welcome, **{display_name}**!")
+
+        # Logout button
+        auth_manager.logout()
+
+        # Save progress
+        if st.button("💾 Save Progress"):
+            session_data = {
+                "found_counts": st.session_state.get("found_counts", {}),
+                "locations_index": st.session_state.get("locations_index", {})
+            }
+            auth_manager.save_user_session(username, session_data, paths.user_data_dir)
+            st.success("Progress saved!")
+
+        # Load progress
+        if st.button("📂 Load Progress"):
+            saved_data = auth_manager.load_user_session(username, paths.user_data_dir)
+            if saved_data:
+                st.session_state["found_counts"] = saved_data.get("found_counts", {})
+                st.session_state["locations_index"] = saved_data.get("locations_index", {})
+                st.success("Progress loaded!")
+                st.rerun()
+            else:
+                st.info("No saved progress found.")
+
+        # Change password
+        with st.expander("🔐 Change Password"):
+            auth_manager.reset_password()
+
+        # Collection default folder
+        with st.expander("🗂️ Collection default"):
+            # Will only execute if authenticated → username not None
+            user_collection_dir = paths.user_data_dir / username / "collection"
+            user_collection_dir.mkdir(parents=True, exist_ok=True)
+
+            uploaded_files_list = st.file_uploader(
+                "Upload Collection CSVs",
+                type=["csv"],
+                accept_multiple_files=True
+            )
+            save_uploadedfiles(uploaded_files_list, user_collection_dir)
+            st.write("Current default collection files:")
+            manage_default_collection(user_collection_dir)
+
+
 
 # APPLY THEME
 st.session_state["theme"] = "dark-enhanced"
@@ -40,11 +153,9 @@ if st.session_state["theme"] == "dark-enhanced":
 st.title("🧱 Rebrickable Storage - Parts Finder")
 
 # --- Base path resolution (cross-platform)
-paths = init_paths()
-
 CACHE_IMAGES_DIR = paths.cache_images
 RESOURCES_DIR = paths.resources_dir
-DEFAULT_COLLECTION_DIR = paths.default_collection_dir
+DEFAULT_COLLECTION_DIR = paths.default_collection_dir  # Common collection directory
 MAPPING_PATH = paths.mapping_path
 COLORS_PATH = paths.colors_path
 
@@ -52,8 +163,10 @@ COLORS_PATH = paths.colors_path
 ensure_session_state_keys()
 
 # --- Mapping file
-if st.session_state["ba_mapping"] is None:
-    load_ba_mapping(MAPPING_PATH)
+ba_mapping = load_ba_mapping(MAPPING_PATH)
+
+#if st.session_state["ba_mapping"] is None:
+#    load_ba_mapping(MAPPING_PATH)
 
 # --- Color Lookup
 colors_df = load_colors(COLORS_PATH)
@@ -73,7 +186,7 @@ with col1:
 
 with col2:
     st.markdown("### 🗂️ Collection: Pre-selected Files")
-    default_collection_files = sorted(DEFAULT_COLLECTION_DIR.glob("*.csv"))
+    default_collection_files = sorted(user_collection_dir.glob("*.csv"))
     selected_files = []
     if default_collection_files:
         for csv_file in default_collection_files:
@@ -87,19 +200,6 @@ for f in selected_files:
     collection_files_stream.append(open(f, "rb"))
 if uploaded_collection_files:
     collection_files_stream.extend(uploaded_collection_files)
-
-## TEMPORARY SKIP PROGRESS RESTORE
-#with col3:
-#    st.markdown("### 🗂️ Restore previous found progress")
-#    uploaded_locations_json = st.file_uploader("Upload locations_index.json", type=["json"], key="upload_locations_json")
-#    if uploaded_locations_json:
-#        try:
-#            loaded = json.load(uploaded_locations_json)
-#            if isinstance(loaded, dict):
-#                st.session_state["locations_index"] = loaded
-#                st.success("locations_index restored.")
-#        except Exception as e:
-#            st.error(f"Could not read JSON: {e}")
 
 # ---------------------------------------------------------------------
 # --- Start Processing Button
@@ -143,9 +243,10 @@ if st.session_state.get("start_processing"):
         collection_bytes = _df_bytes(collection)
         
     with st.spinner("Computing image locations..."):
-        ba_mapping = st.session_state.get("ba_mapping")
-        if st.session_state["ba_mapping"] is None:
-            st.error("Error: BA mapping not present!")
+        #ba_mapping = load_ba_mapping(MAPPING_PATH)
+        #ba_mapping = st.session_state.get("ba_mapping")
+        #if st.session_state["ba_mapping"] is None:
+        #    st.error("Error: BA mapping not present!")
     
         images_index = precompute_location_images(collection_bytes, ba_mapping, CACHE_IMAGES_DIR)
         st.session_state["locations_index"] = images_index
@@ -202,7 +303,8 @@ if st.session_state.get("start_processing"):
         loc_group = merged.loc[merged["Location"] == location]
 
         for part_num, part_group in loc_group.groupby("Part"):
-            img_url = resolve_part_image(part_num, st.session_state.get("ba_mapping", {}), CACHE_IMAGES_DIR)
+            img_url = resolve_part_image(part_num, ba_mapping, CACHE_IMAGES_DIR)
+            #img_url = resolve_part_image(part_num, st.session_state.get("ba_mapping", {}), CACHE_IMAGES_DIR)
             left, right = st.columns([1, 4])
             with left:
                 if img_url:
@@ -275,19 +377,5 @@ if st.session_state.get("start_processing"):
 
     csv = merged.to_csv(index=False).encode("utf-8")
     st.download_button("💾 Download merged CSV", csv, "lego_wanted_with_location.csv")
-
-## TEMPORARY SKIP PROGRESS RESTORE
-#    if st.button("Download locations_index as JSON"):
-#        st.download_button(
-#            "Click to download locations_index.json",
-#            json.dumps(st.session_state.get("locations_index", {}), indent=2),
-#            "locations_index.json",
-#            key="download_locations_json"
-#        )
-
-    if st.session_state["mapping_warnings"]["missing_mappings"]:
-        st.warning(f"Missing BA mapping for {len(st.session_state['mapping_warnings']['missing_mappings'])} parts.")
-    if st.session_state["mapping_warnings"]["missing_images"]:
-        st.info(f"No BrickArchitect image found for {len(st.session_state['mapping_warnings']['missing_images'])} parts.")
 
 st.caption("Powered by BrickArchitect & Rebrickable • Made with ❤️ and Streamlit")

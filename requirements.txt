@@ -3,3 +3,6 @@ pandas
 requests
 openpyxl
 pathlib
+streamlit-authenticator
+pyyaml
+bcrypt

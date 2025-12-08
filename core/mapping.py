@@ -31,12 +31,21 @@ def read_ba_mapping_from_excel_bytes(excel_bytes: bytes) -> dict:
             mapping[rv_str] = ba_val
     return mapping
 
-
+@st.cache_data(show_spinner=False)
 def load_ba_mapping(mapping_path):
     if mapping_path.exists():
         with open(mapping_path, "rb") as f:
-            st.session_state["ba_mapping"] = read_ba_mapping_from_excel_bytes(f.read())
-            return st.session_state["ba_mapping"]
-    else:
-        st.session_state["ba_mapping"] = {}
+            return read_ba_mapping_from_excel_bytes(f.read())
+
     return {}
+    
+
+    
+#def load_ba_mapping(mapping_path):
+#    if mapping_path.exists():
+#        with open(mapping_path, "rb") as f:
+#            st.session_state["ba_mapping"] = read_ba_mapping_from_excel_bytes(f.read())
+##            return st.session_state["ba_mapping"]
+#    else:
+#        st.session_state["ba_mapping"] = {}
+#    return {}
