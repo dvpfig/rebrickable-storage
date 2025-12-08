@@ -39,4 +39,4 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: dvpfig/rebrickable-storage:$latest
+          tags: dvpfig/rebrickable-storage:latest
