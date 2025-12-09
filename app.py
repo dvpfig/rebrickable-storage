@@ -19,14 +19,13 @@ from core.preprocess import load_wanted_files, load_collection_files, merge_want
 from core.images import precompute_location_images, resolve_part_image
 from core.colors import load_colors, build_color_lookup, render_color_cell
 from core.auth import AuthManager
+from core.labels import organize_labels_by_location
 
 # ---------------------------------------------------------------------
 # --- Page setup
 # ---------------------------------------------------------------------
 st.set_page_config(page_title="Rebrickable Storage - Parts Finder", layout="wide")
-
-#st.title("🧱 Rebrickable Storage - Parts Finder")
-#st.markdown("### Welcome! Please login or register to continue.")
+st.title("🧱 Rebrickable Storage - Parts Finder")
 
 # ---------------------------------------------------------------------
 # --- Authentication Setup (FULL PATCH)
@@ -40,24 +39,18 @@ if "auth_manager" not in st.session_state:
 
 auth_manager = st.session_state.auth_manager
 
-# -------------------------------------------------
-# 1) Attempt silent cookie login BEFORE any UI
-# -------------------------------------------------
+# Attempt silent cookie login BEFORE any UI
 auth_manager.authenticator.login(
     location="unrendered",
     max_login_attempts=0   # suppress login form → cookie-only check
 )
 
-# -------------------------------------------------
-# 2) Read authentication state
-# -------------------------------------------------
+# Read authentication state
 auth_status = st.session_state.get("authentication_status", None)
 name = st.session_state.get("name", None)
 username = st.session_state.get("username", None)
 
-# -------------------------------------------------
-# 3) Evaluate authentication result
-# -------------------------------------------------
+# Evaluate authentication result
 if auth_status is True:
     # Authenticated via cookie or fresh login
     pass
@@ -68,18 +61,13 @@ elif auth_status is False:
     st.stop()
 
 else:
-    # -------------------------------------------------
-    # 4) No cookie → Show Login + Registration UI
-    # -------------------------------------------------
-    st.title("🧱 Rebrickable Storage - Parts Finder")
+    # No cookie → Show Login + Registration UI
     st.markdown("### Welcome! Please login or register to continue.")
 
     tab1, tab2 = st.tabs(["Login", "Register"])
-
     with tab1:
         # Render login form (no return value needed)
         auth_manager.authenticator.login(location="main")
-
     with tab2:
         auth_manager.register_user()
 
@@ -89,6 +77,10 @@ else:
 # 5) Authenticated area
 # -------------------------------------------------
 if auth_status is True:
+    # Define user collection directory for use throughout the app
+    user_collection_dir = paths.user_data_dir / username / "collection"
+    user_collection_dir.mkdir(parents=True, exist_ok=True)
+    
     with st.sidebar:
         display_name = st.session_state.get("name", username)
         st.write(f"👤 Welcome, **{display_name}**!")
@@ -123,9 +115,6 @@ if auth_status is True:
         # Collection default folder
         with st.expander("🗂️ Collection default"):
             # Will only execute if authenticated → username not None
-            user_collection_dir = paths.user_data_dir / username / "collection"
-            user_collection_dir.mkdir(parents=True, exist_ok=True)
-
             uploaded_files_list = st.file_uploader(
                 "Upload Collection CSVs",
                 type=["csv"],
@@ -134,7 +123,6 @@ if auth_status is True:
             save_uploadedfiles(uploaded_files_list, user_collection_dir)
             st.write("Current default collection files:")
             manage_default_collection(user_collection_dir)
-
 
 
 # APPLY THEME
@@ -149,11 +137,9 @@ st.markdown("""
 if st.session_state["theme"] == "dark-enhanced":
     apply_dark_theme()
 
-# Set Title
-st.title("🧱 Rebrickable Storage - Parts Finder")
-
 # --- Base path resolution (cross-platform)
 CACHE_IMAGES_DIR = paths.cache_images
+CACHE_LABELS_DIR = paths.cache_labels
 RESOURCES_DIR = paths.resources_dir
 DEFAULT_COLLECTION_DIR = paths.default_collection_dir  # Common collection directory
 MAPPING_PATH = paths.mapping_path
@@ -165,9 +151,6 @@ ensure_session_state_keys()
 # --- Mapping file
 ba_mapping = load_ba_mapping(MAPPING_PATH)
 
-#if st.session_state["ba_mapping"] is None:
-#    load_ba_mapping(MAPPING_PATH)
-
 # --- Color Lookup
 colors_df = load_colors(COLORS_PATH)
 color_lookup = build_color_lookup(colors_df)
@@ -178,7 +161,6 @@ st.write("Status: Set up app completed. Loaded mappings of parts and colors!")
 # ---------------------------------------------------------------------
 # --- File upload section
 # ---------------------------------------------------------------------
-#col1, col2, col3 = st.columns(3)
 col1, col2 = st.columns(2)
 with col1:
     st.markdown("### 🗂️ Wanted parts: Upload")
@@ -196,29 +178,119 @@ with col2:
     uploaded_collection_files = st.file_uploader("Upload Collection CSVs", type=["csv"], accept_multiple_files=True)
 
 collection_files_stream = []
+collection_file_paths = []
+
+# Add selected files from default collection
 for f in selected_files:
-    collection_files_stream.append(open(f, "rb"))
+    collection_file_paths.append(f)
+    # Open file handle for streamlit processing
+    file_handle = open(f, "rb")
+    collection_files_stream.append(file_handle)
+
+# Add uploaded files
 if uploaded_collection_files:
     collection_files_stream.extend(uploaded_collection_files)
+    # Store paths for uploaded files (they're in memory, so we'll handle differently)
+    for uploaded_file in uploaded_collection_files:
+        collection_file_paths.append(uploaded_file)
+
+st.markdown("---")
+col1, col2 = st.columns(2)
+with col1:
+    # ---------------------------------------------------------------------
+    # --- Start Wanted Parts Processing Button
+    # ---------------------------------------------------------------------
+    if wanted_files and collection_files_stream:
+        st.markdown("### ▶️ Find wanted parts in collection")
+        st.markdown("Process the wanted parts and collection lists, create a table with wanted parts per location in collection.")
+        if st.button("🚀 Start generating pickup list"):
+            st.session_state["start_processing"] = True
+    else:
+        st.info("📤 Upload at least one Wanted and one Collection file to begin.")
+        st.session_state["start_processing"] = False
+
+with col2:
+    # ---------------------------------------------------------------------
+    # --- Labels Organization Section
+    # ---------------------------------------------------------------------
+    if collection_files_stream:
+        st.markdown("### 🏷️ Generate Labels by Location")
+        st.markdown("Create a downloadable zip file with label images organized by location from your collection files.")
+        
+        if st.button("📦 Generate Labels Zip File", key="generate_labels"):
+            with st.spinner("Organizing labels by location..."):
+                try:
+                    # Prepare collection files for labels generation
+                    # Reset file handles to beginning if they're file objects
+                    labels_collection_stream = []
+                    for f in collection_files_stream:
+                        if hasattr(f, 'seek'):
+                            f.seek(0)
+                        labels_collection_stream.append(f)
+                    
+                    # Load collection files for labels generation
+                    collection_for_labels = load_collection_files(labels_collection_stream)
+                    
+                    # Generate labels zip
+                    zip_bytes, stats = organize_labels_by_location(
+                        collection_for_labels,
+                        ba_mapping,
+                        CACHE_LABELS_DIR
+                    )
+                    
+                    if zip_bytes and stats['locations_count'] > 0:
+                        st.success(f"✅ Successfully generated labels zip file!")
+                        st.info(
+                            f"**Statistics:**\n"
+                            f"- Locations: {stats['locations_count']}\n"
+                            f"- Parts processed: {stats['total_parts_processed']}\n"
+                            f"- Labels copied: {stats['files_copied_count']}\n"
+                            f"- Missing labels: {stats['missing_labels_count']}"
+                        )
+                        
+                        if stats['missing_labels_count'] > 0:
+                            with st.expander("⚠️ View missing labels"):
+                                missing_list = stats['missing_labels_list']
+                                st.text("\n".join(missing_list))
+                                if stats['missing_labels_count'] > 20:
+                                    st.text(f"... and {stats['missing_labels_count'] - 20} more")
+                        
+                        # Store zip bytes in session state for download
+                        st.session_state["labels_zip_bytes"] = zip_bytes
+                        st.session_state["labels_zip_filename"] = f"labels_by_location_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.zip"
+                        
+                        st.rerun()
+                    else:
+                        if stats['locations_count'] == 0:
+                            st.warning("No locations found in collection files. Please ensure your collection files contain 'Location' column with valid location names.")
+                        else:
+                            st.error("Failed to generate zip file. Please check that collection files contain valid data.")
+                except Exception as e:
+                    st.error(f"Error generating labels: {e}")
+                    import traceback
+                    st.code(traceback.format_exc())
+        
+        # Display download button if zip file is ready
+        if st.session_state.get("labels_zip_bytes"):
+            st.download_button(
+                "⬇️ Download Labels Zip File",
+                st.session_state["labels_zip_bytes"],
+                st.session_state.get("labels_zip_filename", "labels_by_location.zip"),
+                mime="application/zip",
+                key="download_labels_zip"
+            )
+            if st.button("🗑️ Clear Labels Zip", key="clear_labels_zip"):
+                st.session_state.pop("labels_zip_bytes", None)
+                st.session_state.pop("labels_zip_filename", None)
+                st.rerun()
+
 
 # ---------------------------------------------------------------------
-# --- Start Processing Button
-# ---------------------------------------------------------------------
-if wanted_files and collection_files_stream:
-    st.markdown("### ▶️ Ready to process")
-    if st.button("🚀 Start generating pickup list"):
-        st.session_state["start_processing"] = True
-else:
-    st.info("📤 Upload at least one Wanted and one Collection file to begin.")
-    st.session_state["start_processing"] = False
-
-# ---------------------------------------------------------------------
-# --- MAIN PROCESSING LOGIC
+# --- MAIN WANTED PARTS PROCESSING LOGIC
 # ---------------------------------------------------------------------
 if st.session_state.get("start_processing"):
 
-    with st.spinner("Processing Collection & Wanted parts..."):   
-        
+    with st.spinner("Processing Collection & Wanted parts..."):       
         try:
             wanted = load_wanted_files(wanted_files)
             collection = load_collection_files(collection_files_stream)
@@ -243,11 +315,6 @@ if st.session_state.get("start_processing"):
         collection_bytes = _df_bytes(collection)
         
     with st.spinner("Computing image locations..."):
-        #ba_mapping = load_ba_mapping(MAPPING_PATH)
-        #ba_mapping = st.session_state.get("ba_mapping")
-        #if st.session_state["ba_mapping"] is None:
-        #    st.error("Error: BA mapping not present!")
-    
         images_index = precompute_location_images(collection_bytes, ba_mapping, CACHE_IMAGES_DIR)
         st.session_state["locations_index"] = images_index
         st.write("Status: Loaded image locations for parts.")
@@ -272,11 +339,9 @@ if st.session_state.get("start_processing"):
         """, unsafe_allow_html=True)
 
         colA, colB = st.columns([1, 1])
-
         with colA:
             if st.button("Open ▼", key=short_key("open", location), help="Show this location", use_container_width=False):
                 st.session_state["expanded_loc"] = location
-
         with colB:
             if st.button("Close ▶", key=short_key("close", location), help="Hide this location", use_container_width=False):
                 if st.session_state.get("expanded_loc") == location:
