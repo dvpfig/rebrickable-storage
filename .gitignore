@@ -44,15 +44,13 @@ Thumbs.db
 *.cache
 
 # Test files
-test_auth_config.yaml
-test_user_data/
-test_*.py
+test_files/
 
 # Environment variables
 .env
 .env.local
 
 # Plans for coding
-plans/
+#plans/
 
 # User data
