@@ -10,7 +10,7 @@ import hashlib
 # ---------------------------------------------------------------------
 # --- Local Libraries
 # ---------------------------------------------------------------------
-from ui.theme import apply_dark_theme
+from ui.theme import apply_dark_theme, apply_light_theme
 from ui.layout import ensure_session_state_keys, short_key
 from ui.summary import render_summary_table
 from core.paths import init_paths, save_uploadedfiles, manage_default_collection
@@ -26,6 +26,28 @@ from core.labels import organize_labels_by_location, generate_collection_labels_
 # ---------------------------------------------------------------------
 st.set_page_config(page_title="Rebrickable Storage - Parts Finder", layout="wide")
 st.title("🧱 Rebrickable Storage - Parts Finder")
+
+# ---------------------------------------------------------------------
+# --- Theme Toggle (at the top, visible to all users)
+# ---------------------------------------------------------------------
+# Initialize theme in session state (default to dark)
+if "theme" not in st.session_state:
+    st.session_state["theme"] = "dark"
+
+# Theme toggle switch at the top
+col_theme_left, col_theme_right = st.columns([10, 1])
+with col_theme_right:
+    theme_icon = "🌙" if st.session_state["theme"] == "dark" else "☀️"
+    theme_label = "Dark" if st.session_state["theme"] == "dark" else "Light"
+    if st.button(f"{theme_icon} {theme_label}", key="theme_toggle", help="Toggle between dark and light theme"):
+        st.session_state["theme"] = "light" if st.session_state["theme"] == "dark" else "dark"
+        st.rerun()
+
+# Apply theme based on session state (applies to entire app including login)
+if st.session_state["theme"] == "dark":
+    apply_dark_theme()
+else:
+    apply_light_theme()
 
 # ---------------------------------------------------------------------
 # --- Authentication Setup
@@ -121,19 +143,6 @@ if auth_status is True:
             save_uploadedfiles(uploaded_files_list, user_collection_dir)
             st.write("Current default collection files:")
             manage_default_collection(user_collection_dir)
-
-
-# APPLY THEME
-st.session_state["theme"] = "dark-enhanced"
-# Always apply dark CSS on load
-st.markdown("""
-    <script>
-    document.documentElement.setAttribute('data-theme', 'dark-enhanced');
-    </script>
-""", unsafe_allow_html=True)
-
-if st.session_state["theme"] == "dark-enhanced":
-    apply_dark_theme()
 
 # --- Base path resolution (cross-platform)
 CACHE_IMAGES_DIR = paths.cache_images
