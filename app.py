@@ -19,7 +19,7 @@ from core.preprocess import load_wanted_files, load_collection_files, merge_want
 from core.images import precompute_location_images, resolve_part_image
 from core.colors import load_colors, build_color_lookup, render_color_cell
 from core.auth import AuthManager
-from core.labels import organize_labels_by_location
+from core.labels import organize_labels_by_location, generate_collection_labels_zip
 
 # ---------------------------------------------------------------------
 # --- Page setup
@@ -28,7 +28,7 @@ st.set_page_config(page_title="Rebrickable Storage - Parts Finder", layout="wide
 st.title("🧱 Rebrickable Storage - Parts Finder")
 
 # ---------------------------------------------------------------------
-# --- Authentication Setup (FULL PATCH)
+# --- Authentication Setup
 # ---------------------------------------------------------------------
 paths = init_paths()
 auth_config_path = paths.resources_dir / "auth_config.yaml"
@@ -54,12 +54,10 @@ username = st.session_state.get("username", None)
 if auth_status is True:
     # Authenticated via cookie or fresh login
     pass
-
 elif auth_status is False:
     # Wrong credentials
     st.error("❌ Incorrect username or password.")
     st.stop()
-
 else:
     # No cookie → Show Login + Registration UI
     st.markdown("### Welcome! Please login or register to continue.")
@@ -195,6 +193,9 @@ if uploaded_collection_files:
         collection_file_paths.append(uploaded_file)
 
 st.markdown("---")
+# ---------------------------------------------------------------------
+# --- ACTIONS Section
+# ---------------------------------------------------------------------
 col1, col2 = st.columns(2)
 with col1:
     # ---------------------------------------------------------------------
@@ -218,58 +219,7 @@ with col2:
         st.markdown("Create a downloadable zip file with label images organized by location from your collection files.")
         
         if st.button("📦 Generate Labels Zip File", key="generate_labels"):
-            with st.spinner("Organizing labels by location..."):
-                try:
-                    # Prepare collection files for labels generation
-                    # Reset file handles to beginning if they're file objects
-                    labels_collection_stream = []
-                    for f in collection_files_stream:
-                        if hasattr(f, 'seek'):
-                            f.seek(0)
-                        labels_collection_stream.append(f)
-                    
-                    # Load collection files for labels generation
-                    collection_for_labels = load_collection_files(labels_collection_stream)
-                    
-                    # Generate labels zip
-                    zip_bytes, stats = organize_labels_by_location(
-                        collection_for_labels,
-                        ba_mapping,
-                        CACHE_LABELS_DIR
-                    )
-                    
-                    if zip_bytes and stats['locations_count'] > 0:
-                        st.success(f"✅ Successfully generated labels zip file!")
-                        st.info(
-                            f"**Statistics:**\n"
-                            f"- Locations: {stats['locations_count']}\n"
-                            f"- Parts processed: {stats['total_parts_processed']}\n"
-                            f"- Labels copied: {stats['files_copied_count']}\n"
-                            f"- Missing labels: {stats['missing_labels_count']}"
-                        )
-                        
-                        if stats['missing_labels_count'] > 0:
-                            with st.expander("⚠️ View missing labels"):
-                                missing_list = stats['missing_labels_list']
-                                st.text("\n".join(missing_list))
-                                if stats['missing_labels_count'] > 20:
-                                    st.text(f"... and {stats['missing_labels_count'] - 20} more")
-                        
-                        # Store zip bytes in session state for download
-                        st.session_state["labels_zip_bytes"] = zip_bytes
-                        st.session_state["labels_zip_filename"] = f"labels_by_location_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.zip"
-                        
-                        st.rerun()
-                    else:
-                        if stats['locations_count'] == 0:
-                            st.warning("No locations found in collection files. Please ensure your collection files contain 'Location' column with valid location names.")
-                        else:
-                            st.error("Failed to generate zip file. Please check that collection files contain valid data.")
-                except Exception as e:
-                    st.error(f"Error generating labels: {e}")
-                    import traceback
-                    st.code(traceback.format_exc())
-        
+            generate_collection_labels_zip(collection_files_stream, ba_mapping, CACHE_LABELS_DIR)
         # Display download button if zip file is ready
         if st.session_state.get("labels_zip_bytes"):
             st.download_button(
@@ -283,6 +233,8 @@ with col2:
                 st.session_state.pop("labels_zip_bytes", None)
                 st.session_state.pop("labels_zip_filename", None)
                 st.rerun()
+    else:
+        st.info("📤 Upload at least one Collection file to begin.")
 
 
 # ---------------------------------------------------------------------

@@ -14,8 +14,8 @@ class Paths:
         self.cache_images = self.global_cache_dir / "images"
         self.cache_labels = self.global_cache_dir / "labels"
         self.resources_dir = self.root / "resources"
-        self.default_collection_dir = self.root / "collection"
         self.user_data_dir = self.root / "user_data"
+        self.default_collection_dir = self.resources_dir / "collection"
 
         self.mapping_path = self.resources_dir / "part number - BA vs RB - 2025-11-11.xlsx"
         self.colors_path = self.resources_dir / "colors.csv"

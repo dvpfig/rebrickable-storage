@@ -1,4 +1,5 @@
 # core/labels.py
+import streamlit as st
 import os
 import shutil
 import pandas as pd
@@ -8,6 +9,8 @@ import zipfile
 from pathlib import Path
 from typing import Tuple
 from io import BytesIO
+
+from core.preprocess import load_collection_files
 
 def organize_labels_by_location(
     collection_df: pd.DataFrame,
@@ -106,4 +109,63 @@ def organize_labels_by_location(
         }
         
         return zip_bytes, stats
+
+
+def generate_collection_labels_zip(
+    collection_files_stream,
+    ba_mapping: dict,
+    labels_source_dir: Path
+):
+
+    with st.spinner("Organizing labels by location..."):
+        try:
+            # Prepare collection files for labels generation
+            # Reset file handles to beginning if they're file objects
+            labels_collection_stream = []
+            for f in collection_files_stream:
+                if hasattr(f, 'seek'):
+                    f.seek(0)
+                labels_collection_stream.append(f)
+            
+            # Load collection files for labels generation
+            collection_for_labels = load_collection_files(labels_collection_stream)
+            
+            # Generate labels zip
+            zip_bytes, stats = organize_labels_by_location(
+                collection_for_labels,
+                ba_mapping,
+                labels_source_dir
+            )
+            
+            if zip_bytes and stats['locations_count'] > 0:
+                st.success(f"✅ Successfully generated labels zip file!")
+                st.info(
+                    f"**Statistics:**\n"
+                    f"- Locations: {stats['locations_count']}\n"
+                    f"- Parts processed: {stats['total_parts_processed']}\n"
+                    f"- Labels copied: {stats['files_copied_count']}\n"
+                    f"- Missing labels: {stats['missing_labels_count']}"
+                )
+                
+                if stats['missing_labels_count'] > 0:
+                    with st.expander("⚠️ View missing labels"):
+                        missing_list = stats['missing_labels_list']
+                        st.text("\n".join(missing_list))
+                        if stats['missing_labels_count'] > 20:
+                            st.text(f"... and {stats['missing_labels_count'] - 20} more")
+                
+                # Store zip bytes in session state for download
+                st.session_state["labels_zip_bytes"] = zip_bytes
+                st.session_state["labels_zip_filename"] = f"labels_by_location_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.zip"
+                
+                st.rerun()
+            else:
+                if stats['locations_count'] == 0:
+                    st.warning("No locations found in collection files. Please ensure your collection files contain 'Location' column with valid location names.")
+                else:
+                    st.error("Failed to generate zip file. Please check that collection files contain valid data.")
+        except Exception as e:
+            st.error(f"Error generating labels: {e}")
+            import traceback
+            st.code(traceback.format_exc())
 
