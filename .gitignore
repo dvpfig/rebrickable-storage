@@ -1,5 +1,5 @@
 # User-specific data
-user_data/
+#user_data/
 resources/auth_config.yaml
 
 # Python
@@ -51,6 +51,6 @@ test_files/
 .env.local
 
 # Plans for coding
-#plans/
+plans/
 
 # User data
