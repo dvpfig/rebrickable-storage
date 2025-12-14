@@ -8,5 +8,19 @@ credentials:
       email: demo@example.com
       name: Demo User
       password: $2b$12$WC83L4IE8NYWRdB/Mdzvi.VeXh/AhIlYjfOzJbwRA4aXm3QTVzsrm
+    dvpfig@pm.me:
+      email: dvpfig@pm.me
+      first_name: dan
+      last_name: dvpfig
+      logged_in: false
+      password: $2b$12$XgS6USdJAnXCARV5NUYUveihg1wkm7yQsk9dXT9iCanloIs41JId2
+      roles: null
+    dvpfig@protonmail.com:
+      email: dvpfig@protonmail.com
+      first_name: Daniel
+      last_name: Figueiredo
+      logged_in: false
+      password: $2b$12$36GrwgnZyHSkf3SZOSM8AOmwrpvDMFfK9N3KYy1LLzpA7FCLhhFSO
+      roles: null
 preauthorized:
   emails: []

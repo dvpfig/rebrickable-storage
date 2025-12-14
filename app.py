@@ -161,7 +161,6 @@ ba_mapping = load_ba_mapping(MAPPING_PATH)
 # --- Color Lookup
 colors_df = load_colors(COLORS_PATH)
 color_lookup = build_color_lookup(colors_df)
-#st.session_state["color_lookup_index"] = color_lookup
 
 st.write("Status: Set up app completed. Loaded mappings of parts and colors!")
 
@@ -202,6 +201,7 @@ if uploaded_collection_files:
         collection_file_paths.append(uploaded_file)
 
 st.markdown("---")
+
 # ---------------------------------------------------------------------
 # --- ACTIONS Section
 # ---------------------------------------------------------------------
@@ -209,7 +209,6 @@ col1, col2 = st.columns(2)
 with col1:
     # ---------------------------------------------------------------------
     # --- Start Wanted Parts Processing Button
-    # ---------------------------------------------------------------------
     if wanted_files and collection_files_stream:
         st.markdown("### ▶️ Find wanted parts in collection")
         st.markdown("Process the wanted parts and collection lists, create a table with wanted parts per location in collection.")
@@ -222,7 +221,6 @@ with col1:
 with col2:
     # ---------------------------------------------------------------------
     # --- Labels Organization Section
-    # ---------------------------------------------------------------------
     if collection_files_stream:
         st.markdown("### 🏷️ Generate Labels by Location")
         st.markdown("Create a downloadable zip file with label images organized by location from your collection files.")
@@ -251,6 +249,8 @@ with col2:
 # ---------------------------------------------------------------------
 if st.session_state.get("start_processing"):
 
+    # ---------------------------------------------------------------------
+    # --- Processing Uploaded files (short processing time)
     with st.spinner("Processing Collection & Wanted parts..."):       
         try:
             wanted = load_wanted_files(wanted_files)
@@ -275,6 +275,8 @@ if st.session_state.get("start_processing"):
         
         collection_bytes = _df_bytes(collection)
         
+    # ---------------------------------------------------------------------
+    # --- Processing Image locations (longer processing time)
     with st.spinner("Computing image locations..."):
         images_index = precompute_location_images(collection_bytes, ba_mapping, CACHE_IMAGES_DIR)
         st.session_state["locations_index"] = images_index
@@ -285,6 +287,8 @@ if st.session_state.get("start_processing"):
     loc_summary = merged.groupby("Location").agg(parts_count=("Part", "count"), total_wanted=("Quantity_wanted", "sum")).reset_index()
     loc_summary = loc_summary.sort_values("Location")
 
+    # ---------------------------------------------------------------------
+    # --- Display Parts By Location
     for _, loc_row in loc_summary.iterrows():
         location = loc_row["Location"]
         parts_count = loc_row["parts_count"]
@@ -299,6 +303,7 @@ if st.session_state.get("start_processing"):
             <div class="loc-btn-row">
         """, unsafe_allow_html=True)
 
+        # Buttons Open/Close (expand/collapse)
         colA, colB = st.columns([1, 1])
         with colA:
             if st.button("Open ▼", key=short_key("open", location), help="Show this location", use_container_width=False):
@@ -311,13 +316,15 @@ if st.session_state.get("start_processing"):
         st.markdown("</div></div>", unsafe_allow_html=True)  # end header
         # CARD END
 
+        # Collapsed display of location
         if st.session_state.get("expanded_loc") != location:
             imgs = st.session_state["locations_index"].get(location, [])
             if imgs:
                 st.image(imgs[:10], width=30)
             #st.markdown("---")
             continue
-
+        
+        # Expanded display of location (larger images to identify location
         st.markdown(f"#### Details for {location}")
 
         imgs = st.session_state["locations_index"].get(location, [])
@@ -326,11 +333,11 @@ if st.session_state.get("start_processing"):
             st.image(imgs[:50], width=60)
             st.markdown("---")
 
+        # List of parts found in this location
         loc_group = merged.loc[merged["Location"] == location]
-
         for part_num, part_group in loc_group.groupby("Part"):
             img_url = resolve_part_image(part_num, ba_mapping, CACHE_IMAGES_DIR)
-            #img_url = resolve_part_image(part_num, st.session_state.get("ba_mapping", {}), CACHE_IMAGES_DIR)
+            
             left, right = st.columns([1, 4])
             with left:
                 if img_url:
@@ -374,6 +381,7 @@ if st.session_state.get("start_processing"):
 
             st.markdown("---")
 
+        # Buttons Mark all / Clear all
         # CARD START - Buttons "Found all" / "Clear all"            
         st.markdown('<div class="loc-btn-row">', unsafe_allow_html=True)
         colM, colC = st.columns([1, 1])
@@ -401,6 +409,7 @@ if st.session_state.get("start_processing"):
     # Render summary table
     render_summary_table(merged)
 
+    # Download button
     csv = merged.to_csv(index=False).encode("utf-8")
     st.download_button("💾 Download merged CSV", csv, "lego_wanted_with_location.csv")
 
