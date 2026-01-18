@@ -15,7 +15,7 @@ def render_summary_table(merged_df):
         summary,
         column_config={
             "completion_%": st.column_config.ProgressColumn(
-                "completion_%", format="%d%%", min_value=0, max_value=100
+                "completion_%", format="%d%%", min_value=0, max_value=100, color="auto"
             )
         },
         hide_index=True,

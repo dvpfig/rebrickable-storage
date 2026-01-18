@@ -294,17 +294,33 @@ if st.session_state.get("start_processing"):
         parts_count = loc_row["parts_count"]
         total_wanted = loc_row["total_wanted"]
 
+        # Check if all parts in this location are marked as found (for display in header)
+        loc_group = merged.loc[merged["Location"] == location]
+        all_found = True
+        for _, row in loc_group.iterrows():
+            key = (str(row["Part"]), str(row["Color"]), str(row["Location"]))
+            found = st.session_state["found_counts"].get(key, 0)
+            qty_wanted = int(row["Quantity_wanted"])
+            if found < qty_wanted:
+                all_found = False
+                break
+
         # CARD START - Location Header
         st.markdown('<div class="location-card">', unsafe_allow_html=True)
 
         st.markdown(f"""
         <div class="location-header">
             <div class="location-title">📦 {location}</div>
-            <div class="loc-btn-row">
         """, unsafe_allow_html=True)
+        
+        # Display green tick if all parts are found (right below title)
+        if all_found:
+            st.markdown("✅ **All parts found in this location**", unsafe_allow_html=True)
+        
+        st.markdown('<div class="loc-btn-row">', unsafe_allow_html=True)
 
-        # Buttons Open/Close (expand/collapse)
-        colA, colB = st.columns([1, 1])
+        # Buttons Open/Close (expand/collapse) - left-aligned and close together
+        colA, colB = st.columns([0.1, 0.7])
         with colA:
             if st.button("Open ▼", key=short_key("open", location), help="Show this location", use_container_width=False):
                 st.session_state["expanded_loc"] = location
@@ -312,15 +328,16 @@ if st.session_state.get("start_processing"):
             if st.button("Close ▶", key=short_key("close", location), help="Hide this location", use_container_width=False):
                 if st.session_state.get("expanded_loc") == location:
                     st.session_state["expanded_loc"] = None
-
+            
         st.markdown("</div></div>", unsafe_allow_html=True)  # end header
         # CARD END
 
         # Collapsed display of location
         if st.session_state.get("expanded_loc") != location:
+            
             imgs = st.session_state["locations_index"].get(location, [])
             if imgs:
-                st.image(imgs[:10], width=30)
+                st.image(imgs[:10], width=25)
             #st.markdown("---")
             continue
         
@@ -381,17 +398,20 @@ if st.session_state.get("start_processing"):
 
             st.markdown("---")
 
-        # Buttons Mark all / Clear all
+        # Buttons Mark all / Clear all - left-aligned and close together
         # CARD START - Buttons "Found all" / "Clear all"            
         st.markdown('<div class="loc-btn-row">', unsafe_allow_html=True)
-        colM, colC = st.columns([1, 1])
+        colM, colC = st.columns([0.1, 0.7])
         with colM:
-            if st.button("Mark all found ✔", key=short_key("markall", location), help="Fill all items for this location"):
+            if st.button("Mark all found ✔", key=short_key("markall", location), help="Fill all items for this location", use_container_width=False):
                 for _, r in loc_group.iterrows():
                     k = (str(r["Part"]), str(r["Color"]), str(r["Location"]))
                     st.session_state["found_counts"][k] = int(r["Quantity_wanted"])
+                # Collapse the location card after marking all as found
+                if st.session_state.get("expanded_loc") == location:
+                    st.session_state["expanded_loc"] = None
         with colC:
-            if st.button("Clear found ✖", key=short_key("clearall", location), help="Clear found counts for this location"):
+            if st.button("Clear found ✖", key=short_key("clearall", location), help="Clear found counts for this location", use_container_width=False):
                 for _, r in loc_group.iterrows():
                     k = (str(r["Part"]), str(r["Color"]), str(r["Location"]))
                     st.session_state["found_counts"].pop(k, None)
