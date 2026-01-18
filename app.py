@@ -379,7 +379,17 @@ if st.session_state.get("start_processing"):
                     cols = st.columns([2.5, 1, 1, 2])
                     cols[0].markdown(color_html, unsafe_allow_html=True)
                     cols[1].markdown(f"{qty_wanted}")
-                    cols[2].markdown(f"✅ {qty_have}" if row["Available"] else "❌")
+                    # Three states for Available column:
+                    # - Red cross (0 ❌) when not available
+                    # - Orange warning (⚠️) when available but not enough
+                    # - Green tick (✅) when enough available
+                    if not row["Available"] or qty_have == 0:
+                        available_display = "0 ❌"
+                    elif qty_have >= qty_wanted:
+                        available_display = f"✅ {qty_have}"
+                    else:
+                        available_display = f"⚠️ {qty_have}"
+                    cols[2].markdown(available_display)
 
                     widget_key = short_key("found_input", row["Part"], row["Color"], row["Location"])
                     new_found = cols[3].number_input(
