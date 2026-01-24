@@ -225,8 +225,18 @@ with col2:
         st.markdown("### 🏷️ Generate Labels by Location")
         st.markdown("Create a downloadable zip file with label images organized by location from your collection files.")
         
+        # Output mode selection
+        output_mode = st.radio(
+            "Output mode:",
+            options=["both", "merged_only"],
+            format_func=lambda x: "Both individual and merged files" if x == "both" else "Merged files only (one file per location)",
+            index=0,
+            key="labels_output_mode",
+            horizontal=True
+        )
+        
         if st.button("📦 Generate Labels Zip File", key="generate_labels"):
-            generate_collection_labels_zip(collection_files_stream, ba_mapping, CACHE_LABELS_DIR)
+            generate_collection_labels_zip(collection_files_stream, ba_mapping, CACHE_LABELS_DIR, output_mode)
         # Display download button if zip file is ready
         if st.session_state.get("labels_zip_bytes"):
             st.download_button(

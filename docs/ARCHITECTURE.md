@@ -137,7 +137,7 @@ Internal Modules:
 └────────────────┘
 
 ┌─────────────────────┐
-│  resources/    	  │──► Shared resources
+│  resources/         │──► Shared resources
 │  - auth_config.yaml │    Authentication config
 │  - colors.csv       │    Colors mapping
 │  - collection/      │    Default collection for demo user
