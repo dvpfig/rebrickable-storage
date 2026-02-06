@@ -31,6 +31,7 @@ wheels/
 # IDEs
 .vscode/
 .idea/
+.kiro/
 *.swp
 *.swo
 *~
@@ -52,4 +53,3 @@ test_files/
 
 # Plans for coding
 plans/
-

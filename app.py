@@ -20,6 +20,7 @@ from core.images import precompute_location_images
 from core.colors import load_colors, build_color_lookup, render_color_cell
 from core.auth import AuthManager
 from core.labels import organize_labels_by_location, generate_collection_labels_zip
+from resources.ba_part_labels import download_ba_labels
 
 # ---------------------------------------------------------------------
 # --- Page setup
@@ -143,6 +144,68 @@ if auth_status is True:
             save_uploadedfiles(uploaded_files_list, user_collection_dir)
             st.write("Current default collection files:")
             manage_default_collection(user_collection_dir)
+
+        # Sync latest updates from BrickArchitect
+        with st.expander("🔄 Sync latest updates from BrickArchitect"):
+            st.markdown("Download the latest label files (.lbx) from BrickArchitect based on the part mapping database.")
+            st.markdown("Labels are cached locally - only new labels will be downloaded.")
+            
+            # Initialize stop flag in session state
+            if "ba_labels_stop_flag" not in st.session_state:
+                st.session_state.ba_labels_stop_flag = False
+            
+            # Show start button if not downloading
+            if not st.session_state.get("ba_labels_downloading", False):
+                if st.button("📥 Get latest BA labels", key="download_ba_labels"):
+                    st.session_state.ba_labels_downloading = True
+                    st.session_state.ba_labels_stop_flag = False
+                    st.rerun()
+            else:
+                # Show stop button while downloading
+                if st.button("⏹️ Stop Download", key="stop_ba_labels", type="secondary"):
+                    st.session_state.ba_labels_stop_flag = True
+            
+            # Perform download if flag is set
+            if st.session_state.get("ba_labels_downloading", False):
+                progress_placeholder = st.empty()
+                status_placeholder = st.empty()
+                
+                def progress_callback(message, status):
+                    """Display progress messages in the UI"""
+                    if status == "error":
+                        status_placeholder.error(message)
+                    elif status == "warning":
+                        status_placeholder.warning(message)
+                    elif status == "success":
+                        status_placeholder.success(message)
+                    else:
+                        progress_placeholder.info(message)
+                
+                def stop_flag_callback():
+                    """Check if user clicked stop"""
+                    return st.session_state.get("ba_labels_stop_flag", False)
+                
+                def stats_callback(stats):
+                    """Update stats in session state in real-time"""
+                    pass  # No longer displaying stats
+                
+                try:
+                    with st.spinner("Downloading BA labels..."):
+                        stats = download_ba_labels(
+                            mapping_path=paths.mapping_path,
+                            cache_labels_dir=paths.cache_labels,
+                            timeout=10,
+                            progress_callback=progress_callback,
+                            stop_flag_callback=stop_flag_callback,
+                            stats_callback=stats_callback
+                        )
+                    
+                except Exception as e:
+                    st.error(f"❌ Error during download: {e}")
+                finally:
+                    # Reset download state
+                    st.session_state.ba_labels_downloading = False
+                    st.session_state.ba_labels_stop_flag = False
 
 # --- Base path resolution (cross-platform)
 CACHE_IMAGES_DIR = paths.cache_images
