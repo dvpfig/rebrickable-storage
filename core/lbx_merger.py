@@ -3,6 +3,8 @@
 Brother P‑Touch LBX Label File Merger – visual‑spacing aware
 
 Only the ZIP‑based (new) LBX format is supported.
+
+Usage: $ python .\lbx_merger.py -o merged_labels.lbx -s 5 2456.lbx 3006.lbx 3007.lbx
 """
 
 import os

@@ -21,7 +21,7 @@ def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict
     df_clean = df[df["Location"].notna() & df["Part"].notna()].copy()
     
     if df_clean.empty:
-        return {}
+        return {}, {}
     
     # Vectorized regex cleaning: remove "pr\d+" suffix and strip whitespace
     df_clean["Part_cleaned"] = df_clean["Part"].astype(str).str.strip().str.replace(
@@ -48,6 +48,15 @@ def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict
     # Batch fetch all images in parallel
     image_cache = get_cached_images_batch(list(all_unique_ids), cache_images_dir)
     
+    # Build part_num -> image_path mapping for quick lookup
+    # Map original part numbers (before cleaning/mapping) to their image paths
+    part_image_map: Dict[str, str] = {}
+    for _, row in df_clean.iterrows():
+        original_part = str(row["Part"])
+        mapped_part = row["Part_mapped"]
+        if mapped_part in image_cache:
+            part_image_map[original_part] = image_cache[mapped_part]
+    
     # Build output dictionary with sorted image paths per location
     out = {}
     for location, part_ids in location_parts.items():
@@ -58,7 +67,7 @@ def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict
                 imgs.append(img_path)
         out[location] = imgs
     
-    return out
+    return out, part_image_map
     
 @cache_data(show_spinner=False)
 def fetch_image_bytes(url: str, _session: Optional[requests.Session] = None):
@@ -160,17 +169,3 @@ def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: i
         session.close()
     
     return results
-
-@cache_data(show_spinner=False)
-def get_cached_image(identifier: str, cache_dir: Path) -> str:
-    """
-    Legacy single-image fetch function (kept for backward compatibility).
-    For batch operations, use get_cached_images_batch() instead.
-    """
-    result = get_cached_images_batch([identifier], cache_dir, max_workers=1)
-    return result.get(identifier, "")
-
-#@cache_data(show_spinner=False)
-def resolve_part_image(part_num: str, ba_mapping: dict, cache_dir: Path) -> str:
-    cleaned = re.sub(r"pr\d+$", "", part_num, flags=re.IGNORECASE)
-    return get_cached_image(ba_mapping.get(cleaned), cache_dir)

@@ -1,0 +1,305 @@
+================================================================================
+APPLICATION EXECUTION FLOW
+================================================================================
+
+┌─ app.py (Main Entry Point)
+│
+├─┬─ CORE MODULES
+│ ├─ core/auth.py
+│     └─ __init__(self, config_path)
+│     └─ _create_default_config(self)
+│     └─ register_user(self)
+│ ├─ core/paths.py
+│     └─ init_paths()
+│     └─ save_uploadedfiles(uploadedfiles_list, user_collection_dir)
+│     └─ manage_default_collection(user_collection_dir)
+│ ├─ core/mapping.py
+│     └─ read_ba_mapping_from_excel_bytes(excel_bytes)
+│     └─ load_ba_mapping(mapping_path)
+│ ├─ core/preprocess.py
+│     └─ sanitize_and_validate(df, required, label)
+│     └─ load_wanted_files(files)
+│     └─ load_collection_files(files)
+│ ├─ core/images.py
+│     └─ precompute_location_images(collection_df_serialized, ba_mapping, cache_images_dir)
+│     └─ fetch_image_bytes(url, _session)
+│     └─ _fetch_single_image(identifier, cache_dir, session)
+│ ├─ core/colors.py
+│     └─ load_colors(colors_path)
+│     └─ build_color_lookup(colors_df)
+│     └─ render_color_cell(color_id, color_lookup)
+│ ├─ core/labels.py
+│     └─ organize_labels_by_location(collection_df, ba_mapping, labels_source_dir, ...)
+│     └─ generate_collection_labels_zip(collection_files_stream, ba_mapping, labels_source_dir, ...)
+│ └─ core/lbx_merger.py
+      └─ main()
+      └─ __init__(self, max_length_mm, spacing_mm)
+      └─ parse_label_xml(self, xml)
+│
+├─┬─ UI MODULES
+│ ├─ ui/theme.py
+│ ├─ ui/layout.py
+│ └─ ui/summary.py
+│
+└─┬─ RESOURCES
+  ├─ auth_config.yaml (User credentials)
+  ├─ colors.csv (LEGO color database)
+  └─ part number mapping.xlsx (BA ↔ RB)
+
+================================================================================
+USER EXPERIENCE FLOW
+================================================================================
+
+┌─ 1. LOGIN
+│  ├─ User enters credentials
+│  ├─ AuthManager.login() validates
+│  ├─ Session initialized
+│  └─ Redirect to main app
+│
+▼
+│
+┌─ 2. UPLOAD WANTED PARTS
+│  ├─ File uploader widget
+│  ├─ CSV validation
+│  ├─ Store in session_state['wanted_df']
+│  └─ Display preview
+│
+▼
+│
+┌─ 3. SELECT COLLECTION
+│  ├─ List available collection files
+│  ├─ User selects files
+│  ├─ Load CSVs into session_state['collection_df']
+│  └─ Merge collections
+│
+▼
+│
+┌─ 4. PROCESS & MATCH
+│  ├─ preprocess.merge_wanted_collection()
+│  ├─ mapping.apply_part_mappings()
+│  ├─ images.fetch_images()
+│  ├─ colors.add_color_data()
+│  └─ Group by location
+│
+▼
+│
+┌─ 5. BROWSE LOCATIONS
+│  ├─ Display location cards
+│  ├─ Show part images
+│  ├─ Display quantities needed/available
+│  └─ Expandable details
+│
+▼
+│
+┌─ 6. MARK FOUND PARTS
+│  ├─ User clicks 'Found' button
+│  ├─ Update session_state['found_counts']
+│  ├─ Recalculate remaining
+│  └─ Visual feedback
+│
+▼
+│
+┌─ 7. EXPORT RESULTS
+│  ├─ Download merged CSV
+│  ├─ Generate location labels
+│  ├─ Create LBX file
+│  └─ Save session progress
+│
+
+================================================================================
+DATA STRUCTURES & DIMENSIONS
+================================================================================
+
+┌─ SESSION STATE (st.session_state)
+│
+│  ├─ wanted_df: DataFrame
+│  │     └─ Wanted parts list
+│  │        └─ Columns: Part, Color, Quantity, Location
+│  ├─ collection_df: DataFrame
+│  │     └─ User's collection
+│  │        └─ Columns: Part, Color, Quantity, Location
+│  ├─ merged_df: DataFrame
+│  │     └─ Matched parts
+│  │        └─ wanted_df + collection_df merged
+│  ├─ found_counts: Dict
+│  │     └─ Tracking found parts
+│  │        └─ {(part, color, location): count}
+│  ├─ locations_index: Dict
+│  │     └─ Location grouping
+│  │        └─ {location: [image_urls]}
+│  ├─ expanded_loc: str
+│  │     └─ UI state
+│  │        └─ Currently expanded location
+│  ├─ start_processing: bool
+│  │     └─ Trigger flag
+│  │        └─ Initiates processing
+│  └─ theme: str
+│        └─ UI preference
+│           └─ 'dark' or 'light'
+│
+├─ DATAFRAMES
+│
+│  ├─ wanted_df
+│  │     ├─ Part Number (str)
+│  │     ├─ Color (str)
+│  │     ├─ Quantity Needed (int)
+│  │     └─ Location (str, optional)
+│  ├─ collection_df
+│  │     ├─ Part Number (str)
+│  │     ├─ Color (str)
+│  │     ├─ Quantity Available (int)
+│  │     └─ Location (str)
+│  └─ merged_df
+│        ├─ Part Number (str)
+│        ├─ Color (str)
+│        ├─ Quantity Needed (int)
+│        ├─ Quantity Available (int)
+│        ├─ Location (str)
+│        ├─ Image URL (str)
+│        ├─ Color Name (str)
+│        └─ Color RGB (str)
+│
+└─ FILE SYSTEM
+
+   ├─ user_data/{username}/
+   │     ├─ collection/*.csv - User's collection files
+   │     └─ session_data.json - Saved progress
+   ├─ cache/
+   │     ├─ images/*.png - Cached part images
+   │     └─ labels/*.png - Generated label images
+   └─ resources/
+         ├─ auth_config.yaml - User credentials (hashed)
+         ├─ colors.csv - LEGO color database (~200 colors)
+         └─ part number mapping.xlsx - BA↔RB mappings (~2000 parts)
+
+================================================================================
+MODULE DEPENDENCIES
+================================================================================
+
+app.py
+│
+├─ core.auth
+│    └─ → core.paths
+├─ core.preprocess
+│    ├─ → core.mapping
+│    └─ → core.paths
+├─ core.images
+│    └─ → core.paths
+├─ core.labels
+│    ├─ → core.paths
+│    └─ → core.images
+├─ core.lbx_merger
+│    └─ → core.paths
+├─ ui.layout
+├─ ui.summary
+│    └─ → core.colors
+└─ ui.theme
+
+================================================================================
+ARCHITECTURE OVERVIEW
+================================================================================
+
+┌─ TECHNOLOGY STACK
+│
+│  Frontend
+│  └─ Streamlit (Web UI Framework)
+│
+│  Authentication
+│  ├─ streamlit-authenticator (Auth library)
+│  ├─ bcrypt (Password hashing)
+│  └─ PyYAML (Config management)
+│
+│  Data Processing
+│  ├─ pandas (Data manipulation)
+│  └─ requests (HTTP client)
+│
+│  Storage
+│  ├─ Local filesystem (Development)
+│  └─ JSON (Session serialization)
+│
+├─ SESSION STATE MANAGEMENT
+│
+│  Global (Shared)
+│  ├─ ba_mapping - Part number mappings
+│  ├─ color_lookup - Color database
+│  └─ theme - UI theme preference
+│
+│  User-Specific (Isolated)
+│  ├─ username - Current user
+│  ├─ authenticated - Auth status
+│  ├─ collection_df - User's collection
+│  ├─ found_counts - Parts marked as found
+│  ├─ locations_index - Location grouping
+│  └─ merged_df - Matched parts
+│
+├─ EXTERNAL INTEGRATIONS
+│
+│  ┌─ Rebrickable API
+│  │  └─ Part data and mappings
+│  │
+│  └─ BrickArchitect Images
+│     └─ Part images (cached locally)
+│
+└─ DEPLOYMENT
+
+   Development:
+   ├─ localhost:8501
+   ├─ File-based storage
+   ├─ Local user_data/
+   └─ YAML configuration
+
+   Production (Recommended):
+   ├─ HTTPS with SSL/TLS
+   ├─ Database backend (PostgreSQL/MongoDB)
+   ├─ Cloud storage (S3/Azure Blob)
+   └─ Environment secrets management
+
+================================================================================
+RUNTIME METRICS & DATA DIMENSIONS
+================================================================================
+
+┌─ CACHE STATISTICS
+│
+│  Cached Images: 1815 files
+│  Images Size: 13.61 MB
+│  Cached Labels: 4014 files
+│  Labels Size: 67.71 MB
+│
+├─ RESOURCE DATA
+│
+│  Colors Database:
+│  ├─ Rows: N/A
+│  └─ Columns: N/A
+│
+│  Part Mappings (BA ↔ RB):
+│  ├─ Rows: N/A
+│  └─ Columns: N/A
+│
+├─ USER DATA
+│
+│  Total Users: 1
+│  User Collection Files: 0
+│  Default Collection Files: 14
+│
+└─ DATA STRUCTURE DIMENSIONS
+
+   DataFrame Schemas:
+   ├─ wanted_df: ~4-5 columns (Part, Color, Quantity, Location)
+   ├─ collection_df: ~4 columns (Part, Color, Quantity, Location)
+   └─ merged_df: ~8-10 columns (includes Image URL, Color data)
+
+   Dictionary Structures:
+   ├─ found_counts: {(part, color, location): count}
+   ├─ locations_index: {location: [image_urls]}
+   ├─ ba_mapping: {ba_part_number: rb_part_number}
+   └─ color_lookup: {color_id: {name, rgb, ...}}
+
+================================================================================
+STATISTICS SUMMARY
+================================================================================
+Total Functions: 47
+Total Classes: 3
+Session State Keys: 11
+Modules Analyzed: 12
+Cached Images: 1815 (13.61 MB)
+Cached Labels: 4014 (67.71 MB)

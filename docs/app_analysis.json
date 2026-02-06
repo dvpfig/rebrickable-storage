@@ -1,0 +1,1024 @@
+{
+  "functions": {
+    "app._df_bytes": {
+      "params": [
+        "df"
+      ],
+      "docstring": "",
+      "calls": [
+        ".encode",
+        "df.to_csv"
+      ],
+      "module": "app",
+      "file": "app.py"
+    },
+    "auth.__init__": {
+      "params": [
+        "self",
+        "config_path"
+      ],
+      "docstring": "",
+      "calls": [
+        "stauth.Authenticate",
+        "self.config_path.exists",
+        "self._create_default_config",
+        "open",
+        "yaml.load"
+      ],
+      "module": "auth",
+      "file": "core\\auth.py"
+    },
+    "auth._create_default_config": {
+      "params": [
+        "self"
+      ],
+      "docstring": "Create a default configuration file with demo user",
+      "calls": [
+        ".decode",
+        "self.config_path.parent.mkdir",
+        "open",
+        "yaml.dump",
+        "bcrypt.hashpw",
+        ".encode",
+        "bcrypt.gensalt"
+      ],
+      "module": "auth",
+      "file": "core\\auth.py"
+    },
+    "auth.register_user": {
+      "params": [
+        "self"
+      ],
+      "docstring": "",
+      "calls": [
+        "self.authenticator.register_user",
+        "st.success",
+        "st.error",
+        "open",
+        "yaml.dump"
+      ],
+      "module": "auth",
+      "file": "core\\auth.py"
+    },
+    "auth.logout": {
+      "params": [
+        "self"
+      ],
+      "docstring": "",
+      "calls": [
+        "self.authenticator.logout"
+      ],
+      "module": "auth",
+      "file": "core\\auth.py"
+    },
+    "auth.save_user_session": {
+      "params": [
+        "self",
+        "username",
+        "session_data",
+        "user_data_dir"
+      ],
+      "docstring": "",
+      "calls": [
+        "user_path.mkdir",
+        "session_data.get",
+        ".isoformat",
+        "open",
+        "json.dump",
+        "str",
+        ".items",
+        "datetime.now",
+        "session_data.get"
+      ],
+      "module": "auth",
+      "file": "core\\auth.py"
+    },
+    "auth.load_user_session": {
+      "params": [
+        "self",
+        "username",
+        "user_data_dir"
+      ],
+      "docstring": "",
+      "calls": [
+        "session_file.exists",
+        "open",
+        "json.load",
+        ".items",
+        "eval"
+      ],
+      "module": "auth",
+      "file": "core\\auth.py"
+    },
+    "auth.reset_password": {
+      "params": [
+        "self"
+      ],
+      "docstring": "",
+      "calls": [
+        "st.session_state.get",
+        "self.authenticator.reset_password",
+        "st.success",
+        "st.error",
+        "open",
+        "yaml.dump"
+      ],
+      "module": "auth",
+      "file": "core\\auth.py"
+    },
+    "colors.load_colors": {
+      "params": [
+        "colors_path"
+      ],
+      "docstring": "",
+      "calls": [
+        "cache_data",
+        "pd.read_csv",
+        ".str.strip",
+        ".str.strip",
+        ".isin",
+        ".astype",
+        "pd.DataFrame",
+        ".str.lower",
+        ".fillna",
+        ".astype",
+        ".astype",
+        "pd.to_numeric",
+        ".astype"
+      ],
+      "module": "colors",
+      "file": "core\\colors.py"
+    },
+    "colors.build_color_lookup": {
+      "params": [
+        "colors_df"
+      ],
+      "docstring": "",
+      "calls": [
+        "cache_data",
+        "colors_df.iterrows",
+        "int",
+        "r.get",
+        "r.get",
+        "bool",
+        "r.get",
+        "r.get"
+      ],
+      "module": "colors",
+      "file": "core\\colors.py"
+    },
+    "colors.render_color_cell": {
+      "params": [
+        "color_id",
+        "color_lookup"
+      ],
+      "docstring": "",
+      "calls": [
+        "cache_data",
+        "color_lookup.get",
+        ".lstrip",
+        "int"
+      ],
+      "module": "colors",
+      "file": "core\\colors.py"
+    },
+    "images.precompute_location_images": {
+      "params": [
+        "collection_df_serialized",
+        "ba_mapping",
+        "cache_images_dir"
+      ],
+      "docstring": "",
+      "calls": [
+        "cache_data",
+        "pd.read_csv",
+        ".copy",
+        ".str.replace",
+        ".map",
+        "df_clean.groupby",
+        "set",
+        "location_parts.values",
+        "get_cached_images_batch",
+        "df_clean.iterrows",
+        "location_parts.items",
+        "BytesIO",
+        "set",
+        "all_unique_ids.update",
+        "list",
+        "str",
+        "sorted",
+        "ba_mapping.get",
+        ".unique",
+        "image_cache.get",
+        ".str.strip",
+        "imgs.append",
+        ".notna",
+        ".notna",
+        ".dropna",
+        ".astype"
+      ],
+      "module": "images",
+      "file": "core\\images.py"
+    },
+    "images.fetch_image_bytes": {
+      "params": [
+        "url",
+        "_session"
+      ],
+      "docstring": "Fetch image bytes from URL, optionally using a session for connection reuse.",
+      "calls": [
+        "cache_data",
+        "_session.get",
+        "requests.get"
+      ],
+      "module": "images",
+      "file": "core\\images.py"
+    },
+    "images._fetch_single_image": {
+      "params": [
+        "identifier",
+        "cache_dir",
+        "session"
+      ],
+      "docstring": "Fetch a single image (thread-safe worker function).\nReturns (identifier, image_path) tuple, or (identifier, \"\") if not found.",
+      "calls": [
+        "local_png.exists",
+        "fetch_image_bytes",
+        "local_jpg.exists",
+        "str",
+        "str",
+        "open",
+        "f.write",
+        "str"
+      ],
+      "module": "images",
+      "file": "core\\images.py"
+    },
+    "images.get_cached_images_batch": {
+      "params": [
+        "part_ids",
+        "cache_dir",
+        "max_workers"
+      ],
+      "docstring": "Batch fetch images for multiple part IDs in parallel.\nReturns a dictionary mapping part_id -> image_path (or empty string if not found).",
+      "calls": [
+        "png_paths.items",
+        "requests.Session",
+        "cached_results.copy",
+        "png_path.exists",
+        "session.close",
+        "str",
+        "jpg_path.exists",
+        "file_cache.items",
+        "ThreadPoolExecutor",
+        "as_completed",
+        "str",
+        "executor.submit",
+        "future.result"
+      ],
+      "module": "images",
+      "file": "core\\images.py"
+    },
+    "labels.organize_labels_by_location": {
+      "params": [
+        "collection_df",
+        "ba_mapping",
+        "labels_source_dir",
+        "output_mode"
+      ],
+      "docstring": "Organize label files (.lbx) by location based on collection CSV data.\n\nArgs:\n    collection_df: DataFrame with columns 'Part' (RB part number) and 'Location'\n    ba_mapping: Dictionary mapping RB part numbers to BA part numbers\n    labels_source_dir: Directory containing label files (.lbx)\n    output_mode: \"both\" for individual + merged files, \"merged_only\" for merged files only\n\nReturns:\n    Tuple of (zip_file_bytes, stats_dict) where stats_dict contains:\n    - total_parts_processed: int\n    - files_copied_count: int\n    - locations_count: int\n    - missing_labels_count: int\n    - missing_labels_list: list of missing label filenames\n    - merged_files_count: int\n    - merge_failures_count: int",
+      "calls": [
+        "set",
+        "collection_df.iterrows",
+        ".strip",
+        ".strip",
+        "ba_mapping.get",
+        "tempfile.TemporaryDirectory",
+        "Path",
+        "output_base_dir.mkdir",
+        "LbxMerger",
+        "location_to_ba_parts.items",
+        "BytesIO",
+        "zip_buffer.seek",
+        "zip_buffer.read",
+        "pd.isna",
+        ".add",
+        "re.sub",
+        "location_dir.mkdir",
+        "zipfile.ZipFile",
+        "os.walk",
+        "len",
+        "len",
+        "str",
+        "str",
+        "set",
+        "source_file_path.exists",
+        "location_label_files.sort",
+        "list",
+        "location_label_files.append",
+        "missing_labels.add",
+        "merger.merge_labels",
+        "file_path.relative_to",
+        "zipf.write",
+        "Path",
+        "shutil.copy2"
+      ],
+      "module": "labels",
+      "file": "core\\labels.py"
+    },
+    "labels.generate_collection_labels_zip": {
+      "params": [
+        "collection_files_stream",
+        "ba_mapping",
+        "labels_source_dir",
+        "output_mode"
+      ],
+      "docstring": "",
+      "calls": [
+        "st.spinner",
+        "load_collection_files",
+        "organize_labels_by_location",
+        "hasattr",
+        "labels_collection_stream.append",
+        "st.success",
+        "st.info",
+        "st.rerun",
+        "st.error",
+        "st.code",
+        "f.seek",
+        "st.warning",
+        "st.error",
+        "traceback.format_exc",
+        "st.expander",
+        "st.text",
+        ".strftime",
+        ".join",
+        "st.text",
+        "pd.Timestamp.now"
+      ],
+      "module": "labels",
+      "file": "core\\labels.py"
+    },
+    "lbx_merger.main": {
+      "params": [],
+      "docstring": "Main entry point for the command-line interface.",
+      "calls": [
+        "argparse.ArgumentParser",
+        "parser.add_argument",
+        "parser.add_argument",
+        "parser.add_argument",
+        "parser.add_argument",
+        "parser.parse_args",
+        "LbxMerger",
+        "print",
+        "merger.merge_labels",
+        "print",
+        "print",
+        "sys.exit",
+        "print",
+        "sys.exit",
+        "f.exists",
+        "print",
+        "sys.exit",
+        ".endswith",
+        "print",
+        "len",
+        ".lower",
+        "str"
+      ],
+      "module": "lbx_merger",
+      "file": "core\\lbx_merger.py"
+    },
+    "lbx_merger.__init__": {
+      "params": [
+        "self",
+        "max_length_mm",
+        "spacing_mm"
+      ],
+      "docstring": "Initialize the merger.\n\nArgs:\n    max_length_mm: Maximum label length in millimeters\n    spacing_mm: Spacing between labels in millimeters",
+      "calls": [],
+      "module": "lbx_merger",
+      "file": "core\\lbx_merger.py"
+    },
+    "lbx_merger.parse_label_xml": {
+      "params": [
+        "self",
+        "xml"
+      ],
+      "docstring": "Parse XML string into an ElementTree Element.",
+      "calls": [
+        "ET.fromstring"
+      ],
+      "module": "lbx_merger",
+      "file": "core\\lbx_merger.py"
+    },
+    "lbx_merger.get_label_objects": {
+      "params": [
+        "self",
+        "root"
+      ],
+      "docstring": "Extract all objects from a label XML root element.",
+      "calls": [
+        "root.find",
+        "list"
+      ],
+      "module": "lbx_merger",
+      "file": "core\\lbx_merger.py"
+    },
+    "lbx_merger.get_paper_element": {
+      "params": [
+        "self",
+        "root"
+      ],
+      "docstring": "Extract the paper element from a label XML root element.",
+      "calls": [
+        "root.find"
+      ],
+      "module": "lbx_merger",
+      "file": "core\\lbx_merger.py"
+    },
+    "lbx_merger.shift_object_positions": {
+      "params": [
+        "self",
+        "obj",
+        "x_offset",
+        "y_offset"
+      ],
+      "docstring": "Shift an object's position by the specified offsets.\n\nUpdates both objectStyle (x, y) and image orgPos (x, y) if present.",
+      "calls": [
+        "obj.find",
+        "obj.find",
+        "float",
+        "float",
+        "os_elem.set",
+        "os_elem.set",
+        "float",
+        "float",
+        "org_elem.set",
+        "org_elem.set",
+        ".replace",
+        ".replace",
+        ".replace",
+        ".replace",
+        "os_elem.get",
+        "os_elem.get",
+        "org_elem.get",
+        "org_elem.get"
+      ],
+      "module": "lbx_merger",
+      "file": "core\\lbx_merger.py"
+    },
+    "lbx_merger.get_text_visual_width": {
+      "params": [
+        "self",
+        "text_elem"
+      ],
+      "docstring": "Calculate the visual width (in points) of a text element.\n\nUses Pillow to render the text and measure its actual width.\nFalls back to the XML width attribute if Pillow is unavailable.\n\nArgs:\n    text_elem: XML element representing a text object\n    \nReturns:\n    Visual width in points",
+      "calls": [
+        "text_elem.find",
+        "print",
+        "text_elem.find",
+        "text_elem.find",
+        "log_font.get",
+        "font_ext.get",
+        "font_ext.get",
+        "size_attr.endswith",
+        "ImageFont.truetype",
+        "font.getsize",
+        "print",
+        "text_elem.find",
+        ".replace",
+        "log_font.get",
+        "float",
+        "float",
+        "int",
+        "ImageFont.load_default",
+        "font.getbbox",
+        "float",
+        "float",
+        "round",
+        "obj_style.get"
+      ],
+      "module": "lbx_merger",
+      "file": "core\\lbx_merger.py"
+    },
+    "lbx_merger.calculate_label_bounds": {
+      "params": [
+        "self",
+        "objects",
+        "resize_text"
+      ],
+      "docstring": "Calculate the bounding box (min_x, max_x) of a label's objects.\n\nFor text objects, uses visual width. For other objects, uses declared width.\nOptionally resizes all text objects to match the maximum text width.\n\nArgs:\n    objects: List of XML elements representing label objects\n    resize_text: If True, resize all text objects to max_text_width + 1pt\n    \nReturns:\n    Tuple of (min_x, max_x) in points",
+      "calls": [
+        "float",
+        "obj.tag.endswith",
+        "obj.find",
+        "obj.tag.endswith",
+        "float",
+        "self.get_text_visual_width",
+        "float",
+        ".replace",
+        "os_elem.set",
+        "float",
+        ".replace",
+        "os_elem.get",
+        "os_elem.get"
+      ],
+      "module": "lbx_merger",
+      "file": "core\\lbx_merger.py"
+    },
+    "lbx_merger.get_label_content_width_pt": {
+      "params": [
+        "self",
+        "label_xml"
+      ],
+      "docstring": "Calculate the visual width (in points) of a label's content.\n\nThis is the distance from the leftmost to the rightmost object,\nusing visual widths for text and declared widths for other objects.\n\nArgs:\n    label_xml: XML string of the label\n    \nReturns:\n    Content width in points",
+      "calls": [
+        "self.parse_label_xml",
+        "self.get_label_objects",
+        "self.calculate_label_bounds"
+      ],
+      "module": "lbx_merger",
+      "file": "core\\lbx_merger.py"
+    },
+    "lbx_merger.get_label_content_width_mm": {
+      "params": [
+        "self",
+        "label_xml"
+      ],
+      "docstring": "Convenience wrapper \u2013 returns width in millimeters.",
+      "calls": [
+        "self.get_label_content_width_pt"
+      ],
+      "module": "lbx_merger",
+      "file": "core\\lbx_merger.py"
+    },
+    "lbx_merger.create_merged_label_xml": {
+      "params": [
+        "self",
+        "label_contents"
+      ],
+      "docstring": "Merge the XML of several labels into a single continuous label.\n\nAlgorithm:\n1. Use the first label as the base template\n2. Preserve the height from the first label\n3. For each label, calculate its bounding box\n4. Position labels horizontally with spacing between them\n5. Update the paper width to fit all merged content\n\nArgs:\n    label_contents: List of dicts with 'xml_files' and 'resources' keys\n    \nReturns:\n    Merged label XML as string",
+      "calls": [
+        ".items",
+        "self.parse_label_xml",
+        "base_root.find",
+        "self.get_paper_element",
+        "self.get_label_objects",
+        "self.calculate_label_bounds",
+        "enumerate",
+        "ET.tostring",
+        "base_paper.get",
+        "base_paper.get",
+        "print",
+        ".items",
+        "self.parse_label_xml",
+        "self.get_label_objects",
+        "self.calculate_label_bounds",
+        "base_paper.set",
+        "base_paper.set",
+        "base_paper.set",
+        "xml_file.lower",
+        "ET.fromstring",
+        "self.shift_object_positions",
+        "base_objects.append",
+        ".items",
+        "base_paper.set",
+        "print",
+        "xml_file.lower",
+        "ET.tostring",
+        "float",
+        "preserved_height.replace",
+        "xml_file.lower",
+        "self.parse_label_xml",
+        "self.get_paper_element",
+        "paper_elem.get",
+        "float",
+        ".replace",
+        "paper_elem.get"
+      ],
+      "module": "lbx_merger",
+      "file": "core\\lbx_merger.py"
+    },
+    "lbx_merger.extract_label_content_zip": {
+      "params": [
+        "self",
+        "filepath"
+      ],
+      "docstring": "Extract the XML files and binary resources from a ZIP\u2011based LBX.\n\nArgs:\n    filepath: Path to the LBX file\n    \nReturns:\n    Dict with keys 'xml_files' and 'resources'",
+      "calls": [
+        "zipfile.ZipFile",
+        "z.infolist",
+        "print",
+        "info.is_dir",
+        "z.read",
+        ".endswith",
+        "data.decode",
+        "info.filename.lower"
+      ],
+      "module": "lbx_merger",
+      "file": "core\\lbx_merger.py"
+    },
+    "lbx_merger.merge_properties_xml": {
+      "params": [
+        "self",
+        "label_contents"
+      ],
+      "docstring": "Extract properties XML from the first label.\n\nArgs:\n    label_contents: List of label content dicts\n    \nReturns:\n    Properties XML as string, or empty string if not found",
+      "calls": [
+        ".items",
+        "xml_file.lower"
+      ],
+      "module": "lbx_merger",
+      "file": "core\\lbx_merger.py"
+    },
+    "lbx_merger.merge_zip_based_labels": {
+      "params": [
+        "self",
+        "label_contents",
+        "output_path"
+      ],
+      "docstring": "Merge ZIP-based labels and write the result to a new LBX file.\n\nArgs:\n    label_contents: List of label content dicts\n    output_path: Path for the output LBX file\n    \nReturns:\n    True if successful, False otherwise",
+      "calls": [
+        "tempfile.TemporaryDirectory",
+        "self.create_merged_label_xml",
+        "os.path.join",
+        "self.merge_properties_xml",
+        "all_resources.items",
+        "print",
+        "traceback.print_exc",
+        "print",
+        "open",
+        "f.write",
+        "os.path.join",
+        ".items",
+        "os.path.join",
+        "os.makedirs",
+        "zipfile.ZipFile",
+        "os.walk",
+        "open",
+        "f.write",
+        "os.path.dirname",
+        "open",
+        "f.write",
+        "content.get",
+        "os.path.join",
+        "os.path.relpath",
+        "z.write"
+      ],
+      "module": "lbx_merger",
+      "file": "core\\lbx_merger.py"
+    },
+    "lbx_merger.merge_labels": {
+      "params": [
+        "self",
+        "input_files",
+        "output_file"
+      ],
+      "docstring": "Merge multiple LBX label files into a single output file.\n\nArgs:\n    input_files: List of input LBX file paths\n    output_file: Path for the output LBX file\n    \nReturns:\n    True if successful, False otherwise",
+      "calls": [
+        "enumerate",
+        "self.merge_zip_based_labels",
+        "print",
+        "self.extract_label_content_zip",
+        "print",
+        "next",
+        "self.get_label_content_width_pt",
+        "selected_contents.append",
+        "print",
+        "print",
+        "content.get",
+        "label_contents.append",
+        "print",
+        "skipped.append",
+        "print",
+        ".items",
+        "len",
+        "f.lower"
+      ],
+      "module": "lbx_merger",
+      "file": "core\\lbx_merger.py"
+    },
+    "mapping.read_ba_mapping_from_excel_bytes": {
+      "params": [
+        "excel_bytes"
+      ],
+      "docstring": "",
+      "calls": [
+        "st.cache_data",
+        "df.rename",
+        "df.iterrows",
+        "pd.read_excel",
+        "c.strip",
+        ".strip",
+        "BytesIO",
+        ".startswith",
+        ".startswith",
+        "r.get",
+        "pd.isna",
+        ".strip",
+        "str",
+        "ba_val.lower",
+        "c.lower",
+        "c.lower",
+        "r.get",
+        "str"
+      ],
+      "module": "mapping",
+      "file": "core\\mapping.py"
+    },
+    "mapping.load_ba_mapping": {
+      "params": [
+        "mapping_path"
+      ],
+      "docstring": "",
+      "calls": [
+        "st.cache_data",
+        "mapping_path.exists",
+        "open",
+        "read_ba_mapping_from_excel_bytes",
+        "f.read"
+      ],
+      "module": "mapping",
+      "file": "core\\mapping.py"
+    },
+    "paths.init_paths": {
+      "params": [],
+      "docstring": "",
+      "calls": [
+        "Paths"
+      ],
+      "module": "paths",
+      "file": "core\\paths.py"
+    },
+    "paths.save_uploadedfiles": {
+      "params": [
+        "uploadedfiles_list",
+        "user_collection_dir"
+      ],
+      "docstring": "",
+      "calls": [
+        "st.success",
+        "open",
+        "f.write",
+        "os.path.join",
+        "uploadedfile.getbuffer"
+      ],
+      "module": "paths",
+      "file": "core\\paths.py"
+    },
+    "paths.manage_default_collection": {
+      "params": [
+        "user_collection_dir"
+      ],
+      "docstring": "",
+      "calls": [
+        "sorted",
+        "user_collection_dir.glob",
+        "st.button",
+        "st.checkbox",
+        "os.remove"
+      ],
+      "module": "paths",
+      "file": "core\\paths.py"
+    },
+    "paths.__init__": {
+      "params": [
+        "self"
+      ],
+      "docstring": "",
+      "calls": [
+        "d.mkdir",
+        ".resolve",
+        ".resolve",
+        "Path",
+        "Path",
+        "os.getcwd"
+      ],
+      "module": "paths",
+      "file": "core\\paths.py"
+    },
+    "preprocess.sanitize_and_validate": {
+      "params": [
+        "df",
+        "required",
+        "label"
+      ],
+      "docstring": "",
+      "calls": [
+        ".str.title",
+        "ValueError",
+        "df.columns.str.strip",
+        ".join"
+      ],
+      "module": "preprocess",
+      "file": "core\\preprocess.py"
+    },
+    "preprocess.load_wanted_files": {
+      "params": [
+        "files"
+      ],
+      "docstring": "",
+      "calls": [
+        "cache_data",
+        "pd.concat",
+        "pd.read_csv",
+        "sanitize_and_validate",
+        "df.rename",
+        "dfs.append",
+        "getattr"
+      ],
+      "module": "preprocess",
+      "file": "core\\preprocess.py"
+    },
+    "preprocess.load_collection_files": {
+      "params": [
+        "files"
+      ],
+      "docstring": "",
+      "calls": [
+        "cache_data",
+        "pd.concat",
+        "hasattr",
+        "sanitize_and_validate",
+        "dfs.append",
+        "pd.read_csv",
+        "getattr",
+        "pd.read_csv",
+        "str"
+      ],
+      "module": "preprocess",
+      "file": "core\\preprocess.py"
+    },
+    "preprocess.merge_wanted_collection": {
+      "params": [
+        "wanted",
+        "collection"
+      ],
+      "docstring": "",
+      "calls": [
+        "cache_data",
+        "pd.merge",
+        ".notna",
+        ".astype",
+        ".copy",
+        ".to_dict",
+        "not_found_exact.iterrows",
+        ".copy",
+        "pd.concat",
+        "merged.sort_values",
+        "all_rows.append",
+        "all_rows.append",
+        ".fillna",
+        ".apply",
+        "row.copy",
+        "truly_not_found_rows.append",
+        "pd.DataFrame",
+        "pd.DataFrame",
+        ".isna",
+        "row.copy",
+        "additional_rows.append",
+        ".notna",
+        "merged.get",
+        "collection.groupby"
+      ],
+      "module": "preprocess",
+      "file": "core\\preprocess.py"
+    },
+    "layout.ensure_session_state_keys": {
+      "params": [],
+      "docstring": "",
+      "calls": [],
+      "module": "layout",
+      "file": "ui\\layout.py"
+    },
+    "layout.short_key": {
+      "params": [],
+      "docstring": "",
+      "calls": [
+        ".hexdigest",
+        "md5",
+        ".encode",
+        ".join",
+        "map"
+      ],
+      "module": "layout",
+      "file": "ui\\layout.py"
+    },
+    "summary.render_summary_table": {
+      "params": [
+        "merged_df"
+      ],
+      "docstring": "",
+      "calls": [
+        ".reset_index",
+        ".fillna",
+        "st.markdown",
+        "st.data_editor",
+        ".agg",
+        ".round",
+        "st.column_config.ProgressColumn",
+        "merged_df.groupby"
+      ],
+      "module": "summary",
+      "file": "ui\\summary.py"
+    },
+    "theme.apply_dark_theme": {
+      "params": [],
+      "docstring": "",
+      "calls": [
+        "st.markdown",
+        "st.markdown"
+      ],
+      "module": "theme",
+      "file": "ui\\theme.py"
+    },
+    "theme.apply_light_theme": {
+      "params": [],
+      "docstring": "",
+      "calls": [
+        "st.markdown",
+        "st.markdown"
+      ],
+      "module": "theme",
+      "file": "ui\\theme.py"
+    }
+  },
+  "classes": {
+    "auth.AuthManager": {
+      "methods": [
+        "__init__",
+        "_create_default_config",
+        "register_user",
+        "logout",
+        "save_user_session",
+        "load_user_session",
+        "reset_password"
+      ],
+      "module": "auth",
+      "file": "core\\auth.py"
+    },
+    "lbx_merger.LbxMerger": {
+      "methods": [
+        "__init__",
+        "parse_label_xml",
+        "get_label_objects",
+        "get_paper_element",
+        "shift_object_positions",
+        "get_text_visual_width",
+        "calculate_label_bounds",
+        "get_label_content_width_pt",
+        "get_label_content_width_mm",
+        "create_merged_label_xml",
+        "extract_label_content_zip",
+        "merge_properties_xml",
+        "merge_zip_based_labels",
+        "merge_labels"
+      ],
+      "module": "lbx_merger",
+      "file": "core\\lbx_merger.py"
+    },
+    "paths.Paths": {
+      "methods": [
+        "__init__"
+      ],
+      "module": "paths",
+      "file": "core\\paths.py"
+    }
+  },
+  "session_state_keys": [
+    "merged_source_hash",
+    "merged_df",
+    "part_images_map",
+    "expanded_loc",
+    "found_counts",
+    "labels_zip_bytes",
+    "theme",
+    "start_processing",
+    "labels_zip_filename",
+    "locations_index",
+    "collection_df"
+  ],
+  "runtime_metrics": {
+    "cached_images": 1815,
+    "cached_images_size_mb": 13.61,
+    "cached_labels": 4014,
+    "cached_labels_size_mb": 67.71,
+    "colors_csv_rows": "N/A",
+    "colors_csv_columns": "N/A",
+    "part_mappings_rows": "N/A",
+    "part_mappings_columns": "N/A",
+    "total_users": 1,
+    "total_collection_files": 0,
+    "default_collection_files": 14
+  },
+  "statistics": {
+    "total_functions": 47,
+    "total_classes": 3,
+    "session_keys": 11,
+    "cached_images": 1815,
+    "cache_size_mb": 13.61,
+    "cached_labels": 4014,
+    "labels_size_mb": 67.71
+  }
+}

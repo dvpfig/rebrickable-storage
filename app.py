@@ -16,7 +16,7 @@ from ui.summary import render_summary_table
 from core.paths import init_paths, save_uploadedfiles, manage_default_collection
 from core.mapping import load_ba_mapping
 from core.preprocess import load_wanted_files, load_collection_files, merge_wanted_collection
-from core.images import precompute_location_images, resolve_part_image
+from core.images import precompute_location_images
 from core.colors import load_colors, build_color_lookup, render_color_cell
 from core.auth import AuthManager
 from core.labels import organize_labels_by_location, generate_collection_labels_zip
@@ -288,8 +288,9 @@ if st.session_state.get("start_processing"):
     # ---------------------------------------------------------------------
     # --- Processing Image locations (longer processing time)
     with st.spinner("Computing image locations..."):
-        images_index = precompute_location_images(collection_bytes, ba_mapping, CACHE_IMAGES_DIR)
+        images_index, part_images_map = precompute_location_images(collection_bytes, ba_mapping, CACHE_IMAGES_DIR)
         st.session_state["locations_index"] = images_index
+        st.session_state["part_images_map"] = part_images_map
         st.write("Status: Loaded image locations for parts.")
         
     st.markdown("### 🧩 Parts Grouped by Location")
@@ -363,7 +364,8 @@ if st.session_state.get("start_processing"):
         # List of parts found in this location
         loc_group = merged.loc[merged["Location"] == location]
         for part_num, part_group in loc_group.groupby("Part"):
-            img_url = resolve_part_image(part_num, ba_mapping, CACHE_IMAGES_DIR)
+            # Use precomputed image map
+            img_url = st.session_state.get("part_images_map", {}).get(str(part_num), "")
             
             left, right = st.columns([1, 4])
             with left:
