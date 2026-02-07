@@ -6,3 +6,4 @@ pathlib
 streamlit-authenticator
 pyyaml
 bcrypt
+beautifulsoup4

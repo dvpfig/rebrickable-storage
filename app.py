@@ -21,6 +21,7 @@ from core.colors import load_colors, build_color_lookup, render_color_cell
 from core.auth import AuthManager
 from core.labels import organize_labels_by_location, generate_collection_labels_zip
 from resources.ba_part_labels import download_ba_labels
+from resources.ba_part_mappings import fetch_all_ba_parts, fetch_rebrickable_mappings, find_latest_mapping_file
 
 # ---------------------------------------------------------------------
 # --- Page setup
@@ -206,6 +207,154 @@ if auth_status is True:
                     # Reset download state
                     st.session_state.ba_labels_downloading = False
                     st.session_state.ba_labels_stop_flag = False
+            
+            st.markdown("---")
+            
+            # BA Mappings Update Section
+            st.markdown("**Update part number mapping database** between BrickArchitect and Rebrickable.")
+            
+            # Phase 1: Get full list of BA parts
+            st.markdown("**Step 1:** Fetch all BA parts from BrickArchitect (creates new Excel file)")
+            
+            # Initialize stop flag for phase 1
+            if "ba_parts_stop_flag" not in st.session_state:
+                st.session_state.ba_parts_stop_flag = False
+            
+            # Show start button if not fetching
+            if not st.session_state.get("ba_parts_fetching", False):
+                if st.button("📋 Get full list of BA parts", key="fetch_ba_parts"):
+                    st.session_state.ba_parts_fetching = True
+                    st.session_state.ba_parts_stop_flag = False
+                    st.rerun()
+            else:
+                # Show stop button while fetching
+                if st.button("⏹️ Stop Fetch", key="stop_ba_parts", type="secondary"):
+                    st.session_state.ba_parts_stop_flag = True
+            
+            # Perform fetch if flag is set
+            if st.session_state.get("ba_parts_fetching", False):
+                progress_placeholder_parts = st.empty()
+                status_placeholder_parts = st.empty()
+                stats_placeholder_parts = st.empty()
+                
+                def progress_callback_parts(message, status):
+                    """Display progress messages in the UI"""
+                    if status == "error":
+                        status_placeholder_parts.error(message)
+                    elif status == "warning":
+                        status_placeholder_parts.warning(message)
+                    elif status == "success":
+                        status_placeholder_parts.success(message)
+                    else:
+                        progress_placeholder_parts.info(message)
+                
+                def stop_flag_callback_parts():
+                    """Check if user clicked stop"""
+                    return st.session_state.get("ba_parts_stop_flag", False)
+                
+                def stats_callback_parts(stats):
+                    """Update stats display in real-time"""
+                    stats_placeholder_parts.info(
+                        f"📋 Pages processed: {stats.get('pages_processed', 0)}, "
+                        f"Parts added: {stats.get('parts_added', 0)}"
+                    )
+                
+                try:
+                    from datetime import datetime
+                    from resources.ba_part_mappings import fetch_all_ba_parts
+                    
+                    timestamp = datetime.now().strftime("%Y-%m-%d")
+                    output_file = paths.resources_dir / f"part number - BA vs RB - {timestamp}.xlsx"
+                    
+                    with st.spinner("Fetching BA parts..."):
+                        stats = fetch_all_ba_parts(
+                            output_file=output_file,
+                            start_page=1,
+                            log_callback=progress_callback_parts,
+                            stop_flag_callback=stop_flag_callback_parts,
+                            stats_callback=stats_callback_parts
+                        )
+                    
+                except Exception as e:
+                    st.error(f"❌ Error during fetch: {e}")
+                finally:
+                    # Reset fetch state
+                    st.session_state.ba_parts_fetching = False
+                    st.session_state.ba_parts_stop_flag = False
+            
+            st.markdown("---")
+            
+            # Phase 2: Get BA mappings for parts
+            st.markdown("**Step 2:** Fetch Rebrickable mappings for BA parts (updates latest Excel file)")
+            
+            # Initialize stop flag for phase 2
+            if "ba_mappings_stop_flag" not in st.session_state:
+                st.session_state.ba_mappings_stop_flag = False
+            
+            # Show start button if not updating
+            if not st.session_state.get("ba_mappings_updating", False):
+                if st.button("🔗 Get BA mappings for parts", key="update_ba_mappings"):
+                    st.session_state.ba_mappings_updating = True
+                    st.session_state.ba_mappings_stop_flag = False
+                    st.rerun()
+            else:
+                # Show stop button while updating
+                if st.button("⏹️ Stop Update", key="stop_ba_mappings", type="secondary"):
+                    st.session_state.ba_mappings_stop_flag = True
+            
+            # Perform update if flag is set
+            if st.session_state.get("ba_mappings_updating", False):
+                progress_placeholder_mappings = st.empty()
+                status_placeholder_mappings = st.empty()
+                stats_placeholder_mappings = st.empty()
+                
+                def progress_callback_mappings(message, status):
+                    """Display progress messages in the UI"""
+                    if status == "error":
+                        status_placeholder_mappings.error(message)
+                    elif status == "warning":
+                        status_placeholder_mappings.warning(message)
+                    elif status == "success":
+                        status_placeholder_mappings.success(message)
+                    else:
+                        progress_placeholder_mappings.info(message)
+                
+                def stop_flag_callback_mappings():
+                    """Check if user clicked stop"""
+                    return st.session_state.get("ba_mappings_stop_flag", False)
+                
+                def stats_callback_mappings(stats):
+                    """Update stats display in real-time"""
+                    stats_placeholder_mappings.info(
+                        f"🔗 Processed {stats.get('processed', 0)}/{stats.get('total', 0)} parts"
+                    )
+                
+                try:
+                    from resources.ba_part_mappings import fetch_rebrickable_mappings, find_latest_mapping_file
+                    
+                    # Find the latest mapping file
+                    latest_file = find_latest_mapping_file(paths.resources_dir)
+                    
+                    if not latest_file:
+                        st.error("❌ No mapping file found. Please run 'Get full list of BA parts' first.")
+                    else:
+                        st.info(f"📂 Updating file: {latest_file.name}")
+                        
+                        with st.spinner("Fetching Rebrickable mappings..."):
+                            stats = fetch_rebrickable_mappings(
+                                output_file=latest_file,
+                                checkpoint_interval=50,
+                                log_callback=progress_callback_mappings,
+                                stop_flag_callback=stop_flag_callback_mappings,
+                                stats_callback=stats_callback_mappings
+                            )
+                    
+                except Exception as e:
+                    st.error(f"❌ Error during update: {e}")
+                finally:
+                    # Reset update state
+                    st.session_state.ba_mappings_updating = False
+                    st.session_state.ba_mappings_stop_flag = False
 
 # --- Base path resolution (cross-platform)
 CACHE_IMAGES_DIR = paths.cache_images
