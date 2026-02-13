@@ -51,5 +51,6 @@ test_files/
 .env
 .env.local
 
-# Plans for coding
+# Plans for coding & Tools for analysis
 plans/
+tools/

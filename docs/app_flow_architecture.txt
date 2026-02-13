@@ -262,18 +262,18 @@ RUNTIME METRICS & DATA DIMENSIONS
 │
 │  Cached Images: 1815 files
 │  Images Size: 13.61 MB
-│  Cached Labels: 4014 files
-│  Labels Size: 67.71 MB
+│  Cached Labels: 4113 files
+│  Labels Size: 71.06 MB
 │
 ├─ RESOURCE DATA
 │
 │  Colors Database:
-│  ├─ Rows: N/A
-│  └─ Columns: N/A
+│  ├─ Rows: 273
+│  └─ Columns: 8
 │
 │  Part Mappings (BA ↔ RB):
-│  ├─ Rows: N/A
-│  └─ Columns: N/A
+│  ├─ Rows: 4342
+│  └─ Columns: 14
 │
 ├─ USER DATA
 │
@@ -297,9 +297,9 @@ RUNTIME METRICS & DATA DIMENSIONS
 ================================================================================
 STATISTICS SUMMARY
 ================================================================================
-Total Functions: 47
+Total Functions: 69
 Total Classes: 3
 Session State Keys: 11
-Modules Analyzed: 12
+Modules Analyzed: 14
 Cached Images: 1815 (13.61 MB)
-Cached Labels: 4014 (67.71 MB)
+Cached Labels: 4113 (71.06 MB)
