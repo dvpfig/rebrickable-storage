@@ -41,7 +41,7 @@ wheels/
 Thumbs.db
 
 # Cache
-#cache/
+cache/
 *.cache
 
 # Test files

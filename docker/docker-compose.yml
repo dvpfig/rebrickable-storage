@@ -1,0 +1,19 @@
+# docker-compose.yml for rebrickable-storage
+
+services:
+  rebrickable-storage:
+    image: dvpfig/rebrickable-storage:latest 
+    container_name: rebrickable-storage
+    restart: unless-stopped 
+    ports:
+      - "8501:8501" # Map container port 8501 to host port 8501 for Streamlit
+    environment:
+      #- PUID=${PUID}
+      #- PGID=${PGID}
+      #- TZ=${TZ}
+      # Add any environment variables your Streamlit app requires
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+    volumes:
+      - ${APP_DATA_LOCATION}/rebrickable-storage/user_data:/app/user_data
+      - ${APP_DATA_LOCATION}/rebrickable-storage/cache:/app/cache

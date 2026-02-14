@@ -146,10 +146,10 @@ if auth_status is True:
             st.write("Current default collection files:")
             manage_default_collection(user_collection_dir)
 
-        # Sync latest updates from BrickArchitect
-        with st.expander("🔄 Sync latest updates from BrickArchitect"):
+        # Sync latest Labels from BrickArchitect
+        with st.expander("🔄 Get latest Labels from BrickArchitect"):
             st.markdown("Download the latest label files (.lbx) from BrickArchitect based on the part mapping database.")
-            st.markdown("Labels are cached locally - only new labels will be downloaded.")
+            st.markdown("Labels cached locally - only new labels will be downloaded.")
             
             # Initialize stop flag in session state
             if "ba_labels_stop_flag" not in st.session_state:
@@ -208,7 +208,8 @@ if auth_status is True:
                     st.session_state.ba_labels_downloading = False
                     st.session_state.ba_labels_stop_flag = False
             
-            st.markdown("---")
+        # Sync latest updates from BrickArchitect
+        with st.expander("🔄 Sync latest Parts from BrickArchitect"):
             
             # BA Mappings Update Section
             st.markdown("**Update part number mapping database** between BrickArchitect and Rebrickable.")

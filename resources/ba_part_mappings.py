@@ -30,7 +30,7 @@ MOST_COMMON_URL = "https://brickarchitect.com/parts/most-common-allyears?page={}
 BASE_URL = "https://brickarchitect.com/parts/"
 USER_AGENT = "Mozilla/5.0 (compatible; LEGO-mapper/1.0; +https://brickarchitect.com)"
 HEADERS = {"User-Agent": USER_AGENT}
-TOTAL_PAGES = 39
+TOTAL_PAGES = 39 # current max pages of https://brickarchitect.com/parts/most-common-allyears
 
 # Resumable & checkpoint settings for Phase 2
 CHECKPOINT_INTERVAL = 50   # save after this many parts processed in phase 2
@@ -38,8 +38,8 @@ DELAY_MIN = 0
 DELAY_MAX = 0.1
 
 FIRST_RB_COLUMN = 5
-NR_RB_COLUMNS = 60
-LAST_RB_COLUMN = FIRST_RB_COLUMN + NR_RB_COLUMNS - 1  # 64
+NR_RB_COLUMNS = 80
+LAST_RB_COLUMN = FIRST_RB_COLUMN + NR_RB_COLUMNS - 1
 
 # ---------------------------------------------------------------------
 # Helper function: Find latest mapping file
@@ -134,14 +134,12 @@ def get_rebrickable_parts(ba_part_number: str, log_callback=None):
 # ---------------------------------------------------------------------
 # Helper function: Fetch all BA parts from BrickArchitect listings
 # ---------------------------------------------------------------------
-def fetch_ba_parts_from_page(page: int, ws, wb, output_file: Path, log_callback=None, stop_flag_callback=None):
+def fetch_ba_parts_from_page(page: int, output_file: Path, log_callback=None, stop_flag_callback=None):
     """
     Fetch BA parts from a single page and add to worksheet.
     
     Args:
         page: Page number to fetch
-        ws: Worksheet object
-        wb: Workbook object
         output_file: Path to save the workbook
         log_callback: Optional callback function(message, status) for logging
         stop_flag_callback: Optional callback function() that returns True if should stop
@@ -178,10 +176,15 @@ def fetch_ba_parts_from_page(page: int, ws, wb, output_file: Path, log_callback=
         parts = soup.find_all("div", class_="tr")  # each part is one row/div
         log(f"   → Found {len(parts)} parts on page {page}", "info")
 
+        # Load workbook for this page
+        wb = openpyxl.load_workbook(output_file)
+        ws = wb.active
+        
         parts_added = 0
         for part in parts:
             if should_stop():
-                break
+                wb.close()
+                return parts_added
             
             num_tag = part.find("span", class_="partnum")
             name_tag = part.find("span", class_="partname")
@@ -201,8 +204,9 @@ def fetch_ba_parts_from_page(page: int, ws, wb, output_file: Path, log_callback=
                 log(f"   ➕ Added {partnum} - {partname}", "success")
                 parts_added += 1
 
-        # Save progress after each page
+        # Save progress after each page and close workbook
         wb.save(output_file)
+        wb.close()
         log(f"💾 Saved progress after page {page}", "info")
         time.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
         
@@ -244,8 +248,6 @@ def fetch_all_ba_parts(output_file: Path, start_page=1, log_callback=None, stop_
     
     # Create or open workbook
     if output_file.exists():
-        wb = openpyxl.load_workbook(output_file)
-        ws = wb.active
         log(f"🔄 Resuming from existing workbook: {output_file.name}", "info")
     else:
         wb = openpyxl.Workbook()
@@ -256,11 +258,12 @@ def fetch_all_ba_parts(output_file: Path, start_page=1, log_callback=None, stop_
         header_row.extend([f"RB part_{i+1}" for i in range(NR_RB_COLUMNS)])
         ws.append(header_row)
         wb.save(output_file)
+        wb.close()
         log(f"🆕 Created new workbook: {output_file.name}", "info")
     
     # Fetch pages
     for page in range(start_page, TOTAL_PAGES + 1):
-        parts_added = fetch_ba_parts_from_page(page, ws, wb, output_file, log_callback, stop_flag_callback)
+        parts_added = fetch_ba_parts_from_page(page, output_file, log_callback, stop_flag_callback)
         stats["pages_processed"] += 1
         stats["parts_added"] += parts_added
         update_stats()
