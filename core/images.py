@@ -14,7 +14,7 @@ MAX_WORKERS = 10  # Thread pool size for parallel image fetching
 TIMEOUT = 6  # HTTP request timeout in seconds
 
 @cache_data(show_spinner=False)
-def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict, cache_images_dir):
+def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict, cache_images_dir, user_uploaded_dir=None):
     df = pd.read_csv(BytesIO(collection_df_serialized))
     
     # Filter out rows with missing Location or Part
@@ -45,8 +45,8 @@ def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict
     for part_ids in location_parts.values():
         all_unique_ids.update(part_ids)
     
-    # Batch fetch all images in parallel
-    image_cache = get_cached_images_batch(list(all_unique_ids), cache_images_dir)
+    # Batch fetch all images in parallel (including user-uploaded)
+    image_cache = get_cached_images_batch(list(all_unique_ids), cache_images_dir, user_uploaded_dir=user_uploaded_dir)
     
     # Build part_num -> image_path mapping for quick lookup
     # Map original part numbers (before cleaning/mapping) to their image paths
@@ -115,10 +115,16 @@ def _fetch_single_image(identifier: str, cache_dir: Path, session: Optional[requ
     
     return (identifier, "")
 
-def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: int = MAX_WORKERS) -> Dict[str, str]:
+def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: int = MAX_WORKERS, user_uploaded_dir: Optional[Path] = None) -> Dict[str, str]:
     """
     Batch fetch images for multiple part IDs in parallel.
     Returns a dictionary mapping part_id -> image_path (or empty string if not found).
+    
+    Args:
+        part_ids: List of part identifiers to fetch images for
+        cache_dir: Path to global image cache directory
+        max_workers: Number of parallel workers for fetching
+        user_uploaded_dir: Optional path to user-uploaded images directory
     """
     if not part_ids:
         return {}
@@ -168,4 +174,147 @@ def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: i
     finally:
         session.close()
     
+    # Check user-uploaded images for any remaining parts without images
+    if user_uploaded_dir and user_uploaded_dir.exists():
+        still_missing = [pid for pid in part_ids if pid not in results]
+        for pid in still_missing:
+            user_png = user_uploaded_dir / f"{pid}.png"
+            user_jpg = user_uploaded_dir / f"{pid}.jpg"
+            if user_png.exists():
+                results[pid] = str(user_png)
+            elif user_jpg.exists():
+                results[pid] = str(user_jpg)
+    
     return results
+
+@cache_data(show_spinner=False)
+def fetch_wanted_part_images(merged_df_serialized: bytes, ba_mapping: dict, cache_images_dir, user_uploaded_dir=None):
+    """
+    Fetch images for all wanted parts (including those not in collection).
+    This complements precompute_location_images by handling "Not Found" parts.
+
+    Args:
+        merged_df_serialized: Serialized merged dataframe with wanted parts
+        ba_mapping: Dictionary mapping RB part numbers to BA part numbers
+        cache_images_dir: Path to image cache directory
+        user_uploaded_dir: Optional path to user-uploaded images directory
+
+    Returns:
+        Dict mapping part_num -> image_path for all wanted parts
+    """
+    df = pd.read_csv(BytesIO(merged_df_serialized))
+
+    if df.empty or "Part" not in df.columns:
+        return {}
+
+    # Get all unique wanted parts
+    wanted_parts = df["Part"].dropna().unique()
+
+    # Clean and map part numbers
+    part_mapping = {}
+    for part in wanted_parts:
+        part_str = str(part).strip()
+        # Remove "pr\d+" suffix
+        part_cleaned = re.sub(r"pr\d+$", "", part_str, flags=re.IGNORECASE)
+        # Map to BA part number if available
+        part_mapped = ba_mapping.get(part_cleaned, part_cleaned)
+        part_mapping[part_str] = part_mapped
+
+    # Batch fetch all images (including user-uploaded)
+    unique_mapped_parts = list(set(part_mapping.values()))
+    image_cache = get_cached_images_batch(unique_mapped_parts, cache_images_dir, user_uploaded_dir=user_uploaded_dir)
+
+    # Build final mapping from original part numbers to image paths
+    result = {}
+    for original_part, mapped_part in part_mapping.items():
+        if mapped_part in image_cache:
+            result[original_part] = image_cache[mapped_part]
+
+    return result
+
+
+
+def save_user_uploaded_image(uploaded_file, part_num: str, user_uploaded_dir: Path) -> bool:
+    """
+    Save a user-uploaded image for a specific part number.
+    
+    Args:
+        uploaded_file: Streamlit UploadedFile object
+        part_num: Part number identifier
+        user_uploaded_dir: Directory to save user-uploaded images
+        
+    Returns:
+        True if saved successfully, False otherwise
+    """
+    try:
+        # Create directory if it doesn't exist
+        user_uploaded_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Determine file extension from uploaded file
+        file_ext = uploaded_file.name.split('.')[-1].lower()
+        if file_ext not in ['png', 'jpg', 'jpeg']:
+            return False
+        
+        # Normalize extension (jpeg -> jpg)
+        if file_ext == 'jpeg':
+            file_ext = 'jpg'
+        
+        # Save file with part number as filename
+        save_path = user_uploaded_dir / f"{part_num}.{file_ext}"
+        with open(save_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        
+        return True
+    except Exception:
+        return False
+
+
+def create_custom_images_zip(user_uploaded_dir: Path) -> BytesIO:
+    """
+    Create a ZIP file containing all user-uploaded custom images.
+    
+    Args:
+        user_uploaded_dir: Directory containing user-uploaded images
+        
+    Returns:
+        BytesIO object containing the ZIP file
+    """
+    import zipfile
+    
+    zip_buffer = BytesIO()
+    
+    if not user_uploaded_dir.exists():
+        return zip_buffer
+    
+    # Get all image files
+    image_files = list(user_uploaded_dir.glob("*.png")) + list(user_uploaded_dir.glob("*.jpg"))
+    
+    if not image_files:
+        return zip_buffer
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        for img_path in sorted(image_files):
+            # Add file to zip with just the filename (no path)
+            zip_file.write(img_path, arcname=img_path.name)
+    
+    zip_buffer.seek(0)
+    return zip_buffer
+
+
+def count_custom_images(user_uploaded_dir: Path) -> int:
+    """
+    Count the number of custom images uploaded by the user.
+    
+    Args:
+        user_uploaded_dir: Directory containing user-uploaded images
+        
+    Returns:
+        Number of custom images
+    """
+    if not user_uploaded_dir.exists():
+        return 0
+    
+    png_files = list(user_uploaded_dir.glob("*.png"))
+    jpg_files = list(user_uploaded_dir.glob("*.jpg"))
+    
+    return len(png_files) + len(jpg_files)

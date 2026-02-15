@@ -124,19 +124,19 @@ def display_mapping_files_info(resources_dir: Path, count_parts_callback=None):
                         
                         # Highlight the currently used file
                         if is_latest:
-                            st.markdown(f"- **{file.name}** ({total_parts} parts) ✅ *Currently in use*")
+                            st.markdown(f"- **{file.name}** ({total_parts} parts) ✅ *In use*")
                         else:
                             st.markdown(f"- {file.name} ({total_parts} parts)")
                     else:
                         # No callback, just show filename
                         if is_latest:
-                            st.markdown(f"- **{file.name}** ✅ *Currently in use*")
+                            st.markdown(f"- **{file.name}** ✅ *In use*")
                         else:
                             st.markdown(f"- {file.name}")
                 except Exception as e:
                     # If counting fails, just show the filename
                     if is_latest:
-                        st.markdown(f"- **{file.name}** ✅ *Currently in use*")
+                        st.markdown(f"- **{file.name}** ✅ *In use*")
                     else:
                         st.markdown(f"- {file.name}")
             

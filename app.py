@@ -16,14 +16,14 @@ from ui.summary import render_summary_table
 from core.paths import init_paths, save_uploadedfiles, manage_default_collection
 from core.mapping import load_ba_mapping, count_parts_in_mapping
 from core.preprocess import load_wanted_files, load_collection_files, merge_wanted_collection, get_collection_parts_tuple, get_collection_parts_set
-from core.images import precompute_location_images
+from core.images import precompute_location_images, fetch_wanted_part_images, save_user_uploaded_image, create_custom_images_zip, count_custom_images
 from core.colors import load_colors, build_color_lookup, render_color_cell
 from core.auth import AuthManager
 from core.labels import organize_labels_by_location, generate_collection_labels_zip
 from core.download_helpers import create_download_callbacks
 from resources.ba_part_labels import download_ba_labels
 from resources.ba_part_images import download_ba_images
-from resources.ba_part_mappings import fetch_all_ba_parts, fetch_rebrickable_mappings, find_latest_mapping_file
+from resources.ba_part_mappings import fetch_all_ba_parts, fetch_rebrickable_mappings, find_latest_mapping_file, display_mapping_files_info
 
 # ---------------------------------------------------------------------
 # --- Page setup
@@ -124,6 +124,9 @@ if auth_status is True:
     # Define user collection directory for use throughout the app
     user_collection_dir = paths.user_data_dir / username / "collection"
     user_collection_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Define user-specific uploaded images directory
+    user_uploaded_images_dir = paths.get_user_uploaded_images_dir(username)
     
     with st.sidebar:
         display_name = st.session_state.get("name", username)
@@ -346,7 +349,6 @@ if auth_status is True:
             
             # Display available mapping files with part counts
             st.info("📋 **Available Mapping Files:**")
-            from resources.ba_part_mappings import display_mapping_files_info
             
             # Create callback for counting parts
             def count_parts_wrapper(file_path_str):
@@ -469,6 +471,36 @@ if auth_status is True:
                     # Reset update state
                     st.session_state.ba_mappings_updating = False
                     st.session_state.ba_mappings_stop_flag = False
+        
+        # Custom Images Management
+        with st.expander("🖼️ Custom Images"):
+            st.markdown("Manage your custom part images uploaded when no official image was available.")
+            
+            # Count custom images
+            custom_image_count = count_custom_images(user_uploaded_images_dir)
+            
+            if custom_image_count > 0:
+                st.info(f"📊 You have **{custom_image_count}** custom image(s) uploaded.")
+                
+                # Download button
+                if st.button("📥 Download all custom images", key="download_custom_images"):
+                    try:
+                        zip_buffer = create_custom_images_zip(user_uploaded_images_dir)
+                        
+                        if zip_buffer.getbuffer().nbytes > 0:
+                            st.download_button(
+                                label="💾 Download ZIP file",
+                                data=zip_buffer,
+                                file_name=f"{username}_custom_images.zip",
+                                mime="application/zip",
+                                key="download_custom_images_zip"
+                            )
+                        else:
+                            st.warning("⚠️ No images to download.")
+                    except Exception as e:
+                        st.error(f"❌ Error creating ZIP: {e}")
+            else:
+                st.info("📭 No custom images uploaded yet. Upload images for parts without official images in the pickup list.")
 
 st.write("Status: Set up app completed. Loaded mappings of parts and colors!")
 
@@ -516,14 +548,74 @@ st.markdown("---")
 col1, col2 = st.columns(2)
 with col1:
     # ---------------------------------------------------------------------
-    # --- Start Wanted Parts Processing Button
-    if wanted_files and collection_files_stream:
+    # --- Find Wanted Parts in Collection Section
+    if collection_files_stream:
         st.markdown("### ▶️ Find wanted parts in collection")
         st.markdown("Process the wanted parts and collection lists, create a table with wanted parts per location in collection.")
-        if st.button("🚀 Start generating pickup list"):
-            st.session_state["start_processing"] = True
+        
+        # Calculate hash of collection files to detect changes
+        collection_hash = hashlib.md5()
+        for f in collection_file_paths:
+            if isinstance(f, Path):
+                # For file paths, hash the file path and modification time
+                collection_hash.update(str(f).encode())
+                collection_hash.update(str(f.stat().st_mtime).encode())
+            else:
+                # For uploaded files, hash the file name and size
+                collection_hash.update(f.name.encode())
+                collection_hash.update(str(f.size).encode())
+        current_collection_hash = collection_hash.hexdigest()
+        
+        # Check if collection files have changed
+        if st.session_state.get("collection_hash") != current_collection_hash:
+            st.session_state["collection_hash"] = current_collection_hash
+            st.session_state["precompute_done"] = False
+        
+        # Precompute collection images button
+        precompute_done = st.session_state.get("precompute_done", False)
+        
+        if not precompute_done:
+            if st.button("🔄 Precompute collection images", key="precompute_button"):
+                with st.spinner("Precomputing collection images..."):
+                    try:
+                        # Load collection files
+                        collection = load_collection_files(collection_files_stream)
+                        collection_bytes = collection.to_csv(index=False).encode('utf-8')
+                        
+                        # Precompute location images
+                        images_index, part_images_map = precompute_location_images(
+                            collection_bytes, 
+                            ba_mapping, 
+                            CACHE_IMAGES_DIR,
+                            user_uploaded_dir=user_uploaded_images_dir
+                        )
+                        
+                        # Save to session state
+                        st.session_state["locations_index"] = images_index
+                        st.session_state["part_images_map"] = part_images_map
+                        st.session_state["collection_df"] = collection
+                        st.session_state["collection_bytes"] = collection_bytes
+                        st.session_state["precompute_done"] = True
+                        
+                        st.success("✅ Collection images precomputed successfully!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error precomputing images: {e}")
+        else:
+            st.button("✅ Collection images precomputed", key="precompute_button_done", disabled=True)
+        
+        # Generate pickup list button
+        can_generate = wanted_files and precompute_done
+        
+        if not can_generate:
+            st.info("📤 Upload at least one Wanted file and Precompute collection to generate pickup list")
+            st.button("🚀 Generate pickup list", key="generate_button", disabled=True)
+            st.session_state["start_processing"] = False
+        else:
+            if st.button("🚀 Generate pickup list", key="generate_button"):
+                st.session_state["start_processing"] = True
     else:
-        st.info("📤 Upload at least one Wanted and one Collection file to begin.")
+        st.info("📤 Upload at least one Collection file to begin.")
         st.session_state["start_processing"] = False
 
 with col2:
@@ -568,21 +660,27 @@ with col2:
 if st.session_state.get("start_processing"):
 
     # ---------------------------------------------------------------------
-    # --- Processing Uploaded files (short processing time)
-    with st.spinner("Processing Collection & Wanted parts..."):       
+    # --- Processing Wanted files and merging with precomputed collection
+    with st.spinner("Processing wanted parts and generating pickup list..."):       
         try:
+            # Load wanted files
             wanted = load_wanted_files(wanted_files)
-            collection = load_collection_files(collection_files_stream)
+            
+            # Get precomputed collection data from session state
+            collection = st.session_state.get("collection_df")
+            if collection is None:
+                st.error("❌ Collection data not found. Please precompute collection images first.")
+                st.stop()
+            
+            st.write("Status: Loaded wanted parts.")
         except Exception as e:
             st.error(f"Error parsing uploaded files: {e}")
             st.stop()
 
-        st.session_state["collection_df"] = collection
-        st.write("Status: Loaded collection and wanted parts.")
-
         def _df_bytes(df):
             return df.to_csv(index=False).encode('utf-8')
         
+        # Merge wanted and collection data
         merged_source_hash = hashlib.md5(_df_bytes(collection) + _df_bytes(wanted)).hexdigest()
         if st.session_state.get("merged_df") is None or st.session_state.get("merged_source_hash") != merged_source_hash:
             merged = merge_wanted_collection(wanted, collection)
@@ -591,15 +689,20 @@ if st.session_state.get("start_processing"):
 
         merged = st.session_state["merged_df"]
         
-        collection_bytes = _df_bytes(collection)
+        # Fetch images for all wanted parts (including "Not Found" parts)
+        merged_bytes = _df_bytes(merged)
+        wanted_images_map = fetch_wanted_part_images(
+            merged_bytes, 
+            ba_mapping, 
+            CACHE_IMAGES_DIR,
+            user_uploaded_dir=user_uploaded_images_dir
+        )
         
-    # ---------------------------------------------------------------------
-    # --- Processing Image locations (longer processing time)
-    with st.spinner("Computing image locations..."):
-        images_index, part_images_map = precompute_location_images(collection_bytes, ba_mapping, CACHE_IMAGES_DIR)
-        st.session_state["locations_index"] = images_index
-        st.session_state["part_images_map"] = part_images_map
-        st.write("Status: Loaded image locations for parts.")
+        # Merge with precomputed collection images (wanted_images_map takes precedence for completeness)
+        precomputed_images = st.session_state.get("part_images_map", {})
+        combined_images_map = {**precomputed_images, **wanted_images_map}
+        st.session_state["part_images_map"] = combined_images_map
+        st.write("Status: Generated pickup list with part locations and images.")
         
     st.markdown("### 🧩 Parts Grouped by Location")
 
@@ -681,6 +784,24 @@ if st.session_state.get("start_processing"):
                     st.image(img_url, width=100)
                 else:
                     st.text("🚫 No image")
+                    # Add upload button for missing images
+                    upload_key = f"upload_{part_num}_{location}"
+                    uploaded_file = st.file_uploader(
+                        "Upload image",
+                        type=["png", "jpg", "jpeg"],
+                        key=upload_key,
+                        label_visibility="collapsed",
+                        help=f"Upload a custom image for part {part_num}"
+                    )
+                    if uploaded_file is not None:
+                        if save_user_uploaded_image(uploaded_file, str(part_num), user_uploaded_images_dir):
+                            st.success("✅ Image saved!")
+                            # Clear cache to reload images
+                            precompute_location_images.clear()
+                            fetch_wanted_part_images.clear()
+                            st.rerun()
+                        else:
+                            st.error("❌ Failed to save image")
                 st.markdown(f"### **{part_num}**")
             with right:
                 header = st.columns([2.5, 1, 1, 2])

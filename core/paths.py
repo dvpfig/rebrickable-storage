@@ -41,6 +41,12 @@ class Paths:
 
         for d in [self.global_cache_dir, self.cache_images, self.cache_labels, self.resources_dir, self.default_collection_dir, self.user_data_dir]:
             d.mkdir(parents=True, exist_ok=True)
+    
+    def get_user_uploaded_images_dir(self, username: str) -> Path:
+        """Get the user-specific uploaded images directory."""
+        user_images_dir = self.user_data_dir / username / "images_uploaded"
+        user_images_dir.mkdir(parents=True, exist_ok=True)
+        return user_images_dir
 
 def init_paths() -> Paths:
     return Paths()
