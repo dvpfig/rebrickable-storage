@@ -344,6 +344,19 @@ if auth_status is True:
             # BA Mappings Update Section
             st.markdown("**Update part number mapping database** between BrickArchitect and Rebrickable.")
             
+            # Display available mapping files with part counts
+            st.info("📋 **Available Mapping Files:**")
+            from resources.ba_part_mappings import display_mapping_files_info
+            
+            # Create callback for counting parts
+            def count_parts_wrapper(file_path_str):
+                return count_parts_in_mapping(file_path_str, None, "images")
+            
+            # Display mapping files with part counts
+            display_mapping_files_info(paths.resources_dir, count_parts_wrapper)
+            
+            st.markdown("---")
+            
             # Phase 1: Get full list of BA parts
             st.markdown("**Step 1:** Fetch all BA parts from BrickArchitect (creates new Excel file)")
             

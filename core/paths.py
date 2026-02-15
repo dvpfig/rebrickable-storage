@@ -17,7 +17,26 @@ class Paths:
         self.user_data_dir = self.root / "user_data"
         self.default_collection_dir = self.resources_dir / "collection"
 
-        self.mapping_path = self.resources_dir / "part number - BA vs RB - 2025-11-11.xlsx"
+        # Use helper function to find latest mapping file
+        from resources.ba_part_mappings import find_latest_mapping_file
+        latest_mapping = find_latest_mapping_file(self.resources_dir)
+        if latest_mapping:
+            self.mapping_path = latest_mapping
+        else:
+            # No mapping file found - display error to user
+            self.mapping_path = None
+            st.error("❌ **No mapping file found!**")
+            st.warning(
+                "⚠️ No BA vs RB mapping file was found in the resources directory. "
+                "Please create a mapping file by using the sidebar option: "
+                "**'Sync latest Parts from BrickArchitect' → 'Get full list of BA parts'**"
+            )
+            st.info(
+                "💡 The mapping file should be named in the format: "
+                "`part number - BA vs RB - YYYY-MM-DD.xlsx`"
+            )
+            st.stop()
+        
         self.colors_path = self.resources_dir / "colors.csv"
 
         for d in [self.global_cache_dir, self.cache_images, self.cache_labels, self.resources_dir, self.default_collection_dir, self.user_data_dir]:

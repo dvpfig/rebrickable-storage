@@ -75,6 +75,81 @@ def find_latest_mapping_file(resources_dir: Path):
 
 
 # ---------------------------------------------------------------------
+# Helper function: Display available mapping files with part counts
+# ---------------------------------------------------------------------
+def display_mapping_files_info(resources_dir: Path, count_parts_callback=None):
+    """
+    Display available mapping files with part counts in Streamlit.
+    
+    Args:
+        resources_dir: Path to the resources directory
+        count_parts_callback: Optional callback function(file_path_str) that returns (total_parts, collection_parts)
+    
+    Returns:
+        list: List of tuples (date_str, file_path, is_latest) for all mapping files found
+    """
+    import re
+    import streamlit as st
+    
+    try:
+        # Pattern to match mapping files
+        pattern = re.compile(r"part number - BA vs RB - (\d{4}-\d{2}-\d{2})\.xlsx")
+        
+        # Find all mapping files
+        mapping_files = []
+        for file in resources_dir.glob("part number - BA vs RB - *.xlsx"):
+            match = pattern.match(file.name)
+            if match:
+                date_str = match.group(1)
+                mapping_files.append((date_str, file))
+        
+        # Sort by date (descending)
+        mapping_files.sort(reverse=True, key=lambda x: x[0])
+        
+        # Find the latest (currently used) file
+        latest_mapping = find_latest_mapping_file(resources_dir)
+        latest_name = latest_mapping.name if latest_mapping else None
+        
+        # Display each mapping file with part count
+        if mapping_files:
+            result = []
+            for date_str, file in mapping_files:
+                is_latest = (file.name == latest_name)
+                result.append((date_str, file, is_latest))
+                
+                try:
+                    # Count parts in this mapping file if callback provided
+                    if count_parts_callback:
+                        total_parts, _ = count_parts_callback(str(file))
+                        
+                        # Highlight the currently used file
+                        if is_latest:
+                            st.markdown(f"- **{file.name}** ({total_parts} parts) ✅ *Currently in use*")
+                        else:
+                            st.markdown(f"- {file.name} ({total_parts} parts)")
+                    else:
+                        # No callback, just show filename
+                        if is_latest:
+                            st.markdown(f"- **{file.name}** ✅ *Currently in use*")
+                        else:
+                            st.markdown(f"- {file.name}")
+                except Exception as e:
+                    # If counting fails, just show the filename
+                    if is_latest:
+                        st.markdown(f"- **{file.name}** ✅ *Currently in use*")
+                    else:
+                        st.markdown(f"- {file.name}")
+            
+            return result
+        else:
+            st.markdown("*No mapping files found*")
+            return []
+    except Exception as e:
+        st.warning(f"⚠️ Could not load mapping files information: {e}")
+        return []
+
+
+# ---------------------------------------------------------------------
 # Helper function: Extract Rebrickable part numbers
 # ---------------------------------------------------------------------
 def get_rebrickable_parts(ba_part_number: str, log_callback=None):

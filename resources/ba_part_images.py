@@ -174,8 +174,16 @@ def download_ba_images(mapping_path: Path, cache_images_dir: Path, timeout: int 
 
 # Command-line execution
 if __name__ == "__main__":
+    from ba_part_mappings import find_latest_mapping_file
+    
     SCRIPT_DIR = Path(__file__).parent
-    INPUT_FILE = SCRIPT_DIR / "part number - BA vs RB - 2025-11-11.xlsx"
+    INPUT_FILE = find_latest_mapping_file(SCRIPT_DIR)
+    
+    if not INPUT_FILE:
+        print("❌ No mapping file found in resources directory")
+        exit(1)
+    
+    print(f"📂 Using mapping file: {INPUT_FILE.name}")
     GLOBAL_CACHE_DIR = SCRIPT_DIR.parent / "cache"
     CACHE_IMAGES_DIR = GLOBAL_CACHE_DIR / "images"
     
