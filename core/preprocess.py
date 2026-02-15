@@ -87,3 +87,59 @@ def merge_wanted_collection(wanted, collection):
     merged = pd.concat(all_rows, ignore_index=True)
     merged = merged.sort_values(by=["Location", "Part"]) 
     return merged
+
+
+def get_collection_parts_tuple(collection_dir):
+    """
+    Load collection files from a directory and return unique part numbers as a tuple.
+    
+    Args:
+        collection_dir: Path object pointing to directory containing collection CSV files
+    
+    Returns:
+        tuple: Tuple of unique RB part numbers (as strings), or None if no files found
+    """
+    from pathlib import Path
+    
+    collection_dir = Path(collection_dir)
+    collection_files = sorted(collection_dir.glob("*.csv"))
+    
+    if not collection_files:
+        return None
+    
+    collection_file_handles = [open(f, "rb") for f in collection_files]
+    try:
+        collection_df = load_collection_files(collection_file_handles)
+        return tuple(collection_df["Part"].astype(str).unique())
+    finally:
+        # Always close file handles
+        for fh in collection_file_handles:
+            fh.close()
+
+
+def get_collection_parts_set(collection_dir):
+    """
+    Load collection files from a directory and return unique part numbers as a set.
+    
+    Args:
+        collection_dir: Path object pointing to directory containing collection CSV files
+    
+    Returns:
+        set: Set of unique RB part numbers (as strings), or None if no files found
+    """
+    from pathlib import Path
+    
+    collection_dir = Path(collection_dir)
+    collection_files = sorted(collection_dir.glob("*.csv"))
+    
+    if not collection_files:
+        return None
+    
+    collection_file_handles = [open(f, "rb") for f in collection_files]
+    try:
+        collection_df = load_collection_files(collection_file_handles)
+        return set(collection_df["Part"].astype(str).unique())
+    finally:
+        # Always close file handles
+        for fh in collection_file_handles:
+            fh.close()

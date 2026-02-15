@@ -1,8 +1,8 @@
 """
-BrickArchitect Label Downloader
+BrickArchitect Image Downloader
 
-This module downloads label files (.lbx) from BrickArchitect based on the
-part mapping Excel file. Labels are cached locally to avoid re-downloading.
+This module downloads part images from BrickArchitect based on the
+part mapping Excel file. Images are cached locally to avoid re-downloading.
 """
 
 import os
@@ -12,13 +12,13 @@ import openpyxl
 from urllib.parse import urlparse
 
 
-def download_ba_labels(mapping_path: Path, cache_labels_dir: Path, timeout: int = 10, progress_callback=None, stop_flag_callback=None, stats_callback=None, filter_mode: str = "all", collection_parts: set = None):
+def download_ba_images(mapping_path: Path, cache_images_dir: Path, timeout: int = 10, progress_callback=None, stop_flag_callback=None, stats_callback=None, filter_mode: str = "all", collection_parts: set = None):
     """
-    Download BrickArchitect label files based on the mapping Excel file.
+    Download BrickArchitect part images based on the mapping Excel file.
     
     Args:
         mapping_path: Path to the Excel file containing BA part mappings
-        cache_labels_dir: Directory to cache downloaded label files
+        cache_images_dir: Directory to cache downloaded image files
         timeout: Request timeout in seconds
         progress_callback: Optional callback function(message, status) for progress updates
             status can be: 'info', 'success', 'warning', 'error'
@@ -29,7 +29,7 @@ def download_ba_labels(mapping_path: Path, cache_labels_dir: Path, timeout: int 
     
     Returns:
         dict: Statistics about the download process
-            - total: Total number of label URLs found
+            - total: Total number of image URLs found
             - skipped: Number of files already cached
             - downloaded: Number of files successfully downloaded
             - failed: Number of failed downloads
@@ -56,7 +56,7 @@ def download_ba_labels(mapping_path: Path, cache_labels_dir: Path, timeout: int 
             stats_callback(stats.copy())
     
     # Setup
-    os.makedirs(cache_labels_dir, exist_ok=True)
+    os.makedirs(cache_images_dir, exist_ok=True)
     
     # Load workbook
     try:
@@ -70,10 +70,9 @@ def download_ba_labels(mapping_path: Path, cache_labels_dir: Path, timeout: int 
     header_row = [cell.value for cell in ws[1]]
     try:
         partnum_col = header_row.index("BA partnum") + 1
-        labelurl_col = header_row.index("BA label URL") + 1
     except ValueError as e:
-        log("❌ Could not find required columns 'BA partnum' or 'BA label URL'", "error")
-        raise ValueError("Could not find required columns 'BA partnum' or 'BA label URL'") from e
+        log("❌ Could not find required column 'BA partnum'", "error")
+        raise ValueError("Could not find required column 'BA partnum'") from e
     
     # Find all RB part columns (RB part_1, RB part_2, etc.)
     rb_part_cols = []
@@ -90,7 +89,7 @@ def download_ba_labels(mapping_path: Path, cache_labels_dir: Path, timeout: int 
             log("❌ filter_mode='collection' requires 'RB part_' columns in mapping file", "error")
             raise ValueError("filter_mode='collection' requires 'RB part_' columns in mapping file")
     
-    # Download each label file
+    # Download each image
     for row in ws.iter_rows(min_row=2):
         # Check if user wants to stop
         if should_stop():
@@ -100,7 +99,6 @@ def download_ba_labels(mapping_path: Path, cache_labels_dir: Path, timeout: int 
             break
         
         partnum = row[partnum_col - 1].value
-        label_url = row[labelurl_col - 1].value
         
         # Filter by collection if requested
         if filter_mode == "collection" and rb_part_cols:
@@ -117,20 +115,16 @@ def download_ba_labels(mapping_path: Path, cache_labels_dir: Path, timeout: int 
                 update_stats()
                 continue
         
-        if not label_url or "No label available" in str(label_url):
+        if not partnum:
             continue
         
         stats["total"] += 1
         update_stats()
         
-        # Extract filename from URL
-        parsed = urlparse(label_url)
-        filename = os.path.basename(parsed.path)
-        
-        if not filename.lower().endswith(".lbx"):
-            continue
-        
-        save_path = os.path.join(cache_labels_dir, filename)
+        # Construct image URL (BrickArchitect uses PNG format)
+        image_url = f"https://brickarchitect.com/content/parts/{partnum}.png"
+        filename = f"{partnum}.png"
+        save_path = os.path.join(cache_images_dir, filename)
         
         # Skip if already downloaded
         if os.path.exists(save_path):
@@ -146,10 +140,14 @@ def download_ba_labels(mapping_path: Path, cache_labels_dir: Path, timeout: int 
             update_stats()
             break
         
-        # Download file
+        # Download image
         try:
             log(f"⬇️ Downloading {filename}...", "info")
-            response = requests.get(label_url, timeout=timeout)
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+            }
+            response = requests.get(image_url, headers=headers, timeout=timeout)
             if response.status_code == 200 and response.content:
                 with open(save_path, "wb") as f:
                     f.write(response.content)
@@ -179,6 +177,6 @@ if __name__ == "__main__":
     SCRIPT_DIR = Path(__file__).parent
     INPUT_FILE = SCRIPT_DIR / "part number - BA vs RB - 2025-11-11.xlsx"
     GLOBAL_CACHE_DIR = SCRIPT_DIR.parent / "cache"
-    CACHE_LABELS_DIR = GLOBAL_CACHE_DIR / "labels"
+    CACHE_IMAGES_DIR = GLOBAL_CACHE_DIR / "images"
     
-    download_ba_labels(INPUT_FILE, CACHE_LABELS_DIR)
+    download_ba_images(INPUT_FILE, CACHE_IMAGES_DIR)

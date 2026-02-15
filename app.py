@@ -14,13 +14,15 @@ from ui.theme import apply_dark_theme, apply_light_theme
 from ui.layout import ensure_session_state_keys, short_key
 from ui.summary import render_summary_table
 from core.paths import init_paths, save_uploadedfiles, manage_default_collection
-from core.mapping import load_ba_mapping
-from core.preprocess import load_wanted_files, load_collection_files, merge_wanted_collection
+from core.mapping import load_ba_mapping, count_parts_in_mapping
+from core.preprocess import load_wanted_files, load_collection_files, merge_wanted_collection, get_collection_parts_tuple, get_collection_parts_set
 from core.images import precompute_location_images
 from core.colors import load_colors, build_color_lookup, render_color_cell
 from core.auth import AuthManager
 from core.labels import organize_labels_by_location, generate_collection_labels_zip
+from core.download_helpers import create_download_callbacks
 from resources.ba_part_labels import download_ba_labels
+from resources.ba_part_images import download_ba_images
 from resources.ba_part_mappings import fetch_all_ba_parts, fetch_rebrickable_mappings, find_latest_mapping_file
 
 # ---------------------------------------------------------------------
@@ -52,9 +54,29 @@ else:
     apply_light_theme()
 
 # ---------------------------------------------------------------------
-# --- Authentication Setup
+# --- Path Resolution & Global Setup (before authentication)
 # ---------------------------------------------------------------------
 paths = init_paths()
+
+# Base path constants
+CACHE_IMAGES_DIR = paths.cache_images
+CACHE_LABELS_DIR = paths.cache_labels
+RESOURCES_DIR = paths.resources_dir
+DEFAULT_COLLECTION_DIR = paths.default_collection_dir
+MAPPING_PATH = paths.mapping_path
+COLORS_PATH = paths.colors_path
+
+# Session-state initialization
+ensure_session_state_keys()
+
+# Load mapping and color data (cached, so only loads once)
+ba_mapping = load_ba_mapping(MAPPING_PATH)
+colors_df = load_colors(COLORS_PATH)
+color_lookup = build_color_lookup(colors_df)
+
+# ---------------------------------------------------------------------
+# --- Authentication Setup
+# ---------------------------------------------------------------------
 auth_config_path = paths.resources_dir / "auth_config.yaml"
 
 # Initialize AuthManager once
@@ -151,6 +173,35 @@ if auth_status is True:
             st.markdown("Download the latest label files (.lbx) from BrickArchitect based on the part mapping database.")
             st.markdown("Labels cached locally - only new labels will be downloaded.")
             
+            # Calculate part counts for preview
+            try:
+                # Get collection parts as tuple (for caching)
+                collection_parts_tuple = get_collection_parts_tuple(user_collection_dir)
+                
+                # Use helper function to count parts
+                total_parts_with_labels, collection_parts_with_labels = count_parts_in_mapping(str(MAPPING_PATH), collection_parts_tuple, "labels")
+                
+                # Filter mode selector with counts
+                labels_filter_mode = st.radio(
+                    "Download mode:",
+                    options=["collection", "all"],
+                    format_func=lambda x: f"Only parts in my collection ({collection_parts_with_labels} parts)" if x == "collection" else f"All available parts ({total_parts_with_labels} parts)",
+                    index=0,
+                    key="labels_filter_mode",
+                    horizontal=True
+                )
+            except Exception as e:
+                st.warning(f"⚠️ Could not calculate part counts: {e}")
+                # Fallback to simple selector
+                labels_filter_mode = st.radio(
+                    "Download mode:",
+                    options=["collection", "all"],
+                    format_func=lambda x: "Only parts in my collection" if x == "collection" else "All available parts",
+                    index=0,
+                    key="labels_filter_mode",
+                    horizontal=True
+                )
+            
             # Initialize stop flag in session state
             if "ba_labels_stop_flag" not in st.session_state:
                 st.session_state.ba_labels_stop_flag = False
@@ -168,29 +219,21 @@ if auth_status is True:
             
             # Perform download if flag is set
             if st.session_state.get("ba_labels_downloading", False):
-                progress_placeholder = st.empty()
-                status_placeholder = st.empty()
-                
-                def progress_callback(message, status):
-                    """Display progress messages in the UI"""
-                    if status == "error":
-                        status_placeholder.error(message)
-                    elif status == "warning":
-                        status_placeholder.warning(message)
-                    elif status == "success":
-                        status_placeholder.success(message)
-                    else:
-                        progress_placeholder.info(message)
-                
-                def stop_flag_callback():
-                    """Check if user clicked stop"""
-                    return st.session_state.get("ba_labels_stop_flag", False)
-                
-                def stats_callback(stats):
-                    """Update stats in session state in real-time"""
-                    pass  # No longer displaying stats
+                # Create download callbacks
+                progress_callback, stop_flag_callback, stats_callback = create_download_callbacks(
+                    stop_flag_key="ba_labels_stop_flag",
+                    show_stats=False
+                )
                 
                 try:
+                    # Get collection parts if filter mode is "collection"
+                    collection_parts_set = None
+                    if labels_filter_mode == "collection":
+                        collection_parts_set = get_collection_parts_set(user_collection_dir)
+                        if not collection_parts_set:
+                            st.warning("⚠️ No collection files found. Downloading all parts instead.")
+                            labels_filter_mode = "all"
+                    
                     with st.spinner("Downloading BA labels..."):
                         stats = download_ba_labels(
                             mapping_path=paths.mapping_path,
@@ -198,7 +241,9 @@ if auth_status is True:
                             timeout=10,
                             progress_callback=progress_callback,
                             stop_flag_callback=stop_flag_callback,
-                            stats_callback=stats_callback
+                            stats_callback=stats_callback,
+                            filter_mode=labels_filter_mode,
+                            collection_parts=collection_parts_set
                         )
                     
                 except Exception as e:
@@ -207,6 +252,91 @@ if auth_status is True:
                     # Reset download state
                     st.session_state.ba_labels_downloading = False
                     st.session_state.ba_labels_stop_flag = False
+        
+        # Sync latest Images from BrickArchitect
+        with st.expander("🔄 Get latest Images from BrickArchitect"):
+            st.markdown("Download the latest part images from BrickArchitect based on the part mapping database.")
+            st.markdown("Images cached locally - only new images will be downloaded.")
+            
+            # Calculate part counts for preview
+            try:
+                # Get collection parts as tuple (for caching)
+                collection_parts_tuple = get_collection_parts_tuple(user_collection_dir)
+                
+                # Use helper function to count parts
+                total_parts_with_images, collection_parts_with_images = count_parts_in_mapping(str(MAPPING_PATH), collection_parts_tuple, "images")
+                
+                # Filter mode selector with counts
+                images_filter_mode = st.radio(
+                    "Download mode:",
+                    options=["collection", "all"],
+                    format_func=lambda x: f"Only parts in my collection ({collection_parts_with_images} parts)" if x == "collection" else f"All available parts ({total_parts_with_images} parts)",
+                    index=0,
+                    key="images_filter_mode",
+                    horizontal=True
+                )
+            except Exception as e:
+                st.warning(f"⚠️ Could not calculate part counts: {e}")
+                # Fallback to simple selector
+                images_filter_mode = st.radio(
+                    "Download mode:",
+                    options=["collection", "all"],
+                    format_func=lambda x: "Only parts in my collection" if x == "collection" else "All available parts",
+                    index=0,
+                    key="images_filter_mode",
+                    horizontal=True
+                )
+            
+            # Initialize stop flag in session state
+            if "ba_images_stop_flag" not in st.session_state:
+                st.session_state.ba_images_stop_flag = False
+            
+            # Show start button if not downloading
+            if not st.session_state.get("ba_images_downloading", False):
+                if st.button("📥 Get latest BA images", key="download_ba_images"):
+                    st.session_state.ba_images_downloading = True
+                    st.session_state.ba_images_stop_flag = False
+                    st.rerun()
+            else:
+                # Show stop button while downloading
+                if st.button("⏹️ Stop Download", key="stop_ba_images", type="secondary"):
+                    st.session_state.ba_images_stop_flag = True
+            
+            # Perform download if flag is set
+            if st.session_state.get("ba_images_downloading", False):
+                # Create download callbacks
+                progress_callback_images, stop_flag_callback_images, stats_callback_images = create_download_callbacks(
+                    stop_flag_key="ba_images_stop_flag",
+                    show_stats=False
+                )
+                
+                try:
+                    # Get collection parts if filter mode is "collection"
+                    collection_parts_set = None
+                    if images_filter_mode == "collection":
+                        collection_parts_set = get_collection_parts_set(user_collection_dir)
+                        if not collection_parts_set:
+                            st.warning("⚠️ No collection files found. Downloading all parts instead.")
+                            images_filter_mode = "all"
+                    
+                    with st.spinner("Downloading BA images..."):
+                        stats = download_ba_images(
+                            mapping_path=paths.mapping_path,
+                            cache_images_dir=paths.cache_images,
+                            timeout=10,
+                            progress_callback=progress_callback_images,
+                            stop_flag_callback=stop_flag_callback_images,
+                            stats_callback=stats_callback_images,
+                            filter_mode=images_filter_mode,
+                            collection_parts=collection_parts_set
+                        )
+                    
+                except Exception as e:
+                    st.error(f"❌ Error during download: {e}")
+                finally:
+                    # Reset download state
+                    st.session_state.ba_images_downloading = False
+                    st.session_state.ba_images_stop_flag = False
             
         # Sync latest updates from BrickArchitect
         with st.expander("🔄 Sync latest Parts from BrickArchitect"):
@@ -234,31 +364,16 @@ if auth_status is True:
             
             # Perform fetch if flag is set
             if st.session_state.get("ba_parts_fetching", False):
-                progress_placeholder_parts = st.empty()
-                status_placeholder_parts = st.empty()
-                stats_placeholder_parts = st.empty()
+                # Create download callbacks with custom stats formatter
+                def format_parts_stats(stats):
+                    return (f"📋 Pages processed: {stats.get('pages_processed', 0)}, "
+                            f"Parts added: {stats.get('parts_added', 0)}")
                 
-                def progress_callback_parts(message, status):
-                    """Display progress messages in the UI"""
-                    if status == "error":
-                        status_placeholder_parts.error(message)
-                    elif status == "warning":
-                        status_placeholder_parts.warning(message)
-                    elif status == "success":
-                        status_placeholder_parts.success(message)
-                    else:
-                        progress_placeholder_parts.info(message)
-                
-                def stop_flag_callback_parts():
-                    """Check if user clicked stop"""
-                    return st.session_state.get("ba_parts_stop_flag", False)
-                
-                def stats_callback_parts(stats):
-                    """Update stats display in real-time"""
-                    stats_placeholder_parts.info(
-                        f"📋 Pages processed: {stats.get('pages_processed', 0)}, "
-                        f"Parts added: {stats.get('parts_added', 0)}"
-                    )
+                progress_callback_parts, stop_flag_callback_parts, stats_callback_parts = create_download_callbacks(
+                    stop_flag_key="ba_parts_stop_flag",
+                    show_stats=True,
+                    stats_formatter=format_parts_stats
+                )
                 
                 try:
                     from datetime import datetime
@@ -305,30 +420,15 @@ if auth_status is True:
             
             # Perform update if flag is set
             if st.session_state.get("ba_mappings_updating", False):
-                progress_placeholder_mappings = st.empty()
-                status_placeholder_mappings = st.empty()
-                stats_placeholder_mappings = st.empty()
+                # Create download callbacks with custom stats formatter
+                def format_mappings_stats(stats):
+                    return f"🔗 Processed {stats.get('processed', 0)}/{stats.get('total', 0)} parts"
                 
-                def progress_callback_mappings(message, status):
-                    """Display progress messages in the UI"""
-                    if status == "error":
-                        status_placeholder_mappings.error(message)
-                    elif status == "warning":
-                        status_placeholder_mappings.warning(message)
-                    elif status == "success":
-                        status_placeholder_mappings.success(message)
-                    else:
-                        progress_placeholder_mappings.info(message)
-                
-                def stop_flag_callback_mappings():
-                    """Check if user clicked stop"""
-                    return st.session_state.get("ba_mappings_stop_flag", False)
-                
-                def stats_callback_mappings(stats):
-                    """Update stats display in real-time"""
-                    stats_placeholder_mappings.info(
-                        f"🔗 Processed {stats.get('processed', 0)}/{stats.get('total', 0)} parts"
-                    )
+                progress_callback_mappings, stop_flag_callback_mappings, stats_callback_mappings = create_download_callbacks(
+                    stop_flag_key="ba_mappings_stop_flag",
+                    show_stats=True,
+                    stats_formatter=format_mappings_stats
+                )
                 
                 try:
                     from resources.ba_part_mappings import fetch_rebrickable_mappings, find_latest_mapping_file
@@ -356,24 +456,6 @@ if auth_status is True:
                     # Reset update state
                     st.session_state.ba_mappings_updating = False
                     st.session_state.ba_mappings_stop_flag = False
-
-# --- Base path resolution (cross-platform)
-CACHE_IMAGES_DIR = paths.cache_images
-CACHE_LABELS_DIR = paths.cache_labels
-RESOURCES_DIR = paths.resources_dir
-DEFAULT_COLLECTION_DIR = paths.default_collection_dir  # Common collection directory
-MAPPING_PATH = paths.mapping_path
-COLORS_PATH = paths.colors_path
-
-# --- Session-state initialization
-ensure_session_state_keys()
-
-# --- Mapping file
-ba_mapping = load_ba_mapping(MAPPING_PATH)
-
-# --- Color Lookup
-colors_df = load_colors(COLORS_PATH)
-color_lookup = build_color_lookup(colors_df)
 
 st.write("Status: Set up app completed. Loaded mappings of parts and colors!")
 
