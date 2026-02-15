@@ -14,9 +14,9 @@ from ui.theme import apply_dark_theme, apply_light_theme
 from ui.layout import ensure_session_state_keys, short_key
 from ui.summary import render_summary_table
 from core.paths import init_paths, save_uploadedfiles, manage_default_collection
-from core.mapping import load_ba_mapping, count_parts_in_mapping
+from core.mapping import load_ba_mapping, count_parts_in_mapping, build_rb_to_similar_parts_mapping, load_ba_part_names
 from core.preprocess import load_wanted_files, load_collection_files, merge_wanted_collection, get_collection_parts_tuple, get_collection_parts_set
-from core.images import precompute_location_images, fetch_wanted_part_images, save_user_uploaded_image, create_custom_images_zip, count_custom_images
+from core.images import precompute_location_images, fetch_wanted_part_images, save_user_uploaded_image, create_custom_images_zip, count_custom_images, upload_custom_images, delete_all_custom_images
 from core.colors import load_colors, build_color_lookup, render_color_cell
 from core.auth import AuthManager
 from core.labels import organize_labels_by_location, generate_collection_labels_zip
@@ -71,6 +71,8 @@ ensure_session_state_keys()
 
 # Load mapping and color data (cached, so only loads once)
 ba_mapping = load_ba_mapping(MAPPING_PATH)
+rb_to_similar = build_rb_to_similar_parts_mapping(MAPPING_PATH)
+ba_part_names = load_ba_part_names(MAPPING_PATH)
 colors_df = load_colors(COLORS_PATH)
 color_lookup = build_color_lookup(colors_df)
 
@@ -171,20 +173,26 @@ if auth_status is True:
             st.write("Current default collection files:")
             manage_default_collection(user_collection_dir)
 
-        # Sync latest Labels from BrickArchitect
-        with st.expander("🔄 Get latest Labels from BrickArchitect"):
-            st.markdown("Download the latest label files (.lbx) from BrickArchitect based on the part mapping database.")
-            st.markdown("Labels cached locally - only new labels will be downloaded.")
+        # Sync latest Labels/Images from BrickArchitect
+        with st.expander("🔄 Get latest Labels/Images"):
+            st.markdown("Download the latest labels (.lbx) or images (.png) from BrickArchitect based on the part mapping database. Files cached locally - only new files will be downloaded.")
             
-            # Calculate part counts for preview
+            # Display cache statistics
             try:
-                # Get collection parts as tuple (for caching)
+                labels_count = len(list(CACHE_LABELS_DIR.glob("*.lbx")))
+                images_count = len(list(CACHE_IMAGES_DIR.glob("*.png")))
+                st.info(f"📊 Cache: **{labels_count}** labels, **{images_count}** images")
+            except Exception as e:
+                st.warning(f"⚠️ Could not count cache files: {e}")
+            
+            st.markdown("---")
+            st.markdown("**Labels (.lbx files)**")
+            
+            # Calculate part counts for labels
+            try:
                 collection_parts_tuple = get_collection_parts_tuple(user_collection_dir)
-                
-                # Use helper function to count parts
                 total_parts_with_labels, collection_parts_with_labels = count_parts_in_mapping(str(MAPPING_PATH), collection_parts_tuple, "labels")
                 
-                # Filter mode selector with counts
                 labels_filter_mode = st.radio(
                     "Download mode:",
                     options=["collection", "all"],
@@ -195,7 +203,6 @@ if auth_status is True:
                 )
             except Exception as e:
                 st.warning(f"⚠️ Could not calculate part counts: {e}")
-                # Fallback to simple selector
                 labels_filter_mode = st.radio(
                     "Download mode:",
                     options=["collection", "all"],
@@ -205,31 +212,25 @@ if auth_status is True:
                     horizontal=True
                 )
             
-            # Initialize stop flag in session state
             if "ba_labels_stop_flag" not in st.session_state:
                 st.session_state.ba_labels_stop_flag = False
             
-            # Show start button if not downloading
             if not st.session_state.get("ba_labels_downloading", False):
                 if st.button("📥 Get latest BA labels", key="download_ba_labels"):
                     st.session_state.ba_labels_downloading = True
                     st.session_state.ba_labels_stop_flag = False
                     st.rerun()
             else:
-                # Show stop button while downloading
                 if st.button("⏹️ Stop Download", key="stop_ba_labels", type="secondary"):
                     st.session_state.ba_labels_stop_flag = True
             
-            # Perform download if flag is set
             if st.session_state.get("ba_labels_downloading", False):
-                # Create download callbacks
                 progress_callback, stop_flag_callback, stats_callback = create_download_callbacks(
                     stop_flag_key="ba_labels_stop_flag",
                     show_stats=False
                 )
                 
                 try:
-                    # Get collection parts if filter mode is "collection"
                     collection_parts_set = None
                     if labels_filter_mode == "collection":
                         collection_parts_set = get_collection_parts_set(user_collection_dir)
@@ -252,24 +253,17 @@ if auth_status is True:
                 except Exception as e:
                     st.error(f"❌ Error during download: {e}")
                 finally:
-                    # Reset download state
                     st.session_state.ba_labels_downloading = False
                     st.session_state.ba_labels_stop_flag = False
-        
-        # Sync latest Images from BrickArchitect
-        with st.expander("🔄 Get latest Images from BrickArchitect"):
-            st.markdown("Download the latest part images from BrickArchitect based on the part mapping database.")
-            st.markdown("Images cached locally - only new images will be downloaded.")
             
-            # Calculate part counts for preview
+            st.markdown("---")
+            st.markdown("**Images (.png files)**")
+            
+            # Calculate part counts for images
             try:
-                # Get collection parts as tuple (for caching)
                 collection_parts_tuple = get_collection_parts_tuple(user_collection_dir)
-                
-                # Use helper function to count parts
                 total_parts_with_images, collection_parts_with_images = count_parts_in_mapping(str(MAPPING_PATH), collection_parts_tuple, "images")
                 
-                # Filter mode selector with counts
                 images_filter_mode = st.radio(
                     "Download mode:",
                     options=["collection", "all"],
@@ -280,7 +274,6 @@ if auth_status is True:
                 )
             except Exception as e:
                 st.warning(f"⚠️ Could not calculate part counts: {e}")
-                # Fallback to simple selector
                 images_filter_mode = st.radio(
                     "Download mode:",
                     options=["collection", "all"],
@@ -290,31 +283,25 @@ if auth_status is True:
                     horizontal=True
                 )
             
-            # Initialize stop flag in session state
             if "ba_images_stop_flag" not in st.session_state:
                 st.session_state.ba_images_stop_flag = False
             
-            # Show start button if not downloading
             if not st.session_state.get("ba_images_downloading", False):
                 if st.button("📥 Get latest BA images", key="download_ba_images"):
                     st.session_state.ba_images_downloading = True
                     st.session_state.ba_images_stop_flag = False
                     st.rerun()
             else:
-                # Show stop button while downloading
                 if st.button("⏹️ Stop Download", key="stop_ba_images", type="secondary"):
                     st.session_state.ba_images_stop_flag = True
             
-            # Perform download if flag is set
             if st.session_state.get("ba_images_downloading", False):
-                # Create download callbacks
                 progress_callback_images, stop_flag_callback_images, stats_callback_images = create_download_callbacks(
                     stop_flag_key="ba_images_stop_flag",
                     show_stats=False
                 )
                 
                 try:
-                    # Get collection parts if filter mode is "collection"
                     collection_parts_set = None
                     if images_filter_mode == "collection":
                         collection_parts_set = get_collection_parts_set(user_collection_dir)
@@ -337,10 +324,9 @@ if auth_status is True:
                 except Exception as e:
                     st.error(f"❌ Error during download: {e}")
                 finally:
-                    # Reset download state
                     st.session_state.ba_images_downloading = False
                     st.session_state.ba_images_stop_flag = False
-            
+        
         # Sync latest updates from BrickArchitect
         with st.expander("🔄 Sync latest Parts from BrickArchitect"):
             
@@ -500,7 +486,52 @@ if auth_status is True:
                     except Exception as e:
                         st.error(f"❌ Error creating ZIP: {e}")
             else:
-                st.info("📭 No custom images uploaded yet. Upload images for parts without official images in the pickup list.")
+                st.info("📭 No custom images uploaded yet.")
+            
+            st.markdown("---")
+            
+            # Upload multiple custom images
+            st.markdown("**Upload Custom Images**")
+            uploaded_custom_images = st.file_uploader(
+                "Upload custom part images (PNG or JPG)",
+                type=["png", "jpg", "jpeg"],
+                accept_multiple_files=True,
+                key="upload_custom_images"
+            )
+            
+            if uploaded_custom_images:
+                if st.button("📤 Upload Images", key="upload_custom_images_button"):
+                    try:
+                        stats = upload_custom_images(uploaded_custom_images, user_uploaded_images_dir)
+                        
+                        if stats["total"] > 0:
+                            st.success(
+                                f"✅ Uploaded **{stats['total']}** image(s): "
+                                f"**{stats['new']}** new, **{stats['overwritten']}** overwritten"
+                            )
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ No images were uploaded.")
+                    except Exception as e:
+                        st.error(f"❌ Error uploading images: {e}")
+            
+            st.markdown("---")
+            
+            # Delete all custom images
+            st.markdown("**Reset Custom Images**")
+            if custom_image_count > 0:
+                if st.button("🗑️ Delete all custom images", key="delete_custom_images", type="secondary"):
+                    try:
+                        deleted_count = delete_all_custom_images(user_uploaded_images_dir)
+                        if deleted_count > 0:
+                            st.success(f"✅ Deleted **{deleted_count}** custom image(s).")
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ No images were deleted.")
+                    except Exception as e:
+                        st.error(f"❌ Error deleting images: {e}")
+            else:
+                st.button("🗑️ Delete all custom images", key="delete_custom_images_disabled", disabled=True)
 
 st.write("Status: Set up app completed. Loaded mappings of parts and colors!")
 
@@ -653,6 +684,7 @@ with col2:
     else:
         st.info("📤 Upload at least one Collection file to begin.")
 
+st.markdown("---")
 
 # ---------------------------------------------------------------------
 # --- MAIN WANTED PARTS PROCESSING LOGIC
@@ -683,7 +715,11 @@ if st.session_state.get("start_processing"):
         # Merge wanted and collection data
         merged_source_hash = hashlib.md5(_df_bytes(collection) + _df_bytes(wanted)).hexdigest()
         if st.session_state.get("merged_df") is None or st.session_state.get("merged_source_hash") != merged_source_hash:
-            merged = merge_wanted_collection(wanted, collection)
+            merged = merge_wanted_collection(wanted, collection, rb_to_similar)
+            
+            # Add BA part names to merged dataframe
+            merged["BA_part_name"] = merged["Part"].astype(str).map(ba_part_names).fillna("")
+            
             st.session_state["merged_df"] = merged
             st.session_state["merged_source_hash"] = merged_source_hash
 
@@ -778,8 +814,14 @@ if st.session_state.get("start_processing"):
             # Use precomputed image map
             img_url = st.session_state.get("part_images_map", {}).get(str(part_num), "")
             
+            # Get BA part name for this part
+            ba_name = part_group["BA_part_name"].iloc[0] if "BA_part_name" in part_group.columns else ""
+            
             left, right = st.columns([1, 4])
             with left:
+                # Display BA part name
+                st.markdown(f"**{ba_name}**")
+                # Display BA part image
                 if img_url:
                     st.image(img_url, width=100)
                 else:
@@ -802,7 +844,12 @@ if st.session_state.get("start_processing"):
                             st.rerun()
                         else:
                             st.error("❌ Failed to save image")
+                # Display BA part number
                 st.markdown(f"### **{part_num}**")
+                # Show replacement parts note if applicable
+                replacement_parts = part_group["Replacement_parts"].iloc[0] if "Replacement_parts" in part_group.columns else ""
+                if replacement_parts:
+                    st.markdown(f'<p style="font-size: 0.85em; color: #888; margin-top: -10px;">(replace with {replacement_parts})</p>', unsafe_allow_html=True)
             with right:
                 header = st.columns([2.5, 1, 1, 2])
                 header[0].markdown("**Color**")

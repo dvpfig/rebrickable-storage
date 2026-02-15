@@ -33,6 +33,60 @@ def read_ba_mapping_from_excel_bytes(excel_bytes: bytes) -> dict:
     return mapping
 
 @st.cache_data(show_spinner=False)
+def load_ba_part_names(mapping_path):
+    """
+    Load BA part names from the mapping file.
+    
+    Args:
+        mapping_path: Path to the BA vs RB mapping Excel file
+    
+    Returns:
+        dict: {rb_part: ba_part_name}
+    """
+    if not mapping_path.exists():
+        return {}
+    
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(mapping_path, read_only=True)
+        ws = wb.active
+        
+        # Get header row
+        header_row = [cell.value for cell in ws[1]]
+        
+        # Find BA partname column and all RB part columns
+        ba_name_col_idx = None
+        rb_col_indices = []
+        
+        for idx, col_name in enumerate(header_row):
+            if col_name and col_name.strip().lower() == "ba partname":
+                ba_name_col_idx = idx
+            elif col_name and col_name.strip().lower().startswith("rb part_"):
+                rb_col_indices.append(idx)
+        
+        if ba_name_col_idx is None or not rb_col_indices:
+            wb.close()
+            return {}
+        
+        # Build the mapping
+        rb_to_ba_name = {}
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            ba_name = str(row[ba_name_col_idx]).strip() if row[ba_name_col_idx] else None
+            if not ba_name or ba_name.lower() in ['none', 'nan', 'n/a']:
+                continue
+            
+            for rb_idx in rb_col_indices:
+                rb_part = str(row[rb_idx]).strip() if row[rb_idx] else None
+                if rb_part and rb_part.lower() not in ['none', 'nan', 'n/a', '']:
+                    rb_to_ba_name[rb_part] = ba_name
+        
+        wb.close()
+        return rb_to_ba_name
+    
+    except Exception as e:
+        return {}
+
+@st.cache_data(show_spinner=False)
 def load_ba_mapping(mapping_path):
     if mapping_path.exists():
         with open(mapping_path, "rb") as f:
@@ -99,3 +153,90 @@ def count_parts_in_mapping(mapping_path_str: str, collection_parts: tuple = None
     
     wb.close()
     return (total_count, collection_count)
+
+
+@st.cache_data(show_spinner=False)
+def build_ba_to_rb_mapping(mapping_path):
+    """
+    Build a reverse mapping from BA part numbers to lists of RB part numbers.
+    This allows finding similar parts that share the same BA part number.
+
+    Args:
+        mapping_path: Path to the BA vs RB mapping Excel file
+
+    Returns:
+        dict: {ba_part: [rb_part1, rb_part2, ...]}
+    """
+    if not mapping_path.exists():
+        return {}
+
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(mapping_path, read_only=True)
+        ws = wb.active
+
+        # Get header row
+        header_row = [cell.value for cell in ws[1]]
+
+        # Find BA partnum column and all RB part columns
+        ba_col_idx = None
+        rb_col_indices = []
+
+        for idx, col_name in enumerate(header_row):
+            if col_name and col_name.strip().lower() == "ba partnum":
+                ba_col_idx = idx
+            elif col_name and col_name.strip().lower().startswith("rb part_"):
+                rb_col_indices.append(idx)
+
+        if ba_col_idx is None or not rb_col_indices:
+            wb.close()
+            return {}
+
+        # Build the mapping
+        ba_to_rb = {}
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            ba_part = str(row[ba_col_idx]).strip() if row[ba_col_idx] else None
+            if not ba_part or ba_part.lower() in ['none', 'nan', 'n/a']:
+                continue
+
+            rb_parts = []
+            for rb_idx in rb_col_indices:
+                rb_part = str(row[rb_idx]).strip() if row[rb_idx] else None
+                if rb_part and rb_part.lower() not in ['none', 'nan', 'n/a', '']:
+                    rb_parts.append(rb_part)
+
+            if rb_parts:
+                ba_to_rb[ba_part] = rb_parts
+
+        wb.close()
+        return ba_to_rb
+
+    except Exception as e:
+        return {}
+
+
+@st.cache_data(show_spinner=False)
+def build_rb_to_similar_parts_mapping(mapping_path):
+    """
+    Build a mapping from each RB part to all other RB parts that share the same BA part number.
+    This is used to find similar/replacement parts.
+
+    Args:
+        mapping_path: Path to the BA vs RB mapping Excel file
+
+    Returns:
+        dict: {rb_part: [similar_rb_part1, similar_rb_part2, ...]}
+    """
+    ba_to_rb = build_ba_to_rb_mapping(mapping_path)
+
+    # Build reverse mapping: each RB part maps to all other RB parts with same BA number
+    rb_to_similar = {}
+    for ba_part, rb_parts in ba_to_rb.items():
+        for rb_part in rb_parts:
+            # Similar parts are all RB parts for this BA number, excluding itself
+            similar = [p for p in rb_parts if p != rb_part]
+            if similar:
+                rb_to_similar[rb_part] = similar
+
+    return rb_to_similar
+

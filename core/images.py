@@ -71,7 +71,9 @@ def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict
     
 @cache_data(show_spinner=False)
 def fetch_image_bytes(url: str, _session: Optional[requests.Session] = None):
-    """Fetch image bytes from URL, optionally using a session for connection reuse."""
+    """
+    Fetch image bytes from URL, optionally using a session for connection reuse.
+    """
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
@@ -98,7 +100,7 @@ def _fetch_single_image(identifier: str, cache_dir: Path, session: Optional[requ
         return (identifier, str(local_png))
     
     # Try to fetch PNG from URL
-    url = f"https://brickarchitect.com/content/parts-large/{identifier}.png"
+    url = f"https://brickarchitect.com/content/parts/{identifier}.png"
     data = fetch_image_bytes(url, session)
     if data:
         try:
@@ -107,11 +109,6 @@ def _fetch_single_image(identifier: str, cache_dir: Path, session: Optional[requ
             return (identifier, str(local_png))
         except Exception:
             pass
-    
-    # Check JPG cache as fallback
-    local_jpg = cache_dir / f"{identifier}.jpg"
-    if local_jpg.exists():
-        return (identifier, str(local_jpg))
     
     return (identifier, "")
 
@@ -132,19 +129,11 @@ def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: i
     # Pre-check file existence for all parts (batch file I/O check)
     file_cache: Dict[str, Optional[str]] = {}
     png_paths = {pid: cache_dir / f"{pid}.png" for pid in part_ids}
-    jpg_paths = {pid: cache_dir / f"{pid}.jpg" for pid in part_ids}
     
     # Batch check PNG files
     for pid, png_path in png_paths.items():
         if png_path.exists():
             file_cache[pid] = str(png_path)
-    
-    # Check JPG files only for parts without PNG
-    for pid in part_ids:
-        if pid not in file_cache:
-            jpg_path = jpg_paths[pid]
-            if jpg_path.exists():
-                file_cache[pid] = str(jpg_path)
     
     # Separate cached and uncached parts
     cached_results = {pid: path for pid, path in file_cache.items() if path}
@@ -318,3 +307,69 @@ def count_custom_images(user_uploaded_dir: Path) -> int:
     jpg_files = list(user_uploaded_dir.glob("*.jpg"))
     
     return len(png_files) + len(jpg_files)
+def upload_custom_images(uploaded_files, user_uploaded_dir: Path) -> dict:
+    """
+    Upload multiple custom images to user-specific directory.
+    Overwrites existing images with the same name.
+
+    Args:
+        uploaded_files: List of uploaded file objects from Streamlit
+        user_uploaded_dir: Directory to save uploaded images
+
+    Returns:
+        Dictionary with upload statistics:
+        - total: Total number of images uploaded
+        - new: Number of new images
+        - overwritten: Number of overwritten images
+    """
+    if not uploaded_files:
+        return {"total": 0, "new": 0, "overwritten": 0}
+
+    # Ensure directory exists
+    user_uploaded_dir.mkdir(parents=True, exist_ok=True)
+
+    stats = {"total": 0, "new": 0, "overwritten": 0}
+
+    for uploaded_file in uploaded_files:
+        # Check if file already exists
+        target_path = user_uploaded_dir / uploaded_file.name
+        is_overwrite = target_path.exists()
+
+        # Save the file
+        with open(target_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+
+        stats["total"] += 1
+        if is_overwrite:
+            stats["overwritten"] += 1
+        else:
+            stats["new"] += 1
+
+    return stats
+
+
+def delete_all_custom_images(user_uploaded_dir: Path) -> int:
+    """
+    Delete all custom images from user-specific directory.
+
+    Args:
+        user_uploaded_dir: Directory containing user-uploaded images
+
+    Returns:
+        Number of images deleted
+    """
+    if not user_uploaded_dir.exists():
+        return 0
+
+    deleted_count = 0
+
+    # Delete all PNG and JPG files
+    for img_path in list(user_uploaded_dir.glob("*.png")) + list(user_uploaded_dir.glob("*.jpg")):
+        try:
+            img_path.unlink()
+            deleted_count += 1
+        except Exception:
+            pass
+
+    return deleted_count
+
