@@ -269,12 +269,6 @@ RUNTIME METRICS & DATA DIMENSIONS
 │  ├─ Rows: 4342
 │  └─ Columns: 14
 │
-├─ USER DATA
-│
-│  Total Users: 1
-│  User Collection Files: 14
-│  Default Collection Files: 14
-│
 └─ DATA STRUCTURE DIMENSIONS
 
    DataFrame Schemas:
@@ -291,7 +285,7 @@ RUNTIME METRICS & DATA DIMENSIONS
 ================================================================================
 STATISTICS SUMMARY
 ================================================================================
-Total Functions: 86
+Total Functions: 92
 Total Classes: 4
-Session State Keys: 14
-Modules Analyzed: 16
+Session State Keys: 13
+Modules Analyzed: 17

@@ -309,7 +309,7 @@
         
         <div class="stats">
             <div class="stat-card">
-                <span class="stat-number">86</span>
+                <span class="stat-number">92</span>
                 <span class="stat-label">Functions</span>
             </div>
             <div class="stat-card">
@@ -317,11 +317,11 @@
                 <span class="stat-label">Classes</span>
             </div>
             <div class="stat-card">
-                <span class="stat-number">14</span>
+                <span class="stat-number">13</span>
                 <span class="stat-label">Session Keys</span>
             </div>
             <div class="stat-card">
-                <span class="stat-number">16</span>
+                <span class="stat-number">17</span>
                 <span class="stat-label">Modules</span>
             </div>
         </div>
@@ -349,7 +349,7 @@
             
             <h3 style="margin-top: 30px;">Session State Keys</h3>
             <div class="function-list">
-                <div class="function-card"><div class="function-name">collection_bytes</div></div><div class="function-card"><div class="function-name">collection_df</div></div><div class="function-card"><div class="function-name">collection_hash</div></div><div class="function-card"><div class="function-name">expanded_loc</div></div><div class="function-card"><div class="function-name">found_counts</div></div><div class="function-card"><div class="function-name">labels_zip_bytes</div></div><div class="function-card"><div class="function-name">labels_zip_filename</div></div><div class="function-card"><div class="function-name">locations_index</div></div><div class="function-card"><div class="function-name">merged_df</div></div><div class="function-card"><div class="function-name">merged_source_hash</div></div><div class="function-card"><div class="function-name">part_images_map</div></div><div class="function-card"><div class="function-name">precompute_done</div></div><div class="function-card"><div class="function-name">start_processing</div></div><div class="function-card"><div class="function-name">theme</div></div>
+                <div class="function-card"><div class="function-name">collection_bytes</div></div><div class="function-card"><div class="function-name">collection_df</div></div><div class="function-card"><div class="function-name">collection_hash</div></div><div class="function-card"><div class="function-name">expanded_loc</div></div><div class="function-card"><div class="function-name">found_counts</div></div><div class="function-card"><div class="function-name">labels_zip_bytes</div></div><div class="function-card"><div class="function-name">labels_zip_filename</div></div><div class="function-card"><div class="function-name">locations_index</div></div><div class="function-card"><div class="function-name">merged_df</div></div><div class="function-card"><div class="function-name">merged_source_hash</div></div><div class="function-card"><div class="function-name">part_images_map</div></div><div class="function-card"><div class="function-name">precompute_done</div></div><div class="function-card"><div class="function-name">start_processing</div></div>
             </div>
         </div>
         
@@ -431,21 +431,6 @@
                 </div>
             </div>
             
-            <h3 style="margin-top: 30px;">User Data</h3>
-            <div class="function-list">
-                <div class="function-card">
-                    <div class="function-name">Total Users</div>
-                    <div class="function-module">1 users</div>
-                </div>
-                <div class="function-card">
-                    <div class="function-name">User Collection Files</div>
-                    <div class="function-module">14 files</div>
-                </div>
-                <div class="function-card">
-                    <div class="function-name">Default Collection Files</div>
-                    <div class="function-module">14 files</div>
-                </div>
-            </div>
             
             <h3 style="margin-top: 30px;">Data Structure Dimensions</h3>
             <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-top: 15px;">
@@ -468,7 +453,7 @@
         
         <div id="functions" class="tab-content">
             <h2>Function Reference</h2>
-            <p>All functions discovered in the application (86 total) - organized by folder and file</p>
+            <p>All functions discovered in the application (92 total) - organized by folder and file</p>
             
             <div style="margin: 20px 0;">
                 <button onclick="expandAll()" style="padding: 10px 20px; margin-right: 10px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 0.9em;">
@@ -487,7 +472,7 @@
                         <span>Root Files</span>
                     </div>
                     <div>
-                        <span class="folder-count">86 functions</span>
+                        <span class="folder-count">92 functions</span>
                         <span class="expand-icon" id="folder-0-icon">▶</span>
                     </div>
                 </div>
@@ -584,14 +569,65 @@
                         <div class="file-header" onclick="toggleFile('folder-0-file-2')">
                             <div>
                                 <span class="file-icon">📄</span>
-                                <span>core\colors.py</span>
+                                <span>core\color_similarity.py</span>
                             </div>
                             <div>
-                                <span class="file-count">3</span>
+                                <span class="file-count">7</span>
                                 <span class="expand-icon" id="folder-0-file-2-icon">▶</span>
                             </div>
                         </div>
                         <div class="functions-container" id="folder-0-file-2-content">
+            
+                            <div class="function-item">
+                                <div class="function-item-name">build_color_similarity_matrix</div>
+                                <div class="function-item-params">(colors_df)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">calculate_color_distance</div>
+                                <div class="function-item-params">(color1_rgb, color2_rgb, is_trans1, is_trans2)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">f</div>
+                                <div class="function-item-params">(t)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">find_alternative_colors_for_parts</div>
+                                <div class="function-item-params">(parts_df, collection_df, similarity_matrix, max_distance)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">get_similar_colors</div>
+                                <div class="function-item-params">(color_id, similarity_matrix, max_distance)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">rgb_to_lab</div>
+                                <div class="function-item-params">(rgb_hex)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">to_linear</div>
+                                <div class="function-item-params">(c)</div>
+                            </div>
+                
+                        </div>
+                    </div>
+            
+                    <div class="file-section">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-3')">
+                            <div>
+                                <span class="file-icon">📄</span>
+                                <span>core\colors.py</span>
+                            </div>
+                            <div>
+                                <span class="file-count">3</span>
+                                <span class="expand-icon" id="folder-0-file-3-icon">▶</span>
+                            </div>
+                        </div>
+                        <div class="functions-container" id="folder-0-file-3-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">build_color_lookup</div>
@@ -612,17 +648,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-3')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-4')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>core\download_helpers.py</span>
                             </div>
                             <div>
                                 <span class="file-count">5</span>
-                                <span class="expand-icon" id="folder-0-file-3-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-4-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-3-content">
+                        <div class="functions-container" id="folder-0-file-4-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">__init__</div>
@@ -653,17 +689,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-4')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-5')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>core\images.py</span>
                             </div>
                             <div>
                                 <span class="file-count">10</span>
-                                <span class="expand-icon" id="folder-0-file-4-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-5-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-4-content">
+                        <div class="functions-container" id="folder-0-file-5-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">_fetch_single_image</div>
@@ -719,17 +755,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-5')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-6')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>core\labels.py</span>
                             </div>
                             <div>
                                 <span class="file-count">2</span>
-                                <span class="expand-icon" id="folder-0-file-5-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-6-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-5-content">
+                        <div class="functions-container" id="folder-0-file-6-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">generate_collection_labels_zip</div>
@@ -745,17 +781,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-6')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-7')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>core\lbx_merger.py</span>
                             </div>
                             <div>
                                 <span class="file-count">15</span>
-                                <span class="expand-icon" id="folder-0-file-6-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-7-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-6-content">
+                        <div class="functions-container" id="folder-0-file-7-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">__init__</div>
@@ -836,17 +872,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-7')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-8')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>core\mapping.py</span>
                             </div>
                             <div>
                                 <span class="file-count">6</span>
-                                <span class="expand-icon" id="folder-0-file-7-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-8-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-7-content">
+                        <div class="functions-container" id="folder-0-file-8-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">build_ba_to_rb_mapping</div>
@@ -882,17 +918,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-8')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-9')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>core\paths.py</span>
                             </div>
                             <div>
                                 <span class="file-count">5</span>
-                                <span class="expand-icon" id="folder-0-file-8-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-9-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-8-content">
+                        <div class="functions-container" id="folder-0-file-9-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">__init__</div>
@@ -923,17 +959,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-9')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-10')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>core\preprocess.py</span>
                             </div>
                             <div>
                                 <span class="file-count">6</span>
-                                <span class="expand-icon" id="folder-0-file-9-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-10-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-9-content">
+                        <div class="functions-container" id="folder-0-file-10-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">get_collection_parts_set</div>
@@ -969,17 +1005,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-10')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-11')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>resources\ba_part_images.py</span>
                             </div>
                             <div>
                                 <span class="file-count">4</span>
-                                <span class="expand-icon" id="folder-0-file-10-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-11-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-10-content">
+                        <div class="functions-container" id="folder-0-file-11-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">download_ba_images</div>
@@ -1005,17 +1041,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-11')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-12')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>resources\ba_part_labels.py</span>
                             </div>
                             <div>
                                 <span class="file-count">4</span>
-                                <span class="expand-icon" id="folder-0-file-11-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-12-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-11-content">
+                        <div class="functions-container" id="folder-0-file-12-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">download_ba_labels</div>
@@ -1041,17 +1077,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-12')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-13')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>resources\ba_part_mappings.py</span>
                             </div>
                             <div>
                                 <span class="file-count">10</span>
-                                <span class="expand-icon" id="folder-0-file-12-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-13-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-12-content">
+                        <div class="functions-container" id="folder-0-file-13-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">display_mapping_files_info</div>
@@ -1107,17 +1143,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-13')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-14')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>ui\layout.py</span>
                             </div>
                             <div>
                                 <span class="file-count">2</span>
-                                <span class="expand-icon" id="folder-0-file-13-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-14-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-13-content">
+                        <div class="functions-container" id="folder-0-file-14-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">ensure_session_state_keys</div>
@@ -1133,17 +1169,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-14')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-15')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>ui\summary.py</span>
                             </div>
                             <div>
                                 <span class="file-count">1</span>
-                                <span class="expand-icon" id="folder-0-file-14-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-15-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-14-content">
+                        <div class="functions-container" id="folder-0-file-15-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">render_summary_table</div>
@@ -1154,25 +1190,20 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-15')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-16')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>ui\theme.py</span>
                             </div>
                             <div>
-                                <span class="file-count">2</span>
-                                <span class="expand-icon" id="folder-0-file-15-icon">▶</span>
+                                <span class="file-count">1</span>
+                                <span class="expand-icon" id="folder-0-file-16-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-15-content">
+                        <div class="functions-container" id="folder-0-file-16-content">
             
                             <div class="function-item">
-                                <div class="function-item-name">apply_dark_theme</div>
-                                <div class="function-item-params">()</div>
-                            </div>
-                
-                            <div class="function-item">
-                                <div class="function-item-name">apply_light_theme</div>
+                                <div class="function-item-name">apply_custom_styles</div>
                                 <div class="function-item-params">()</div>
                             </div>
                 
@@ -1457,12 +1488,6 @@ RUNTIME METRICS & DATA DIMENSIONS
 │  ├─ Rows: 4342
 │  └─ Columns: 14
 │
-├─ USER DATA
-│
-│  Total Users: 1
-│  User Collection Files: 14
-│  Default Collection Files: 14
-│
 └─ DATA STRUCTURE DIMENSIONS
 
    DataFrame Schemas:
@@ -1479,14 +1504,14 @@ RUNTIME METRICS & DATA DIMENSIONS
 ================================================================================
 STATISTICS SUMMARY
 ================================================================================
-Total Functions: 86
+Total Functions: 92
 Total Classes: 4
-Session State Keys: 14
-Modules Analyzed: 16</pre>
+Session State Keys: 13
+Modules Analyzed: 17</pre>
         </div>
         
         <footer>
-            <p class="timestamp">Generated on 2026-02-15 23:54:02</p>
+            <p class="timestamp">Generated on 2026-02-17 00:25:20</p>
         </footer>
     </div>
     

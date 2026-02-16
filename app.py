@@ -44,7 +44,6 @@ paths = init_paths()
 CACHE_IMAGES_DIR = paths.cache_images
 CACHE_LABELS_DIR = paths.cache_labels
 RESOURCES_DIR = paths.resources_dir
-DEFAULT_COLLECTION_DIR = paths.default_collection_dir
 MAPPING_PATH = paths.mapping_path
 COLORS_PATH = paths.colors_path
 

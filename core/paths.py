@@ -15,7 +15,6 @@ class Paths:
         self.cache_labels = self.global_cache_dir / "labels"
         self.resources_dir = self.root / "resources"
         self.user_data_dir = self.root / "user_data"
-        self.default_collection_dir = self.resources_dir / "collection"
 
         # Use helper function to find latest mapping file
         from resources.ba_part_mappings import find_latest_mapping_file
@@ -39,7 +38,7 @@ class Paths:
         
         self.colors_path = self.resources_dir / "colors.csv"
 
-        for d in [self.global_cache_dir, self.cache_images, self.cache_labels, self.resources_dir, self.default_collection_dir, self.user_data_dir]:
+        for d in [self.global_cache_dir, self.cache_images, self.cache_labels, self.resources_dir, self.user_data_dir]:
             d.mkdir(parents=True, exist_ok=True)
     
     def get_user_uploaded_images_dir(self, username: str) -> Path:
