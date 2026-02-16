@@ -18,6 +18,7 @@ from core.mapping import load_ba_mapping, count_parts_in_mapping, build_rb_to_si
 from core.preprocess import load_wanted_files, load_collection_files, merge_wanted_collection, get_collection_parts_tuple, get_collection_parts_set
 from core.images import precompute_location_images, fetch_wanted_part_images, save_user_uploaded_image, create_custom_images_zip, count_custom_images, upload_custom_images, delete_all_custom_images
 from core.colors import load_colors, build_color_lookup, render_color_cell
+from core.color_similarity import build_color_similarity_matrix, find_alternative_colors_for_parts
 from core.auth import AuthManager
 from core.labels import organize_labels_by_location, generate_collection_labels_zip
 from core.download_helpers import create_download_callbacks
@@ -56,6 +57,7 @@ rb_to_similar = build_rb_to_similar_parts_mapping(MAPPING_PATH)
 ba_part_names = load_ba_part_names(MAPPING_PATH)
 colors_df = load_colors(COLORS_PATH)
 color_lookup = build_color_lookup(colors_df)
+color_similarity_matrix = build_color_similarity_matrix(colors_df)
 
 # ---------------------------------------------------------------------
 # --- Authentication Setup
@@ -791,6 +793,47 @@ if st.session_state.get("start_processing"):
             st.markdown("**Stored here (sample images):**")
             st.image(imgs[:50], width=60)
             st.markdown("---")
+        
+        # Check if there are any insufficient parts in this location
+        loc_parts_df = merged.loc[merged["Location"] == location].copy()
+        has_insufficient_parts = False
+        for _, row in loc_parts_df.iterrows():
+            qty_wanted = int(row["Quantity_wanted"])
+            qty_have = int(row.get("Quantity_have", 0))
+            available = row.get("Available", False)
+            if not available or qty_have < qty_wanted:
+                has_insufficient_parts = True
+                break
+        
+        # Color similarity slider (only visible when there are insufficient parts)
+        alternative_colors = {}
+        if has_insufficient_parts:
+            st.markdown("**🎨 Color Similarity Settings**")
+            color_distance_key = f"color_distance_{location}"
+            if color_distance_key not in st.session_state:
+                st.session_state[color_distance_key] = 30.0
+            
+            color_distance = st.slider(
+                "Adjust color similarity threshold (lower = closer colors only)",
+                min_value=0.0,
+                max_value=100.0,
+                value=st.session_state[color_distance_key],
+                step=5.0,
+                key=f"slider_{color_distance_key}",
+                help="0 = exact match only, 30 = similar colors (e.g., sand green ↔ olive green), 60 = broader range (e.g., light green ↔ olive green)"
+            )
+            st.session_state[color_distance_key] = color_distance
+            
+            # Calculate alternative colors for this location
+            if color_distance > 0:
+                alternative_colors = find_alternative_colors_for_parts(
+                    loc_parts_df,
+                    st.session_state.get("collection_df"),
+                    color_similarity_matrix,
+                    max_distance=color_distance
+                )
+            
+            st.markdown("---")
 
         # List of parts found in this location
         loc_group = merged.loc[merged["Location"] == location]
@@ -877,6 +920,29 @@ if st.session_state.get("start_processing"):
                         if complete 
                         else f"**Found:** {st.session_state['found_counts'].get(key, 0)}/{qty_wanted}"
                     )
+                    
+                    # Show alternative colors if part is unavailable or insufficient
+                    alt_key = (str(row["Part"]), int(row["Color"]), str(row["Location"]))
+                    if alt_key in alternative_colors and (not row["Available"] or qty_have < qty_wanted):
+                        alternatives = alternative_colors[alt_key]
+                        if alternatives:
+                            with st.expander(f"🎨 {len(alternatives)} alternative color(s) available", expanded=False):
+                                st.markdown("**Alternative colors in this location:**")
+                                for alt_color_id, alt_color_name, alt_qty, distance in alternatives[:5]:  # Show top 5
+                                    alt_color_html = render_color_cell(alt_color_id, color_lookup)
+                                    alt_cols = st.columns([2.5, 1, 1])
+                                    alt_cols[0].markdown(alt_color_html, unsafe_allow_html=True)
+                                    alt_cols[1].markdown(f"Qty: **{alt_qty}**")
+                                    # Show similarity indicator
+                                    if distance < 15:
+                                        similarity = "Very similar"
+                                    elif distance < 30:
+                                        similarity = "Similar"
+                                    elif distance < 50:
+                                        similarity = "Somewhat similar"
+                                    else:
+                                        similarity = "Different"
+                                    alt_cols[2].markdown(f"*{similarity}*")
 
             #st.markdown("---")
 
