@@ -10,7 +10,7 @@ import hashlib
 # ---------------------------------------------------------------------
 # --- Local Libraries
 # ---------------------------------------------------------------------
-from ui.theme import apply_dark_theme, apply_light_theme
+from ui.theme import apply_custom_styles
 from ui.layout import ensure_session_state_keys, short_key
 from ui.summary import render_summary_table
 from core.paths import init_paths, save_uploadedfiles, manage_default_collection
@@ -31,27 +31,8 @@ from resources.ba_part_mappings import fetch_all_ba_parts, fetch_rebrickable_map
 st.set_page_config(page_title="Rebrickable Storage - Parts Finder", layout="wide")
 st.title("🧱 Rebrickable Storage - Parts Finder")
 
-# ---------------------------------------------------------------------
-# --- Theme Toggle (at the top, visible to all users)
-# ---------------------------------------------------------------------
-# Initialize theme in session state (default to dark)
-if "theme" not in st.session_state:
-    st.session_state["theme"] = "dark"
-
-# Theme toggle switch at the top
-col_theme_left, col_theme_right = st.columns([10, 1])
-with col_theme_right:
-    theme_icon = "🌙" if st.session_state["theme"] == "dark" else "☀️"
-    theme_label = "Dark" if st.session_state["theme"] == "dark" else "Light"
-    if st.button(f"{theme_icon} {theme_label}", key="theme_toggle", help="Toggle between dark and light theme"):
-        st.session_state["theme"] = "light" if st.session_state["theme"] == "dark" else "dark"
-        st.rerun()
-
-# Apply theme based on session state (applies to entire app including login)
-if st.session_state["theme"] == "dark":
-    apply_dark_theme()
-else:
-    apply_light_theme()
+# Apply custom styles (works with both light and dark Streamlit themes)
+apply_custom_styles()
 
 # ---------------------------------------------------------------------
 # --- Path Resolution & Global Setup (before authentication)
@@ -133,6 +114,10 @@ if auth_status is True:
     with st.sidebar:
         display_name = st.session_state.get("name", username)
         st.write(f"👤 Welcome, **{display_name}**!")
+        
+        # Theme selector note
+        st.info("💡 **Theme:** Use the ⋮ menu (top-right) → Settings to switch between light and dark theme.")
+        st.markdown("---")
 
         # Logout button
         auth_manager.logout()
@@ -702,9 +687,7 @@ if st.session_state.get("start_processing"):
             collection = st.session_state.get("collection_df")
             if collection is None:
                 st.error("❌ Collection data not found. Please precompute collection images first.")
-                st.stop()
-            
-            st.write("Status: Loaded wanted parts.")
+                st.stop()            
         except Exception as e:
             st.error(f"Error parsing uploaded files: {e}")
             st.stop()
@@ -739,7 +722,7 @@ if st.session_state.get("start_processing"):
         combined_images_map = {**precomputed_images, **wanted_images_map}
         st.session_state["part_images_map"] = combined_images_map
         st.write("Status: Generated pickup list with part locations and images.")
-        
+    
     st.markdown("### 🧩 Parts Grouped by Location")
 
     loc_summary = merged.groupby("Location").agg(parts_count=("Part", "count"), total_wanted=("Quantity_wanted", "sum")).reset_index()
@@ -747,6 +730,7 @@ if st.session_state.get("start_processing"):
 
     # ---------------------------------------------------------------------
     # --- Display Parts By Location
+    st.markdown('<hr class="location-separator">', unsafe_allow_html=True)    
     for _, loc_row in loc_summary.iterrows():
         location = loc_row["Location"]
         parts_count = loc_row["parts_count"]
@@ -796,7 +780,7 @@ if st.session_state.get("start_processing"):
             imgs = st.session_state["locations_index"].get(location, [])
             if imgs:
                 st.image(imgs[:10], width=25)
-            #st.markdown("---")
+            st.markdown('<hr class="location-separator">', unsafe_allow_html=True)
             continue
         
         # Expanded display of location (larger images to identify location
@@ -819,8 +803,14 @@ if st.session_state.get("start_processing"):
             
             left, right = st.columns([1, 4])
             with left:
-                # Display BA part name
-                st.markdown(f"**{ba_name}**")
+                # Display RB part number and BA name
+                st.markdown(f"##### **{part_num}**")
+                st.markdown(f"{ba_name}")
+                # Show replacement parts note if applicable
+                replacement_parts = part_group["Replacement_parts"].iloc[0] if "Replacement_parts" in part_group.columns else ""
+                if replacement_parts:
+                    st.markdown(f"(replace with {replacement_parts})")
+
                 # Display BA part image
                 if img_url:
                     st.image(img_url, width=100)
@@ -844,12 +834,6 @@ if st.session_state.get("start_processing"):
                             st.rerun()
                         else:
                             st.error("❌ Failed to save image")
-                # Display BA part number
-                st.markdown(f"### **{part_num}**")
-                # Show replacement parts note if applicable
-                replacement_parts = part_group["Replacement_parts"].iloc[0] if "Replacement_parts" in part_group.columns else ""
-                if replacement_parts:
-                    st.markdown(f'<p style="font-size: 0.85em; color: #888; margin-top: -10px;">(replace with {replacement_parts})</p>', unsafe_allow_html=True)
             with right:
                 header = st.columns([2.5, 1, 1, 2])
                 header[0].markdown("**Color**")
@@ -894,7 +878,7 @@ if st.session_state.get("start_processing"):
                         else f"**Found:** {st.session_state['found_counts'].get(key, 0)}/{qty_wanted}"
                     )
 
-            st.markdown("---")
+            #st.markdown("---")
 
         # Buttons Mark all / Clear all - left-aligned and close together
         # CARD START - Buttons "Found all" / "Clear all"            
@@ -917,7 +901,8 @@ if st.session_state.get("start_processing"):
         st.markdown("</div>", unsafe_allow_html=True)
         # CARD END
         
-        #st.markdown("---")
+        # Location separator
+        st.markdown('<hr class="location-separator">', unsafe_allow_html=True)
 
     found_map = st.session_state.get("found_counts", {})
     keys_tuples = list(zip(merged["Part"].astype(str), merged["Color"].astype(str), merged["Location"].astype(str)))
