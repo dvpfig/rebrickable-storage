@@ -22,9 +22,15 @@ from core.color_similarity import build_color_similarity_matrix, find_alternativ
 from core.auth import AuthManager
 from core.labels import organize_labels_by_location, generate_collection_labels_zip
 from core.download_helpers import create_download_callbacks
+from core.security import sanitize_html, validate_csv_file, validate_image_file
 from resources.ba_part_labels import download_ba_labels
 from resources.ba_part_images import download_ba_images
 from resources.ba_part_mappings import fetch_all_ba_parts, fetch_rebrickable_mappings, find_latest_mapping_file, display_mapping_files_info
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # ---------------------------------------------------------------------
 # --- Page setup
@@ -62,10 +68,11 @@ color_similarity_matrix = build_color_similarity_matrix(colors_df)
 # --- Authentication Setup
 # ---------------------------------------------------------------------
 auth_config_path = paths.resources_dir / "auth_config.yaml"
+audit_log_dir = paths.user_data_dir / "_audit_logs"
 
-# Initialize AuthManager once
+# Initialize AuthManager once with audit logging
 if "auth_manager" not in st.session_state:
-    st.session_state.auth_manager = AuthManager(auth_config_path)
+    st.session_state.auth_manager = AuthManager(auth_config_path, audit_log_dir)
 
 auth_manager = st.session_state.auth_manager
 
@@ -82,10 +89,18 @@ username = st.session_state.get("username", None)
 
 # Evaluate authentication result
 if auth_status is True:
+    # Check session timeout
+    if not auth_manager.check_session_timeout(username):
+        st.error("⏱️ Your session has expired due to inactivity. Please login again.")
+        auth_manager.logout()
+        st.rerun()
+    
     # Authenticated via cookie or fresh login
     pass
 elif auth_status is False:
-    # Wrong credentials
+    # Wrong credentials - record failed attempt
+    attempted_username = st.session_state.get("username", "unknown")
+    auth_manager._record_login_attempt(attempted_username, False)
     st.error("❌ Incorrect username or password.")
     st.stop()
 else:
@@ -94,8 +109,21 @@ else:
 
     tab1, tab2 = st.tabs(["Login", "Register"])
     with tab1:
+        # Check rate limit before showing login form
+        login_username = st.text_input("Username", key="pre_login_username_check")
+        if login_username:
+            is_allowed, error_msg = auth_manager._check_rate_limit(login_username)
+            if not is_allowed:
+                st.error(f"🔒 {error_msg}")
+                st.stop()
+        
         # Render login form (no return value needed)
         auth_manager.authenticator.login(location="main")
+        
+        # Record successful login if authentication just succeeded
+        if st.session_state.get("authentication_status") is True:
+            auth_manager._record_login_attempt(st.session_state.get("username"), True)
+            
     with tab2:
         auth_manager.register_user()
 
@@ -524,10 +552,23 @@ st.write("Status: Set up app completed. Loaded mappings of parts and colors!")
 # ---------------------------------------------------------------------
 # --- File upload section
 # ---------------------------------------------------------------------
+# Get max file size from environment
+max_file_size_mb = float(os.getenv('MAX_FILE_SIZE_MB', '1.0'))
+
 col1, col2 = st.columns(2)
 with col1:
     st.markdown("### 🗂️ Wanted parts: Upload")
-    wanted_files = st.file_uploader("Upload Wanted CSVs", type=["csv"], accept_multiple_files=True)
+    wanted_files_raw = st.file_uploader("Upload Wanted CSVs", type=["csv"], accept_multiple_files=True, key="wanted_uploader")
+    
+    # Validate wanted files
+    wanted_files = []
+    if wanted_files_raw:
+        for file in wanted_files_raw:
+            is_valid, error_msg = validate_csv_file(file, max_size_mb=max_file_size_mb)
+            if is_valid:
+                wanted_files.append(file)
+            else:
+                st.error(f"❌ {file.name}: {error_msg}")
 
 with col2:
     st.markdown("### 🗂️ Collection: Pre-selected Files")
@@ -538,7 +579,23 @@ with col2:
             include = st.checkbox(f"Include {csv_file.name}", value=True, key=f"inc_{csv_file.name}")
             if include:
                 selected_files.append(csv_file)
-    uploaded_collection_files = st.file_uploader("Upload Collection CSVs", type=["csv"], accept_multiple_files=True)
+    
+    uploaded_collection_files_raw = st.file_uploader("Upload Collection CSVs", type=["csv"], accept_multiple_files=True, key="collection_uploader")
+    
+    # Validate uploaded collection files
+    uploaded_collection_files = []
+    if uploaded_collection_files_raw:
+        for file in uploaded_collection_files_raw:
+            is_valid, error_msg = validate_csv_file(file, max_size_mb=max_file_size_mb)
+            if is_valid:
+                uploaded_collection_files.append(file)
+                # Log file upload
+                if auth_manager.audit_logger:
+                    auth_manager.audit_logger.log_file_upload(
+                        username, file.name, "csv", file.size
+                    )
+            else:
+                st.error(f"❌ {file.name}: {error_msg}")
 
 collection_files_stream = []
 collection_file_paths = []

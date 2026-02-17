@@ -1,0 +1,7 @@
+[server]
+# Maximum file upload size in MB
+maxUploadSize = 1
+
+[browser]
+# Gather usage stats
+gatherUsageStats = false

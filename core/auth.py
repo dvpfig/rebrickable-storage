@@ -1,6 +1,6 @@
 # core/auth.py
 """
-Authentication module for multi-user support
+Authentication module for multi-user support with enhanced security
 """
 import streamlit as st
 import yaml
@@ -9,49 +9,84 @@ import streamlit_authenticator as stauth
 from pathlib import Path
 import bcrypt
 import json
+import os
 from datetime import datetime
+from typing import Optional
+from core.security import AuditLogger, SessionTimeoutManager, set_secure_file_permissions
 
 class AuthManager:
-    def __init__(self, config_path: Path):
+    # Bcrypt rounds for password hashing (higher = more secure but slower)
+    BCRYPT_ROUNDS = 12
+    
+    def __init__(self, config_path: Path, audit_log_dir: Optional[Path] = None):
         self.config_path = config_path
+        
+        # Initialize audit logger
+        if audit_log_dir:
+            self.audit_logger = AuditLogger(audit_log_dir)
+        else:
+            self.audit_logger = None
+        
+        # Initialize session timeout manager (90 minutes)
+        timeout_minutes = int(os.getenv('SESSION_TIMEOUT_MINUTES', '90'))
+        self.session_timeout = SessionTimeoutManager(timeout_minutes)
         
         # Initialize config if it doesn't exist
         if not self.config_path.exists():
             self._create_default_config()
         
-        # Load config
+        # Set secure file permissions on config
+        set_secure_file_permissions(self.config_path)
+        
+        # Load config with environment variable overrides
         with open(self.config_path, 'r') as file:
             self.config = yaml.load(file, Loader=SafeLoader)
         
-        # Create authenticator ONCE
+        # Override cookie settings from environment variables
+        cookie_key = os.getenv('COOKIE_SECRET_KEY')
+        if not cookie_key:
+            # In production, this should fail. For development, use config value
+            if os.getenv('APP_ENV') == 'production':
+                raise ValueError("COOKIE_SECRET_KEY environment variable is required in production")
+            cookie_key = self.config['cookie']['key']
+        
+        cookie_name = os.getenv('COOKIE_NAME', self.config['cookie']['name'])
+        cookie_expiry = int(os.getenv('COOKIE_EXPIRY_DAYS', str(self.config['cookie']['expiry_days'])))
+        
+        # Create authenticator ONCE with environment-based config
         self.authenticator = stauth.Authenticate(
             self.config['credentials'],
-            self.config['cookie']['name'],
-            self.config['cookie']['key'],
-            self.config['cookie']['expiry_days']
+            cookie_name,
+            cookie_key,
+            cookie_expiry
         )
 
     def _create_default_config(self):
         """Create a default configuration file with demo user"""
         hashed_password = bcrypt.hashpw(
             'demo123'.encode('utf-8'),
-            bcrypt.gensalt()
+            bcrypt.gensalt(rounds=self.BCRYPT_ROUNDS)
         ).decode('utf-8')
 
+        # Use environment variable for cookie key, fallback to default for development
+        cookie_key = os.getenv('COOKIE_SECRET_KEY', 'rebrickable_storage_secret_key_12345')
+        
         default_config = {
             'credentials': {
                 'usernames': {
                     'demo': {
                         'email': 'demo@example.com',
                         'name': 'Demo User',
-                        'password': hashed_password
+                        'password': hashed_password,
+                        'failed_login_attempts': 0,
+                        'locked_until': None
                     }
                 }
             },
             'cookie': {
-                'name': 'rebrickable_storage_cookie',
-                'key': 'rebrickable_storage_secret_key_12345',
-                'expiry_days': 30
+                'name': os.getenv('COOKIE_NAME', 'rebrickable_storage_cookie'),
+                'key': cookie_key,
+                'expiry_days': int(os.getenv('COOKIE_EXPIRY_DAYS', '30'))
             },
             'preauthorized': {
                 'emails': []
@@ -61,6 +96,106 @@ class AuthManager:
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.config_path, 'w') as file:
             yaml.dump(default_config, file)
+        
+        # Set secure permissions
+        set_secure_file_permissions(self.config_path)
+
+    def check_session_timeout(self, username: str) -> bool:
+        """
+        Check if session has timed out.
+        
+        Args:
+            username: Current username
+            
+        Returns:
+            True if session is valid, False if timed out
+        """
+        return self.session_timeout.check_timeout(username, self.audit_logger)
+    
+    def _check_rate_limit(self, username: str) -> tuple[bool, str]:
+        """
+        Check if user has exceeded login rate limit.
+        
+        Args:
+            username: Username attempting to login
+            
+        Returns:
+            Tuple of (is_allowed, error_message)
+        """
+        if username not in self.config['credentials']['usernames']:
+            return True, ""
+        
+        user_data = self.config['credentials']['usernames'][username]
+        failed_attempts = user_data.get('failed_login_attempts', 0)
+        locked_until = user_data.get('locked_until')
+        
+        # Check if account is locked
+        if locked_until:
+            try:
+                locked_until_dt = datetime.fromisoformat(locked_until)
+                if datetime.now() < locked_until_dt:
+                    remaining = (locked_until_dt - datetime.now()).total_seconds() / 60
+                    return False, f"Account locked. Try again in {int(remaining)} minutes"
+                else:
+                    # Lock expired, reset
+                    user_data['failed_login_attempts'] = 0
+                    user_data['locked_until'] = None
+                    self._save_config()
+            except Exception:
+                pass
+        
+        # Check failed attempts (lock after 5 failed attempts)
+        if failed_attempts >= 5:
+            # Lock account for 15 minutes
+            from datetime import timedelta
+            locked_until = (datetime.now() + timedelta(minutes=15)).isoformat()
+            user_data['locked_until'] = locked_until
+            self._save_config()
+            
+            if self.audit_logger:
+                self.audit_logger.log_security_event(
+                    "ACCOUNT_LOCKED",
+                    username,
+                    f"Too many failed login attempts ({failed_attempts})"
+                )
+            
+            return False, "Too many failed login attempts. Account locked for 15 minutes"
+        
+        return True, ""
+    
+    def _record_login_attempt(self, username: str, success: bool):
+        """
+        Record login attempt for rate limiting.
+        
+        Args:
+            username: Username that attempted login
+            success: Whether login was successful
+        """
+        if username not in self.config['credentials']['usernames']:
+            return
+        
+        user_data = self.config['credentials']['usernames'][username]
+        
+        if success:
+            # Reset failed attempts on successful login
+            user_data['failed_login_attempts'] = 0
+            user_data['locked_until'] = None
+            if self.audit_logger:
+                self.audit_logger.log_login_attempt(username, True)
+        else:
+            # Increment failed attempts
+            failed_attempts = user_data.get('failed_login_attempts', 0) + 1
+            user_data['failed_login_attempts'] = failed_attempts
+            if self.audit_logger:
+                self.audit_logger.log_login_attempt(username, False)
+        
+        self._save_config()
+    
+    def _save_config(self):
+        """Save configuration to file."""
+        with open(self.config_path, 'w') as file:
+            yaml.dump(self.config, file)
+        set_secure_file_permissions(self.config_path)
 
     def register_user(self):
         try:
@@ -72,15 +207,27 @@ class AuthManager:
             )
             if email:
                 st.success("User registered successfully")
+                
+                # Initialize rate limiting fields for new user
+                if username in self.config['credentials']['usernames']:
+                    self.config['credentials']['usernames'][username]['failed_login_attempts'] = 0
+                    self.config['credentials']['usernames'][username]['locked_until'] = None
 
                 # Save updated config
-                with open(self.config_path, 'w') as file:
-                    yaml.dump(self.config, file)
+                self._save_config()
+                
+                # Log registration
+                if self.audit_logger:
+                    self.audit_logger.log_registration(username, email)
 
         except Exception as e:
             st.error(f"Registration failed: {e}")
 
     def logout(self):
+        username = st.session_state.get("username")
+        if username and self.audit_logger:
+            self.audit_logger.log_logout(username)
+        
         self.authenticator.logout()
 
     def save_user_session(self, username: str, session_data: dict, user_data_dir: Path):
@@ -117,7 +264,10 @@ class AuthManager:
             username = st.session_state.get("username")
             if username and self.authenticator.reset_password(username):
                 st.success("Password modified successfully")
-                with open(self.config_path, 'w') as file:
-                    yaml.dump(self.config, file)
+                self._save_config()
+                
+                # Log password change
+                if self.audit_logger:
+                    self.audit_logger.log_password_change(username)
         except Exception as e:
             st.error(f"Password reset failed: {e}")

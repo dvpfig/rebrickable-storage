@@ -225,7 +225,7 @@ def fetch_wanted_part_images(merged_df_serialized: bytes, ba_mapping: dict, cach
 
 def save_user_uploaded_image(uploaded_file, part_num: str, user_uploaded_dir: Path) -> bool:
     """
-    Save a user-uploaded image for a specific part number.
+    Save a user-uploaded image for a specific part number with security validation.
     
     Args:
         uploaded_file: Streamlit UploadedFile object
@@ -236,13 +236,19 @@ def save_user_uploaded_image(uploaded_file, part_num: str, user_uploaded_dir: Pa
         True if saved successfully, False otherwise
     """
     try:
+        from core.security import validate_image_file
+        
+        # Validate image file (size and content)
+        is_valid, error_msg = validate_image_file(uploaded_file, max_size_mb=1.0)
+        if not is_valid:
+            st.error(f"❌ {error_msg}")
+            return False
+        
         # Create directory if it doesn't exist
         user_uploaded_dir.mkdir(parents=True, exist_ok=True)
         
         # Determine file extension from uploaded file
         file_ext = uploaded_file.name.split('.')[-1].lower()
-        if file_ext not in ['png', 'jpg', 'jpeg']:
-            return False
         
         # Normalize extension (jpeg -> jpg)
         if file_ext == 'jpeg':
@@ -254,7 +260,8 @@ def save_user_uploaded_image(uploaded_file, part_num: str, user_uploaded_dir: Pa
             f.write(uploaded_file.getbuffer())
         
         return True
-    except Exception:
+    except Exception as e:
+        st.error(f"❌ Error saving image: {e}")
         return False
 
 
@@ -309,7 +316,7 @@ def count_custom_images(user_uploaded_dir: Path) -> int:
     return len(png_files) + len(jpg_files)
 def upload_custom_images(uploaded_files, user_uploaded_dir: Path) -> dict:
     """
-    Upload multiple custom images to user-specific directory.
+    Upload multiple custom images to user-specific directory with security validation.
     Overwrites existing images with the same name.
 
     Args:
@@ -321,29 +328,43 @@ def upload_custom_images(uploaded_files, user_uploaded_dir: Path) -> dict:
         - total: Total number of images uploaded
         - new: Number of new images
         - overwritten: Number of overwritten images
+        - failed: Number of failed uploads
     """
     if not uploaded_files:
-        return {"total": 0, "new": 0, "overwritten": 0}
+        return {"total": 0, "new": 0, "overwritten": 0, "failed": 0}
 
+    from core.security import validate_image_file
+    
     # Ensure directory exists
     user_uploaded_dir.mkdir(parents=True, exist_ok=True)
 
-    stats = {"total": 0, "new": 0, "overwritten": 0}
+    stats = {"total": 0, "new": 0, "overwritten": 0, "failed": 0}
 
     for uploaded_file in uploaded_files:
+        # Validate image file
+        is_valid, error_msg = validate_image_file(uploaded_file, max_size_mb=1.0)
+        if not is_valid:
+            st.warning(f"⚠️ Skipped {uploaded_file.name}: {error_msg}")
+            stats["failed"] += 1
+            continue
+        
         # Check if file already exists
         target_path = user_uploaded_dir / uploaded_file.name
         is_overwrite = target_path.exists()
 
-        # Save the file
-        with open(target_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
+        try:
+            # Save the file
+            with open(target_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
 
-        stats["total"] += 1
-        if is_overwrite:
-            stats["overwritten"] += 1
-        else:
-            stats["new"] += 1
+            stats["total"] += 1
+            if is_overwrite:
+                stats["overwritten"] += 1
+            else:
+                stats["new"] += 1
+        except Exception as e:
+            st.warning(f"⚠️ Failed to save {uploaded_file.name}: {e}")
+            stats["failed"] += 1
 
     return stats
 

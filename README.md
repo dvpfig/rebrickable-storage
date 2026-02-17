@@ -25,6 +25,25 @@ Built with Python and Streamlit, using data from [Rebrickable](https://rebrickab
 - Python 3.11 or higher
 - pip package manager
 
+### Security Setup (Required for Production)
+
+Before deploying to production or exposing via HTTPS, run the security setup:
+
+```bash
+python tools/security/setup_security.py
+```
+
+This will:
+- Generate a secure cookie secret key
+- Create `.env` file with secure defaults
+- Verify `.gitignore` configuration
+- Set appropriate file permissions
+- Auto-install missing dependencies if needed
+
+**Important:** Never commit the `.env` file or share your `COOKIE_SECRET_KEY`.
+
+For detailed security information, see [plans/SECURITY_ENHANCEMENTS.md](plans/SECURITY_ENHANCEMENTS.md).
+
 ### Option 1: Run Locally
 
 1. Clone the repository:
@@ -74,6 +93,16 @@ Access at `http://localhost:8501`
 
 ## Configuration
 
+### Security Configuration
+
+The application uses environment variables for sensitive configuration:
+
+- `COOKIE_SECRET_KEY` - Secret key for cookie signing (required in production)
+- `SESSION_TIMEOUT_MINUTES` - Session inactivity timeout (default: 90)
+- `MAX_FILE_SIZE_MB` - Maximum file upload size (default: 1.0)
+
+See `.env.example` for all available options.
+
 ### User Data
 
 User-specific data is stored in `user_data/{username}/`:
@@ -110,6 +139,13 @@ Contributions are welcome! This is a niche tool built for the LEGO community.
 ### Authentication issues
 - Delete `resources/auth_config.yaml` to reset
 - Check file permissions on user_data directory
+- Review audit logs in `user_data/_audit_logs/audit.log`
+- Verify `.env` file exists and contains `COOKIE_SECRET_KEY`
+
+### Account locked
+- Wait 15 minutes after 5 failed login attempts
+- Check audit logs for security events
+- Contact administrator if issue persists
 
 ### Docker issues
 - Verify `APP_DATA_LOCATION` in `.env` file
