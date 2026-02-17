@@ -1,0 +1,135 @@
+# Rebrickable Storage - LEGO Parts Finder
+
+A web application for LEGO enthusiasts to efficiently locate parts from their collection. Match wanted parts against your inventory and find exactly where each piece is stored.
+
+Built with Python and Streamlit, using data from [Rebrickable](https://rebrickable.com) and [BrickArchitect](https://brickarchitect.com).
+
+## Features
+
+- **Multi-user authentication** with session persistence
+- **Smart part matching** between wanted lists and your collection
+- **Location-based organization** with visual part images
+- **Label generation** for storage containers (LBX and image formats)
+- **Progress tracking** to resume work across sessions
+- **Dark/light theme** support
+- **BrickArchitect integration** for part images and labels
+
+## Screenshots
+
+[Add screenshots here]
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.11 or higher
+- pip package manager
+
+### Option 1: Run Locally
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/rebrickable-storage.git
+cd rebrickable-storage
+```
+
+2. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+3. Run the application:
+```bash
+streamlit run app.py
+```
+
+4. Open your browser to `http://localhost:8501`
+
+### Option 2: Self-Host with Docker
+
+For detailed Docker deployment instructions, see [docker/README.md](docker/README.md).
+
+Quick start:
+```bash
+cd docker
+# Edit .env file with your data location
+docker-compose up -d
+```
+
+Access at `http://localhost:8501`
+
+## Usage
+
+1. **Login** with demo credentials (`demo` / `demo123`) or create a new account
+2. **Upload wanted parts** CSV from Rebrickable
+3. **Select collection files** from your inventory
+4. **Generate pickup list** organized by storage location
+5. **Mark parts as found** while collecting
+6. **Download results** or generate printable labels
+
+## Data Sources
+
+- **Rebrickable**: Part numbers, set inventories, and part data
+- **BrickArchitect**: Part images and label files
+
+## Configuration
+
+### User Data
+
+User-specific data is stored in `user_data/{username}/`:
+- Collection CSV files
+- Custom part images
+- Session progress
+
+### Cache
+
+Shared cache in `cache/`:
+- Part images (PNG)
+- Label files (LBX)
+
+### Authentication
+
+User credentials are managed in `resources/auth_config.yaml` (auto-generated on first run).
+
+## Contributing
+
+Contributions are welcome! This is a niche tool built for the LEGO community.
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## Troubleshooting
+
+### Images not loading
+- Check internet connection
+- Verify cache directory permissions
+- Try clearing cache and re-downloading
+
+### Authentication issues
+- Delete `resources/auth_config.yaml` to reset
+- Check file permissions on user_data directory
+
+### Docker issues
+- Verify `APP_DATA_LOCATION` in `.env` file
+- Check container logs: `docker-compose logs -f`
+- Ensure ports are not already in use
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- [Rebrickable](https://rebrickable.com) for comprehensive LEGO part data
+- [BrickArchitect](https://brickarchitect.com) for part images and labels
+- The LEGO community for inspiration and feedback
+
+## Support
+
+For issues, questions, or feature requests, please open an issue on GitHub.
+
+---
+
+**Note**: This is an unofficial tool created by LEGO enthusiasts for LEGO enthusiasts. Not affiliated with the LEGO Group.
