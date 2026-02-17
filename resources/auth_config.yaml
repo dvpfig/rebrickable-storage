@@ -6,8 +6,10 @@ credentials:
   usernames:
     demo:
       email: demo@example.com
+      failed_login_attempts: 0
+      locked_until: null
+      logged_in: true
       name: Demo User
       password: $2b$12$WC83L4IE8NYWRdB/Mdzvi.VeXh/AhIlYjfOzJbwRA4aXm3QTVzsrm
 preauthorized:
   emails: []
-

@@ -4,13 +4,33 @@ Security utilities for the application.
 Handles input sanitization, file validation, and audit logging.
 """
 import html
-import imghdr
 import json
 import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Any
 import streamlit as st
+
+
+def _detect_image_type(file_bytes: bytes) -> Optional[str]:
+    """
+    Detect image type from file bytes using magic numbers.
+    
+    Args:
+        file_bytes: File content as bytes
+        
+    Returns:
+        Image type ('png', 'jpeg') or None if not recognized
+    """
+    # PNG signature
+    if file_bytes.startswith(b'\x89PNG\r\n\x1a\n'):
+        return 'png'
+    
+    # JPEG signature
+    if file_bytes.startswith(b'\xff\xd8\xff'):
+        return 'jpeg'
+    
+    return None
 
 
 # Configure audit logger
@@ -142,13 +162,13 @@ def validate_image_file(uploaded_file, max_size_mb: float = 1.0) -> tuple[bool, 
     if not (filename.endswith('.png') or filename.endswith('.jpg') or filename.endswith('.jpeg')):
         return False, "Invalid file extension. Only PNG and JPG files are allowed"
     
-    # Validate file content using imghdr
+    # Validate file content using magic numbers
     try:
         # Read file content
         file_bytes = uploaded_file.getvalue()
         
         # Detect actual image type
-        image_type = imghdr.what(None, h=file_bytes)
+        image_type = _detect_image_type(file_bytes)
         
         if image_type not in ['png', 'jpeg']:
             return False, f"Invalid image file. File appears to be {image_type or 'unknown'} format"

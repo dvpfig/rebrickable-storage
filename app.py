@@ -98,10 +98,17 @@ if auth_status is True:
     # Authenticated via cookie or fresh login
     pass
 elif auth_status is False:
-    # Wrong credentials - record failed attempt
+    # Wrong credentials - check rate limit and record failed attempt
     attempted_username = st.session_state.get("username", "unknown")
-    auth_manager._record_login_attempt(attempted_username, False)
-    st.error("❌ Incorrect username or password.")
+    
+    # Check if account is locked
+    is_allowed, error_msg = auth_manager._check_rate_limit(attempted_username)
+    if not is_allowed:
+        st.error(f"🔒 {error_msg}")
+    else:
+        # Record the failed attempt
+        auth_manager._record_login_attempt(attempted_username, False)
+        st.error("❌ Incorrect username or password.")
     st.stop()
 else:
     # No cookie → Show Login + Registration UI
@@ -109,14 +116,6 @@ else:
 
     tab1, tab2 = st.tabs(["Login", "Register"])
     with tab1:
-        # Check rate limit before showing login form
-        login_username = st.text_input("Username", key="pre_login_username_check")
-        if login_username:
-            is_allowed, error_msg = auth_manager._check_rate_limit(login_username)
-            if not is_allowed:
-                st.error(f"🔒 {error_msg}")
-                st.stop()
-        
         # Render login form (no return value needed)
         auth_manager.authenticator.login(location="main")
         
