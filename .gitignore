@@ -55,3 +55,6 @@ test_files/
 # Plans for coding & Tools for analysis
 plans/
 tools/
+
+# Auditing
+test_my_account_data
