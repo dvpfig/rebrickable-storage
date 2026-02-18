@@ -309,25 +309,26 @@
         
         <div class="stats">
             <div class="stat-card">
-                <span class="stat-number">92</span>
+                <span class="stat-number">112</span>
                 <span class="stat-label">Functions</span>
             </div>
             <div class="stat-card">
-                <span class="stat-number">4</span>
+                <span class="stat-number">6</span>
                 <span class="stat-label">Classes</span>
             </div>
             <div class="stat-card">
-                <span class="stat-number">13</span>
+                <span class="stat-number">10</span>
                 <span class="stat-label">Session Keys</span>
             </div>
             <div class="stat-card">
-                <span class="stat-number">17</span>
-                <span class="stat-label">Modules</span>
+                <span class="stat-number">3</span>
+                <span class="stat-label">Pages</span>
             </div>
         </div>
         
         <div class="tabs">
             <button class="tab active" onclick="showTab('overview')">Overview</button>
+            <button class="tab" onclick="showTab('pages')">Pages</button>
             <button class="tab" onclick="showTab('architecture')">Architecture</button>
             <button class="tab" onclick="showTab('metrics')">Metrics</button>
             <button class="tab" onclick="showTab('functions')">Functions</button>
@@ -349,7 +350,176 @@
             
             <h3 style="margin-top: 30px;">Session State Keys</h3>
             <div class="function-list">
-                <div class="function-card"><div class="function-name">collection_bytes</div></div><div class="function-card"><div class="function-name">collection_df</div></div><div class="function-card"><div class="function-name">collection_hash</div></div><div class="function-card"><div class="function-name">expanded_loc</div></div><div class="function-card"><div class="function-name">found_counts</div></div><div class="function-card"><div class="function-name">labels_zip_bytes</div></div><div class="function-card"><div class="function-name">labels_zip_filename</div></div><div class="function-card"><div class="function-name">locations_index</div></div><div class="function-card"><div class="function-name">merged_df</div></div><div class="function-card"><div class="function-name">merged_source_hash</div></div><div class="function-card"><div class="function-name">part_images_map</div></div><div class="function-card"><div class="function-name">precompute_done</div></div><div class="function-card"><div class="function-name">start_processing</div></div>
+                <div class="function-card"><div class="function-name">collection_df</div></div><div class="function-card"><div class="function-name">expanded_loc</div></div><div class="function-card"><div class="function-name">found_counts</div></div><div class="function-card"><div class="function-name">labels_zip_bytes</div></div><div class="function-card"><div class="function-name">labels_zip_filename</div></div><div class="function-card"><div class="function-name">last_activity</div></div><div class="function-card"><div class="function-name">locations_index</div></div><div class="function-card"><div class="function-name">merged_df</div></div><div class="function-card"><div class="function-name">merged_source_hash</div></div><div class="function-card"><div class="function-name">start_processing</div></div>
+            </div>
+        </div>
+        
+        <div id="pages" class="tab-content">
+            <h2>Multi-Page Navigation</h2>
+            <p>The application uses Streamlit's multi-page navigation with 3 pages organized by functionality.</p>
+            
+            <h3 style="margin-top: 30px;">Page Structure</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 20px;">
+                
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px;">
+                    <h4 style="margin: 0 0 10px 0; color: white;">1_Rebrickable_Storage</h4>
+                    <p style="margin: 5px 0; opacity: 0.9;">1_Rebrickable_Storage</p>
+                    <p style="margin: 5px 0; font-size: 0.9em; opacity: 0.8;">📄 pages\1_Rebrickable_Storage.py</p>
+                    <p style="margin: 5px 0; font-size: 0.9em; opacity: 0.8;">📝 47 lines of code</p>
+                    <p style="margin: 5px 0; font-size: 0.9em; opacity: 0.8;">🔧 1 core imports</p>
+                    <p style="margin: 5px 0; font-size: 0.9em; opacity: 0.8;">🎨 4 UI elements</p>
+                </div>
+                
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px;">
+                    <h4 style="margin: 0 0 10px 0; color: white;">2_My_Collection</h4>
+                    <p style="margin: 5px 0; opacity: 0.9;">🏷️ My Collection</p>
+                    <p style="margin: 5px 0; font-size: 0.9em; opacity: 0.8;">📄 pages\2_My_Collection.py</p>
+                    <p style="margin: 5px 0; font-size: 0.9em; opacity: 0.8;">📝 164 lines of code</p>
+                    <p style="margin: 5px 0; font-size: 0.9em; opacity: 0.8;">🔧 6 core imports</p>
+                    <p style="margin: 5px 0; font-size: 0.9em; opacity: 0.8;">🎨 12 UI elements</p>
+                </div>
+                
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px;">
+                    <h4 style="margin: 0 0 10px 0; color: white;">3_Find_Wanted_Parts</h4>
+                    <p style="margin: 5px 0; opacity: 0.9;">🔍 Find Wanted Parts</p>
+                    <p style="margin: 5px 0; font-size: 0.9em; opacity: 0.8;">📄 pages\3_Find_Wanted_Parts.py</p>
+                    <p style="margin: 5px 0; font-size: 0.9em; opacity: 0.8;">📝 389 lines of code</p>
+                    <p style="margin: 5px 0; font-size: 0.9em; opacity: 0.8;">🔧 9 core imports</p>
+                    <p style="margin: 5px 0; font-size: 0.9em; opacity: 0.8;">🎨 22 UI elements</p>
+                </div>
+                
+            </div>
+            
+            <h3 style="margin-top: 30px;">User Navigation Flow</h3>
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-top: 15px;">
+                <ol style="margin-left: 20px;">
+                    <li style="margin: 10px 0;"><strong>app.py (Landing)</strong> - User authentication and welcome screen</li>
+                    <li style="margin: 10px 0;"><strong>1_Rebrickable_Storage.py</strong> - Main dashboard with navigation to other pages</li>
+                    <li style="margin: 10px 0;"><strong>2_My_Collection.py</strong> - Manage collection files and generate labels</li>
+                    <li style="margin: 10px 0;"><strong>3_Find_Wanted_Parts.py</strong> - Find parts in collection and track progress</li>
+                </ol>
+            </div>
+            
+            <h3 style="margin-top: 30px;">Page Complexity Metrics</h3>
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-top: 15px;">
+                <canvas id="pageChart" style="max-height: 300px;"></canvas>
+            </div>
+            
+            <h3 style="margin-top: 30px;">Detailed Page Metrics</h3>
+            <div style="margin-top: 15px;">
+                
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #667eea;">
+                    <h4 style="margin: 0 0 10px 0;">1_Rebrickable_Storage</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                        <div>
+                            <strong>Lines of Code:</strong> 47
+                        </div>
+                        <div>
+                            <strong>Core Imports:</strong> 1
+                        </div>
+                        <div>
+                            <strong>UI Elements:</strong> 4
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <strong>UI Element Breakdown:</strong>
+                        <ul style="margin: 5px 0 0 20px; font-size: 0.9em;">
+                            <li>File Uploaders: 0</li>
+                            <li>Buttons: 2</li>
+                            <li>Expanders: 1</li>
+                            <li>Columns: 1</li>
+                            <li>Checkboxes: 0</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #667eea;">
+                    <h4 style="margin: 0 0 10px 0;">2_My_Collection</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                        <div>
+                            <strong>Lines of Code:</strong> 164
+                        </div>
+                        <div>
+                            <strong>Core Imports:</strong> 6
+                        </div>
+                        <div>
+                            <strong>UI Elements:</strong> 12
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <strong>UI Element Breakdown:</strong>
+                        <ul style="margin: 5px 0 0 20px; font-size: 0.9em;">
+                            <li>File Uploaders: 3</li>
+                            <li>Buttons: 6</li>
+                            <li>Expanders: 2</li>
+                            <li>Columns: 0</li>
+                            <li>Checkboxes: 1</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #667eea;">
+                    <h4 style="margin: 0 0 10px 0;">3_Find_Wanted_Parts</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                        <div>
+                            <strong>Lines of Code:</strong> 389
+                        </div>
+                        <div>
+                            <strong>Core Imports:</strong> 9
+                        </div>
+                        <div>
+                            <strong>UI Elements:</strong> 22
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <strong>UI Element Breakdown:</strong>
+                        <ul style="margin: 5px 0 0 20px; font-size: 0.9em;">
+                            <li>File Uploaders: 3</li>
+                            <li>Buttons: 10</li>
+                            <li>Expanders: 1</li>
+                            <li>Columns: 7</li>
+                            <li>Checkboxes: 1</li>
+                        </ul>
+                    </div>
+                </div>
+                
+            </div>
+            
+            <h3 style="margin-top: 30px;">Page Features</h3>
+            <div style="margin-top: 15px;">
+                <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #2196F3;">
+                    <h4 style="margin: 0 0 10px 0;">🏠 Rebrickable Storage (Main Dashboard)</h4>
+                    <ul style="margin-left: 20px;">
+                        <li>Getting started guide</li>
+                        <li>Navigation to other pages</li>
+                        <li>Change password functionality</li>
+                        <li>App overview and features</li>
+                    </ul>
+                </div>
+                
+                <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #4CAF50;">
+                    <h4 style="margin: 0 0 10px 0;">🏷️ My Collection</h4>
+                    <ul style="margin-left: 20px;">
+                        <li>Upload and manage collection CSV files</li>
+                        <li>Generate printable labels by location</li>
+                        <li>Manage custom part images</li>
+                        <li>View collection statistics</li>
+                    </ul>
+                </div>
+                
+                <div style="background: #fff3e0; padding: 15px; border-radius: 8px; border-left: 4px solid #FF9800;">
+                    <h4 style="margin: 0 0 10px 0;">🔍 Find Wanted Parts</h4>
+                    <ul style="margin-left: 20px;">
+                        <li>Upload wanted parts lists</li>
+                        <li>Match against collection</li>
+                        <li>Precompute collection images</li>
+                        <li>Generate pickup list by location</li>
+                        <li>Mark parts as found</li>
+                        <li>View color alternatives</li>
+                        <li>Save/load progress</li>
+                        <li>Download merged results</li>
+                    </ul>
+                </div>
             </div>
         </div>
         
@@ -453,7 +623,7 @@
         
         <div id="functions" class="tab-content">
             <h2>Function Reference</h2>
-            <p>All functions discovered in the application (92 total) - organized by folder and file</p>
+            <p>All functions discovered in the application (112 total) - organized by folder and file</p>
             
             <div style="margin: 20px 0;">
                 <button onclick="expandAll()" style="padding: 10px 20px; margin-right: 10px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 0.9em;">
@@ -472,7 +642,7 @@
                         <span>Root Files</span>
                     </div>
                     <div>
-                        <span class="folder-count">92 functions</span>
+                        <span class="folder-count">112 functions</span>
                         <span class="expand-icon" id="folder-0-icon">▶</span>
                     </div>
                 </div>
@@ -482,59 +652,43 @@
                         <div class="file-header" onclick="toggleFile('folder-0-file-0')">
                             <div>
                                 <span class="file-icon">📄</span>
-                                <span>app.py</span>
+                                <span>core\auth.py</span>
                             </div>
                             <div>
-                                <span class="file-count">4</span>
+                                <span class="file-count">11</span>
                                 <span class="expand-icon" id="folder-0-file-0-icon">▶</span>
                             </div>
                         </div>
                         <div class="functions-container" id="folder-0-file-0-content">
             
                             <div class="function-item">
-                                <div class="function-item-name">_df_bytes</div>
-                                <div class="function-item-params">(df)</div>
-                            </div>
-                
-                            <div class="function-item">
-                                <div class="function-item-name">count_parts_wrapper</div>
-                                <div class="function-item-params">(file_path_str)</div>
-                            </div>
-                
-                            <div class="function-item">
-                                <div class="function-item-name">format_mappings_stats</div>
-                                <div class="function-item-params">(stats)</div>
-                            </div>
-                
-                            <div class="function-item">
-                                <div class="function-item-name">format_parts_stats</div>
-                                <div class="function-item-params">(stats)</div>
-                            </div>
-                
-                        </div>
-                    </div>
-            
-                    <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-1')">
-                            <div>
-                                <span class="file-icon">📄</span>
-                                <span>core\auth.py</span>
-                            </div>
-                            <div>
-                                <span class="file-count">7</span>
-                                <span class="expand-icon" id="folder-0-file-1-icon">▶</span>
-                            </div>
-                        </div>
-                        <div class="functions-container" id="folder-0-file-1-content">
-            
-                            <div class="function-item">
                                 <div class="function-item-name">__init__</div>
-                                <div class="function-item-params">(self, config_path)</div>
+                                <div class="function-item-params">(self, config_path, audit_log_dir)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">_check_rate_limit</div>
+                                <div class="function-item-params">(self, username)</div>
                             </div>
                 
                             <div class="function-item">
                                 <div class="function-item-name">_create_default_config</div>
                                 <div class="function-item-params">(self)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">_record_login_attempt</div>
+                                <div class="function-item-params">(self, username, success)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">_save_config</div>
+                                <div class="function-item-params">(self)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">check_session_timeout</div>
+                                <div class="function-item-params">(self, username)</div>
                             </div>
                 
                             <div class="function-item">
@@ -566,17 +720,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-2')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-1')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>core\color_similarity.py</span>
                             </div>
                             <div>
                                 <span class="file-count">7</span>
-                                <span class="expand-icon" id="folder-0-file-2-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-1-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-2-content">
+                        <div class="functions-container" id="folder-0-file-1-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">build_color_similarity_matrix</div>
@@ -617,17 +771,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-3')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-2')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>core\colors.py</span>
                             </div>
                             <div>
                                 <span class="file-count">3</span>
-                                <span class="expand-icon" id="folder-0-file-3-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-2-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-3-content">
+                        <div class="functions-container" id="folder-0-file-2-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">build_color_lookup</div>
@@ -648,17 +802,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-4')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-3')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>core\download_helpers.py</span>
                             </div>
                             <div>
                                 <span class="file-count">5</span>
-                                <span class="expand-icon" id="folder-0-file-4-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-3-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-4-content">
+                        <div class="functions-container" id="folder-0-file-3-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">__init__</div>
@@ -689,17 +843,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-5')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-4')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>core\images.py</span>
                             </div>
                             <div>
                                 <span class="file-count">10</span>
-                                <span class="expand-icon" id="folder-0-file-5-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-4-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-5-content">
+                        <div class="functions-container" id="folder-0-file-4-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">_fetch_single_image</div>
@@ -755,17 +909,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-6')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-5')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>core\labels.py</span>
                             </div>
                             <div>
                                 <span class="file-count">2</span>
-                                <span class="expand-icon" id="folder-0-file-6-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-5-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-6-content">
+                        <div class="functions-container" id="folder-0-file-5-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">generate_collection_labels_zip</div>
@@ -781,17 +935,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-7')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-6')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>core\lbx_merger.py</span>
                             </div>
                             <div>
                                 <span class="file-count">15</span>
-                                <span class="expand-icon" id="folder-0-file-7-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-6-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-7-content">
+                        <div class="functions-container" id="folder-0-file-6-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">__init__</div>
@@ -872,17 +1026,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-8')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-7')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>core\mapping.py</span>
                             </div>
                             <div>
                                 <span class="file-count">6</span>
-                                <span class="expand-icon" id="folder-0-file-8-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-7-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-8-content">
+                        <div class="functions-container" id="folder-0-file-7-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">build_ba_to_rb_mapping</div>
@@ -918,17 +1072,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-9')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-8')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>core\paths.py</span>
                             </div>
                             <div>
                                 <span class="file-count">5</span>
-                                <span class="expand-icon" id="folder-0-file-9-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-8-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-9-content">
+                        <div class="functions-container" id="folder-0-file-8-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">__init__</div>
@@ -959,17 +1113,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-10')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-9')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>core\preprocess.py</span>
                             </div>
                             <div>
                                 <span class="file-count">6</span>
-                                <span class="expand-icon" id="folder-0-file-10-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-9-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-10-content">
+                        <div class="functions-container" id="folder-0-file-9-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">get_collection_parts_set</div>
@@ -999,6 +1153,107 @@
                             <div class="function-item">
                                 <div class="function-item-name">sanitize_and_validate</div>
                                 <div class="function-item-params">(df, required, label)</div>
+                            </div>
+                
+                        </div>
+                    </div>
+            
+                    <div class="file-section">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-10')">
+                            <div>
+                                <span class="file-icon">📄</span>
+                                <span>core\security.py</span>
+                            </div>
+                            <div>
+                                <span class="file-count">17</span>
+                                <span class="expand-icon" id="folder-0-file-10-icon">▶</span>
+                            </div>
+                        </div>
+                        <div class="functions-container" id="folder-0-file-10-content">
+            
+                            <div class="function-item">
+                                <div class="function-item-name">__init__</div>
+                                <div class="function-item-params">(self, timeout_minutes)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">_detect_image_type</div>
+                                <div class="function-item-params">(file_bytes)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">check_timeout</div>
+                                <div class="function-item-params">(self, username, audit_logger)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">log_file_upload</div>
+                                <div class="function-item-params">(self, username, filename, file_type, size)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">log_login_attempt</div>
+                                <div class="function-item-params">(self, username, success, ip)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">log_logout</div>
+                                <div class="function-item-params">(self, username)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">log_password_change</div>
+                                <div class="function-item-params">(self, username)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">log_registration</div>
+                                <div class="function-item-params">(self, username, email)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">log_security_event</div>
+                                <div class="function-item-params">(self, event_type, username, details)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">log_session_timeout</div>
+                                <div class="function-item-params">(self, username)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">sanitize_dataframe_for_display</div>
+                                <div class="function-item-params">(df)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">sanitize_html</div>
+                                <div class="function-item-params">(text)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">set_secure_file_permissions</div>
+                                <div class="function-item-params">(file_path)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">setup_audit_logger</div>
+                                <div class="function-item-params">(log_dir)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">update_activity</div>
+                                <div class="function-item-params">(self)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">validate_csv_file</div>
+                                <div class="function-item-params">(uploaded_file, max_size_mb)</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">validate_image_file</div>
+                                <div class="function-item-params">(uploaded_file, max_size_mb)</div>
                             </div>
                 
                         </div>
@@ -1172,14 +1427,45 @@
                         <div class="file-header" onclick="toggleFile('folder-0-file-15')">
                             <div>
                                 <span class="file-icon">📄</span>
-                                <span>ui\summary.py</span>
+                                <span>ui\shared_content.py</span>
                             </div>
                             <div>
-                                <span class="file-count">1</span>
+                                <span class="file-count">3</span>
                                 <span class="expand-icon" id="folder-0-file-15-icon">▶</span>
                             </div>
                         </div>
                         <div class="functions-container" id="folder-0-file-15-content">
+            
+                            <div class="function-item">
+                                <div class="function-item-name">render_about_info_content</div>
+                                <div class="function-item-params">()</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">render_app_features_content</div>
+                                <div class="function-item-params">()</div>
+                            </div>
+                
+                            <div class="function-item">
+                                <div class="function-item-name">render_new_user_content</div>
+                                <div class="function-item-params">()</div>
+                            </div>
+                
+                        </div>
+                    </div>
+            
+                    <div class="file-section">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-16')">
+                            <div>
+                                <span class="file-icon">📄</span>
+                                <span>ui\summary.py</span>
+                            </div>
+                            <div>
+                                <span class="file-count">1</span>
+                                <span class="expand-icon" id="folder-0-file-16-icon">▶</span>
+                            </div>
+                        </div>
+                        <div class="functions-container" id="folder-0-file-16-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">render_summary_table</div>
@@ -1190,17 +1476,17 @@
                     </div>
             
                     <div class="file-section">
-                        <div class="file-header" onclick="toggleFile('folder-0-file-16')">
+                        <div class="file-header" onclick="toggleFile('folder-0-file-17')">
                             <div>
                                 <span class="file-icon">📄</span>
                                 <span>ui\theme.py</span>
                             </div>
                             <div>
                                 <span class="file-count">1</span>
-                                <span class="expand-icon" id="folder-0-file-16-icon">▶</span>
+                                <span class="expand-icon" id="folder-0-file-17-icon">▶</span>
                             </div>
                         </div>
-                        <div class="functions-container" id="folder-0-file-16-content">
+                        <div class="functions-container" id="folder-0-file-17-content">
             
                             <div class="function-item">
                                 <div class="function-item-name">apply_custom_styles</div>
@@ -1225,41 +1511,69 @@ APPLICATION EXECUTION FLOW
 │
 ├─┬─ CORE MODULES
 │ ├─ core/auth.py
-│     └─ __init__(self, config_path)
+│     └─ __init__(self, config_path, audit_log_dir)
 │     └─ _create_default_config(self)
-│     └─ register_user(self)
-│ ├─ core/paths.py
-│     └─ init_paths()
-│     └─ save_uploadedfiles(uploadedfiles_list, user_collection_dir)
-│     └─ manage_default_collection(user_collection_dir)
-│ ├─ core/mapping.py
-│     └─ read_ba_mapping_from_excel_bytes(excel_bytes)
-│     └─ load_ba_part_names(mapping_path)
-│     └─ load_ba_mapping(mapping_path)
-│ ├─ core/preprocess.py
-│     └─ sanitize_and_validate(df, required, label)
-│     └─ load_wanted_files(files)
-│     └─ load_collection_files(files)
-│ ├─ core/images.py
-│     └─ precompute_location_images(collection_df_serialized, ba_mapping, cache_images_dir, ...)
-│     └─ fetch_image_bytes(url, _session)
-│     └─ _fetch_single_image(identifier, cache_dir, session)
+│     └─ check_session_timeout(self, username)
+│ ├─ core/color_similarity.py
+│     └─ rgb_to_lab(rgb_hex)
+│     └─ calculate_color_distance(color1_rgb, color2_rgb, is_trans1, ...)
+│     └─ build_color_similarity_matrix(colors_df)
 │ ├─ core/colors.py
 │     └─ load_colors(colors_path)
 │     └─ build_color_lookup(colors_df)
 │     └─ render_color_cell(color_id, color_lookup)
+│ ├─ core/download_helpers.py
+│     └─ create_download_callbacks(stop_flag_key, show_stats, stats_formatter)
+│     └─ __init__(self, stop_flag_key, show_stats, ...)
+│     └─ progress_callback(self, message, status)
+│ ├─ core/images.py
+│     └─ precompute_location_images(collection_df_serialized, ba_mapping, cache_images_dir, ...)
+│     └─ fetch_image_bytes(url, _session)
+│     └─ _fetch_single_image(identifier, cache_dir, session)
 │ ├─ core/labels.py
 │     └─ organize_labels_by_location(collection_df, ba_mapping, labels_source_dir, ...)
 │     └─ generate_collection_labels_zip(collection_files_stream, ba_mapping, labels_source_dir, ...)
-│ └─ core/lbx_merger.py
-      └─ main()
-      └─ __init__(self, max_length_mm, spacing_mm)
-      └─ parse_label_xml(self, xml)
+│ ├─ core/lbx_merger.py
+│     └─ main()
+│     └─ __init__(self, max_length_mm, spacing_mm)
+│     └─ parse_label_xml(self, xml)
+│ ├─ core/mapping.py
+│     └─ read_ba_mapping_from_excel_bytes(excel_bytes)
+│     └─ load_ba_part_names(mapping_path)
+│     └─ load_ba_mapping(mapping_path)
+│ ├─ core/paths.py
+│     └─ init_paths()
+│     └─ save_uploadedfiles(uploadedfiles_list, user_collection_dir)
+│     └─ manage_default_collection(user_collection_dir)
+│ ├─ core/preprocess.py
+│     └─ sanitize_and_validate(df, required, label)
+│     └─ load_wanted_files(files)
+│     └─ load_collection_files(files)
+│ └─ core/security.py
+      └─ _detect_image_type(file_bytes)
+      └─ setup_audit_logger(log_dir)
+      └─ sanitize_html(text)
 │
 ├─┬─ UI MODULES
-│ ├─ ui/theme.py
 │ ├─ ui/layout.py
-│ └─ ui/summary.py
+│     └─ ensure_session_state_keys()
+│     └─ short_key()
+│ ├─ ui/shared_content.py
+│     └─ render_about_info_content()
+│     └─ render_app_features_content()
+│     └─ render_new_user_content()
+│ ├─ ui/summary.py
+│     └─ render_summary_table(merged_df)
+│ └─ ui/theme.py
+      └─ apply_custom_styles()
+│
+├─┬─ PAGES
+│ ├─ pages/1_Rebrickable_Storage.py
+│     └─ 47 lines of code
+│ ├─ pages/2_My_Collection.py
+│     └─ 164 lines of code
+│ └─ pages/3_Find_Wanted_Parts.py
+      └─ 389 lines of code
 │
 └─┬─ RESOURCES
   ├─ auth_config.yaml (User credentials)
@@ -1325,6 +1639,117 @@ USER EXPERIENCE FLOW
 │  ├─ Create LBX file
 │  └─ Save session progress
 │
+
+================================================================================
+MULTI-PAGE NAVIGATION STRUCTURE
+================================================================================
+
+┌─ app.py (Main Entry Point)
+│
+├─ Authentication & Setup
+│  ├─ Login/Register
+│  ├─ Session State Initialization
+│  └─ Path Resolution
+│
+├─ Sidebar Features (Global)
+│  ├─ User Profile & Logout
+│  ├─ Get Latest Labels/Images from BrickArchitect
+│  └─ Sync Latest Parts Mappings
+│
+└─┬─ MULTI-PAGE NAVIGATION
+  │
+  ├─ 1_Rebrickable_Storage
+  │    └─ 1_Rebrickable_Storage
+  │       ├─ 47 lines of code
+  │       ├─ 1 core module imports
+  │       └─ 4 UI elements
+  ├─ 2_My_Collection
+  │    └─ 🏷️ My Collection
+  │       ├─ 164 lines of code
+  │       ├─ 6 core module imports
+  │       └─ 12 UI elements
+  └─ 3_Find_Wanted_Parts
+       └─ 🔍 Find Wanted Parts
+          ├─ 389 lines of code
+          ├─ 9 core module imports
+          └─ 22 UI elements
+
+================================================================================
+PAGE NAVIGATION FLOW
+================================================================================
+
+┌─ 1. Landing Page (app.py)
+│  ├─ User logs in or registers
+│  ├─ Sees welcome screen with navigation options
+│  └─ Can access sidebar features (labels, images, mappings)
+│
+▼
+│
+┌─ 2. Rebrickable Storage (1_Rebrickable_Storage.py)
+│  ├─ Main dashboard and getting started page
+│  ├─ Overview of available functions
+│  ├─ Navigation to other pages
+│  └─ Change password functionality
+│
+▼
+│
+┌─ 3. My Collection (2_My_Collection.py)
+│  ├─ Manage collection files (upload, select, delete)
+│  ├─ Generate printable labels by location
+│  ├─ Manage custom part images
+│  └─ View collection statistics
+│
+▼
+│
+┌─ 4. Find Wanted Parts (3_Find_Wanted_Parts.py)
+│  ├─ Upload wanted parts lists
+│  ├─ Select collection files to search
+│  ├─ Precompute collection images
+│  ├─ Generate pickup list by location
+│  ├─ Mark parts as found
+│  ├─ View color alternatives
+│  ├─ Save/load progress
+│  └─ Download merged results
+│
+
+================================================================================
+FUNCTION DISTRIBUTION ANALYSIS
+================================================================================
+
+┌─ FUNCTION DISTRIBUTION BY MODULE TYPE
+│
+│  Core Modules:      0 functions
+│  UI Modules:        0 functions
+│  Resource Modules:  0 functions
+│  Main App:          0 functions
+│
+├─ PAGE COMPLEXITY METRICS
+│
+│  ├─ 1_Rebrickable_Storage
+│  │     ├─ 47 lines of code
+│  │     ├─ 1 core module imports
+│  │     └─ 4 UI elements
+│  ├─ 2_My_Collection
+│  │     ├─ 164 lines of code
+│  │     ├─ 6 core module imports
+│  │     └─ 12 UI elements
+│  └─ 3_Find_Wanted_Parts
+│        ├─ 389 lines of code
+│        ├─ 9 core module imports
+│        └─ 22 UI elements
+│
+└─ ARCHITECTURE PATTERN
+
+   The application follows a modular architecture:
+   ├─ Core modules contain business logic (reusable)
+   ├─ UI modules contain presentation helpers (reusable)
+   ├─ Pages contain page-specific UI logic (minimal functions)
+   └─ Main app handles authentication and global setup
+
+   This separation ensures:
+   • Business logic is testable and reusable
+   • Pages remain focused on user interaction
+   • Code is maintainable and scalable
 
 ================================================================================
 DATA STRUCTURES & DIMENSIONS
@@ -1504,17 +1929,18 @@ RUNTIME METRICS & DATA DIMENSIONS
 ================================================================================
 STATISTICS SUMMARY
 ================================================================================
-Total Functions: 92
-Total Classes: 4
-Session State Keys: 13
-Modules Analyzed: 17</pre>
+Total Functions: 112
+Total Classes: 6
+Session State Keys: 10
+Modules Analyzed: 18</pre>
         </div>
         
         <footer>
-            <p class="timestamp">Generated on 2026-02-17 00:25:20</p>
+            <p class="timestamp">Generated on 2026-02-19 00:40:51</p>
         </footer>
     </div>
     
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <script>
         function showTab(tabName) {
             // Hide all tabs
@@ -1573,6 +1999,56 @@ Modules Analyzed: 17</pre>
             });
             document.querySelectorAll('.expand-icon').forEach(icon => {
                 icon.classList.remove('rotated');
+            });
+        }
+        
+        // Initialize page distribution chart
+        const pageData = {"1_Rebrickable_Storage": 47, "2_My_Collection": 164, "3_Find_Wanted_Parts": 389};
+        const ctx = document.getElementById('pageChart');
+        if (ctx && Object.keys(pageData).length > 0) {
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(pageData),
+                    datasets: [{
+                        label: 'Lines of Code per Page',
+                        data: Object.values(pageData),
+                        backgroundColor: [
+                            'rgba(102, 126, 234, 0.8)',
+                            'rgba(118, 75, 162, 0.8)',
+                            'rgba(33, 150, 243, 0.8)',
+                            'rgba(76, 175, 80, 0.8)'
+                        ],
+                        borderColor: [
+                            'rgba(102, 126, 234, 1)',
+                            'rgba(118, 75, 162, 1)',
+                            'rgba(33, 150, 243, 1)',
+                            'rgba(76, 175, 80, 1)'
+                        ],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: 'Code Complexity by Page (Lines of Code)'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 50
+                            }
+                        }
+                    }
+                }
             });
         }
     </script>

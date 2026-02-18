@@ -6,41 +6,69 @@ APPLICATION EXECUTION FLOW
 │
 ├─┬─ CORE MODULES
 │ ├─ core/auth.py
-│     └─ __init__(self, config_path)
+│     └─ __init__(self, config_path, audit_log_dir)
 │     └─ _create_default_config(self)
-│     └─ register_user(self)
-│ ├─ core/paths.py
-│     └─ init_paths()
-│     └─ save_uploadedfiles(uploadedfiles_list, user_collection_dir)
-│     └─ manage_default_collection(user_collection_dir)
-│ ├─ core/mapping.py
-│     └─ read_ba_mapping_from_excel_bytes(excel_bytes)
-│     └─ load_ba_part_names(mapping_path)
-│     └─ load_ba_mapping(mapping_path)
-│ ├─ core/preprocess.py
-│     └─ sanitize_and_validate(df, required, label)
-│     └─ load_wanted_files(files)
-│     └─ load_collection_files(files)
-│ ├─ core/images.py
-│     └─ precompute_location_images(collection_df_serialized, ba_mapping, cache_images_dir, ...)
-│     └─ fetch_image_bytes(url, _session)
-│     └─ _fetch_single_image(identifier, cache_dir, session)
+│     └─ check_session_timeout(self, username)
+│ ├─ core/color_similarity.py
+│     └─ rgb_to_lab(rgb_hex)
+│     └─ calculate_color_distance(color1_rgb, color2_rgb, is_trans1, ...)
+│     └─ build_color_similarity_matrix(colors_df)
 │ ├─ core/colors.py
 │     └─ load_colors(colors_path)
 │     └─ build_color_lookup(colors_df)
 │     └─ render_color_cell(color_id, color_lookup)
+│ ├─ core/download_helpers.py
+│     └─ create_download_callbacks(stop_flag_key, show_stats, stats_formatter)
+│     └─ __init__(self, stop_flag_key, show_stats, ...)
+│     └─ progress_callback(self, message, status)
+│ ├─ core/images.py
+│     └─ precompute_location_images(collection_df_serialized, ba_mapping, cache_images_dir, ...)
+│     └─ fetch_image_bytes(url, _session)
+│     └─ _fetch_single_image(identifier, cache_dir, session)
 │ ├─ core/labels.py
 │     └─ organize_labels_by_location(collection_df, ba_mapping, labels_source_dir, ...)
 │     └─ generate_collection_labels_zip(collection_files_stream, ba_mapping, labels_source_dir, ...)
-│ └─ core/lbx_merger.py
-      └─ main()
-      └─ __init__(self, max_length_mm, spacing_mm)
-      └─ parse_label_xml(self, xml)
+│ ├─ core/lbx_merger.py
+│     └─ main()
+│     └─ __init__(self, max_length_mm, spacing_mm)
+│     └─ parse_label_xml(self, xml)
+│ ├─ core/mapping.py
+│     └─ read_ba_mapping_from_excel_bytes(excel_bytes)
+│     └─ load_ba_part_names(mapping_path)
+│     └─ load_ba_mapping(mapping_path)
+│ ├─ core/paths.py
+│     └─ init_paths()
+│     └─ save_uploadedfiles(uploadedfiles_list, user_collection_dir)
+│     └─ manage_default_collection(user_collection_dir)
+│ ├─ core/preprocess.py
+│     └─ sanitize_and_validate(df, required, label)
+│     └─ load_wanted_files(files)
+│     └─ load_collection_files(files)
+│ └─ core/security.py
+      └─ _detect_image_type(file_bytes)
+      └─ setup_audit_logger(log_dir)
+      └─ sanitize_html(text)
 │
 ├─┬─ UI MODULES
-│ ├─ ui/theme.py
 │ ├─ ui/layout.py
-│ └─ ui/summary.py
+│     └─ ensure_session_state_keys()
+│     └─ short_key()
+│ ├─ ui/shared_content.py
+│     └─ render_about_info_content()
+│     └─ render_app_features_content()
+│     └─ render_new_user_content()
+│ ├─ ui/summary.py
+│     └─ render_summary_table(merged_df)
+│ └─ ui/theme.py
+      └─ apply_custom_styles()
+│
+├─┬─ PAGES
+│ ├─ pages/1_Rebrickable_Storage.py
+│     └─ 47 lines of code
+│ ├─ pages/2_My_Collection.py
+│     └─ 164 lines of code
+│ └─ pages/3_Find_Wanted_Parts.py
+      └─ 389 lines of code
 │
 └─┬─ RESOURCES
   ├─ auth_config.yaml (User credentials)
@@ -106,6 +134,117 @@ USER EXPERIENCE FLOW
 │  ├─ Create LBX file
 │  └─ Save session progress
 │
+
+================================================================================
+MULTI-PAGE NAVIGATION STRUCTURE
+================================================================================
+
+┌─ app.py (Main Entry Point)
+│
+├─ Authentication & Setup
+│  ├─ Login/Register
+│  ├─ Session State Initialization
+│  └─ Path Resolution
+│
+├─ Sidebar Features (Global)
+│  ├─ User Profile & Logout
+│  ├─ Get Latest Labels/Images from BrickArchitect
+│  └─ Sync Latest Parts Mappings
+│
+└─┬─ MULTI-PAGE NAVIGATION
+  │
+  ├─ 1_Rebrickable_Storage
+  │    └─ 1_Rebrickable_Storage
+  │       ├─ 47 lines of code
+  │       ├─ 1 core module imports
+  │       └─ 4 UI elements
+  ├─ 2_My_Collection
+  │    └─ 🏷️ My Collection
+  │       ├─ 164 lines of code
+  │       ├─ 6 core module imports
+  │       └─ 12 UI elements
+  └─ 3_Find_Wanted_Parts
+       └─ 🔍 Find Wanted Parts
+          ├─ 389 lines of code
+          ├─ 9 core module imports
+          └─ 22 UI elements
+
+================================================================================
+PAGE NAVIGATION FLOW
+================================================================================
+
+┌─ 1. Landing Page (app.py)
+│  ├─ User logs in or registers
+│  ├─ Sees welcome screen with navigation options
+│  └─ Can access sidebar features (labels, images, mappings)
+│
+▼
+│
+┌─ 2. Rebrickable Storage (1_Rebrickable_Storage.py)
+│  ├─ Main dashboard and getting started page
+│  ├─ Overview of available functions
+│  ├─ Navigation to other pages
+│  └─ Change password functionality
+│
+▼
+│
+┌─ 3. My Collection (2_My_Collection.py)
+│  ├─ Manage collection files (upload, select, delete)
+│  ├─ Generate printable labels by location
+│  ├─ Manage custom part images
+│  └─ View collection statistics
+│
+▼
+│
+┌─ 4. Find Wanted Parts (3_Find_Wanted_Parts.py)
+│  ├─ Upload wanted parts lists
+│  ├─ Select collection files to search
+│  ├─ Precompute collection images
+│  ├─ Generate pickup list by location
+│  ├─ Mark parts as found
+│  ├─ View color alternatives
+│  ├─ Save/load progress
+│  └─ Download merged results
+│
+
+================================================================================
+FUNCTION DISTRIBUTION ANALYSIS
+================================================================================
+
+┌─ FUNCTION DISTRIBUTION BY MODULE TYPE
+│
+│  Core Modules:      0 functions
+│  UI Modules:        0 functions
+│  Resource Modules:  0 functions
+│  Main App:          0 functions
+│
+├─ PAGE COMPLEXITY METRICS
+│
+│  ├─ 1_Rebrickable_Storage
+│  │     ├─ 47 lines of code
+│  │     ├─ 1 core module imports
+│  │     └─ 4 UI elements
+│  ├─ 2_My_Collection
+│  │     ├─ 164 lines of code
+│  │     ├─ 6 core module imports
+│  │     └─ 12 UI elements
+│  └─ 3_Find_Wanted_Parts
+│        ├─ 389 lines of code
+│        ├─ 9 core module imports
+│        └─ 22 UI elements
+│
+└─ ARCHITECTURE PATTERN
+
+   The application follows a modular architecture:
+   ├─ Core modules contain business logic (reusable)
+   ├─ UI modules contain presentation helpers (reusable)
+   ├─ Pages contain page-specific UI logic (minimal functions)
+   └─ Main app handles authentication and global setup
+
+   This separation ensures:
+   • Business logic is testable and reusable
+   • Pages remain focused on user interaction
+   • Code is maintainable and scalable
 
 ================================================================================
 DATA STRUCTURES & DIMENSIONS
@@ -285,7 +424,7 @@ RUNTIME METRICS & DATA DIMENSIONS
 ================================================================================
 STATISTICS SUMMARY
 ================================================================================
-Total Functions: 92
-Total Classes: 4
-Session State Keys: 13
-Modules Analyzed: 17
+Total Functions: 112
+Total Classes: 6
+Session State Keys: 10
+Modules Analyzed: 18
