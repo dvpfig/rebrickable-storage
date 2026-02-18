@@ -13,6 +13,7 @@ import hashlib
 from ui.theme import apply_custom_styles
 from ui.layout import ensure_session_state_keys, short_key
 from ui.summary import render_summary_table
+from ui.shared_content import render_about_info_content, render_new_user_content, render_app_features_content
 from core.paths import init_paths, save_uploadedfiles, manage_default_collection
 from core.mapping import load_ba_mapping, count_parts_in_mapping, build_rb_to_similar_parts_mapping, load_ba_part_names
 from core.preprocess import load_wanted_files, load_collection_files, merge_wanted_collection, get_collection_parts_tuple, get_collection_parts_set
@@ -35,8 +36,8 @@ load_dotenv()
 # ---------------------------------------------------------------------
 # --- Page setup
 # ---------------------------------------------------------------------
-st.set_page_config(page_title="Rebrickable Storage - Parts Finder", layout="wide")
-st.title("🧱 Rebrickable Storage - Parts Finder")
+st.set_page_config(page_title="Rebrickable Storage", layout="wide", page_icon="🧩")
+st.title("🧩 Welcome to Rebrickable Storage")
 
 # Apply custom styles (works with both light and dark Streamlit themes)
 apply_custom_styles()
@@ -112,21 +113,36 @@ elif auth_status is False:
     st.stop()
 else:
     # No cookie → Show Login + Registration UI
-    st.markdown("### Welcome! Please login or register to continue.")
+    col1, col2 = st.columns(2)
 
-    tab1, tab2 = st.tabs(["Login", "Register"])
-    with tab1:
-        # Render login form (no return value needed)
-        auth_manager.authenticator.login(location="main")
-        
-        # Record successful login if authentication just succeeded
-        if st.session_state.get("authentication_status") is True:
-            auth_manager._record_login_attempt(st.session_state.get("username"), True)
+    with col1:
+        # Render the About/Info content (app brief info)
+        render_about_info_content()
+    with col2:
+        # Render new users login info content
+        render_new_user_content()
+
+        #st.markdown("### Welcome! Please login or register to continue.")
+
+        tab1, tab2 = st.tabs(["Login", "Register"])
+        with tab1:
+            # Render login form (no return value needed)
+            auth_manager.authenticator.login(location="main")
             
-    with tab2:
-        auth_manager.register_user()
+            # Record successful login if authentication just succeeded
+            if st.session_state.get("authentication_status") is True:
+                auth_manager._record_login_attempt(st.session_state.get("username"), True)
+                
+        with tab2:
+            auth_manager.register_user()
 
+    st.markdown("---")
+    
+    # Render the App features content
+    render_app_features_content()
     st.stop()
+
+
 
 # -------------------------------------------------
 # 5) Authenticated area
@@ -546,7 +562,7 @@ if auth_status is True:
             else:
                 st.button("🗑️ Delete all custom images", key="delete_custom_images_disabled", disabled=True)
 
-st.write("Status: Set up app completed. Loaded mappings of parts and colors!")
+st.write("Status: Set up app completed!")
 
 # ---------------------------------------------------------------------
 # --- File upload section
@@ -1037,4 +1053,4 @@ if st.session_state.get("start_processing"):
     csv = merged.to_csv(index=False).encode("utf-8")
     st.download_button("💾 Download merged CSV", csv, "lego_wanted_with_location.csv")
 
-st.caption("Powered by BrickArchitect & Rebrickable • Made with ❤️ and Streamlit")
+st.caption("Powered by [BrickArchitect Lego Parts Guide](https://brickarchitect.com/parts/) & [Rebrickable Lego Collection Lists](https://rebrickable.com/) • Made with ❤️ and Streamlit")
