@@ -38,15 +38,15 @@ st.info("Use the topbar menu to navigate between pages")
 col1, col2 = st.columns(2)
 
 with col1:
-    st.markdown("### 🏷️ My Collection")
+    st.markdown("### 🏷️ My Collection - Parts")
     st.markdown("""
     Manage your LEGO parts collection:
     - View and select collection files
     - Upload new collection CSVs
     - Generate printable labels by location
     """)
-    if st.button("📂 Go to My Collection", use_container_width=True):
-        st.switch_page("pages/2_My_Collection.py")
+    if st.button("📂 Go to My Collection - Parts", use_container_width=True):
+        st.switch_page("pages/2_My_Collection_Parts.py")
 
 with col2:
     st.markdown("### 🔍 Find Wanted Parts")

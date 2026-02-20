@@ -14,8 +14,8 @@ from dotenv import load_dotenv
 
 #st.set_page_config(page_title="My Collection", page_icon="📈")
 
-st.title("🏷️ My Collection")
-st.sidebar.header("🏷️ My Collection")
+st.title("🏷️ My Collection - Parts")
+st.sidebar.header("🏷️ My Collection - Parts")
 
 # Load environment variables
 load_dotenv()
@@ -194,6 +194,7 @@ st.markdown("---")
 if collection_files_stream:
     st.markdown("### 🏷️ Generate Labels by Location")
     st.markdown("Create a downloadable zip file with label images organized by location from your collection files.")
+    st.info("ℹ️ Labels are generated for **loose parts only**. Parts from LEGO sets are excluded from label generation.")
     
     # Output mode selection
     output_mode = st.radio(

@@ -57,6 +57,10 @@ def organize_labels_by_location(
         if not location or pd.isna(location) or location == 'nan':
             continue
         
+        # Filter out set-based locations (format: "Set {set_number} - {set_name}")
+        if location.startswith("Set "):
+            continue
+        
         # Map RB part to BA part
         ba_part = ba_mapping.get(rb_part)
         

@@ -46,6 +46,18 @@ class Paths:
         user_images_dir = self.user_data_dir / username / "images_uploaded"
         user_images_dir.mkdir(parents=True, exist_ok=True)
         return user_images_dir
+    
+    def get_user_sets_dir(self, username: str) -> Path:
+        """Get the user-specific sets directory."""
+        sets_dir = self.user_data_dir / username / "sets"
+        sets_dir.mkdir(parents=True, exist_ok=True)
+        return sets_dir
+    
+    def get_user_set_inventories_dir(self, username: str) -> Path:
+        """Get the user-specific set inventories directory."""
+        inv_dir = self.user_data_dir / username / "set_inventories"
+        inv_dir.mkdir(parents=True, exist_ok=True)
+        return inv_dir
 
 def init_paths() -> Paths:
     return Paths()

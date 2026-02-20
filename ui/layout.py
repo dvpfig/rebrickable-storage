@@ -24,6 +24,14 @@ def ensure_session_state_keys():
         st.session_state["merged_source_hash"] = None
     if "start_processing" not in st.session_state:
         st.session_state["start_processing"] = False
+    
+    # Sets management session state
+    if "sets_metadata" not in st.session_state:
+        st.session_state["sets_metadata"] = None
+    if "sets_inventories_cache" not in st.session_state:
+        st.session_state["sets_inventories_cache"] = {}
+    if "sets_data_loaded" not in st.session_state:
+        st.session_state["sets_data_loaded"] = False
 
 def short_key(*args) -> str:
     return md5("::".join(map(str, args)).encode("utf-8")).hexdigest()

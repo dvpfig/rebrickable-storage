@@ -129,6 +129,13 @@ if auth_status is True:
     # Define user-specific uploaded images directory
     user_uploaded_images_dir = paths.get_user_uploaded_images_dir(username)
     
+    # Load sets data into session state on first access
+    if not st.session_state.get("sets_data_loaded", False):
+        from core.sets import SetsManager
+        user_data_dir = paths.user_data_dir / username
+        sets_manager = SetsManager(user_data_dir)
+        sets_manager.load_into_session_state(st.session_state)
+    
     with st.sidebar:
         display_name = st.session_state.get("name", username)
         st.write(f"👤 Welcome, **{display_name}**!")
@@ -426,7 +433,12 @@ if auth_status is True:
 # --- Main Page Content (After Authentication)
 # ---------------------------------------------------------------------
 
-pg = st.navigation(["pages/1_Rebrickable_Storage.py","pages/2_My_Collection.py", "pages/3_Find_Wanted_Parts.py"], position="top")
+pg = st.navigation([
+    "pages/1_Rebrickable_Storage.py",
+    "pages/2_My_Collection_Parts.py",
+    "pages/3_Find_Wanted_Parts.py",
+    "pages/4_My_Collection_Sets.py"
+], position="top")
 pg.run()
 
 st.caption("Powered by [BrickArchitect Lego Parts Guide](https://brickarchitect.com/parts/) & [Rebrickable Lego Collection Lists](https://rebrickable.com/) • Made with ❤️ and Streamlit")

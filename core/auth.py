@@ -237,6 +237,8 @@ class AuthManager:
         serializable_data = {
             'found_counts': {str(k): v for k, v in session_data.get('found_counts', {}).items()},
             'locations_index': session_data.get('locations_index', {}),
+            'sets_metadata': session_data.get('sets_metadata'),
+            'sets_inventories_cache': session_data.get('sets_inventories_cache', {}),
             'last_updated': datetime.now().isoformat()
         }
 
@@ -256,6 +258,8 @@ class AuthManager:
                     for k, v in data['found_counts'].items():
                         parsed[eval(k)] = v
                     data['found_counts'] = parsed
+                # Sets data is already in the correct format (lists/dicts)
+                # No need to parse sets_metadata or sets_inventories_cache
                 return data
         return {}
 
