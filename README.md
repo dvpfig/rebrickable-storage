@@ -1,14 +1,16 @@
 # Rebrickable Storage - LEGO Parts Finder
 
-A web application for LEGO enthusiasts to efficiently locate parts from their collection. Match wanted parts against your inventory and find exactly where each piece is stored.
+A web application for LEGO enthusiasts to efficiently manage and locate parts from their collection. Upload your parts and sets, match wanted parts against your inventory, and find exactly where each piece is stored.
 
 Built with Python and Streamlit, using data from [Rebrickable](https://rebrickable.com) and [BrickArchitect](https://brickarchitect.com).
 
 ## Features
 
 - **Multi-user authentication** with session persistence
-- **Smart part matching** between wanted lists and your collection
-- **Location-based organization** with visual part images
+- **Parts collection management** with location-based organization
+- **Sets collection management** with automatic inventory retrieval via Rebrickable API
+- **Smart part matching** between wanted lists and your collection or sets
+- **Visual part identification** with images from BrickArchitect
 - **Label generation** for storage containers (LBX and image formats)
 - **Progress tracking** to resume work across sessions
 - **Dark/light theme** support
@@ -79,9 +81,22 @@ Access at `http://localhost:8501`
 
 ## Usage
 
+### Managing Your Collection
+
 1. **Login** with demo credentials (`demo` / `demo123`) or create a new account
-2. **Upload wanted parts** CSV from Rebrickable
-3. **Select collection files** from your inventory
+2. Navigate to **My Collection - Parts** to:
+   - Upload collection CSV files from Rebrickable
+   - Generate printable labels organized by storage location
+3. Navigate to **My Collection - Sets** to:
+   - Upload sets CSV or manually add set numbers
+   - Configure your Rebrickable API key
+   - Retrieve part inventories for your sets
+
+### Finding Wanted Parts
+
+1. Navigate to **Find Wanted Parts**
+2. **Upload wanted parts** CSV from Rebrickable (e.g., from a MOC or set inventory)
+3. **Select collection files or sets** to search through
 4. **Generate pickup list** organized by storage location
 5. **Mark parts as found** while collecting
 6. **Download results** or generate printable labels
@@ -106,9 +121,11 @@ See `.env.example` for all available options.
 ### User Data
 
 User-specific data is stored in `user_data/{username}/`:
-- Collection CSV files
-- Custom part images
-- Session progress
+- `collection/` - Collection CSV files
+- `sets/` - Sets metadata and inventories
+- `images_uploaded/` - Custom part images
+- `session_data.json` - Session progress
+- `api_keys.json` - Encrypted Rebrickable API key
 
 ### Cache
 

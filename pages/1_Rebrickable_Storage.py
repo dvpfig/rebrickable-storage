@@ -81,7 +81,7 @@ st.markdown("## 🚀 Getting Started - Choose a Function")
 
 st.info("Use the topbar menu to navigate between pages")
 
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 
 with col1:
     st.markdown("### 🏷️ My Collection - Parts")
@@ -95,15 +95,26 @@ with col1:
         st.switch_page("pages/2_My_Collection_Parts.py")
 
 with col2:
+    st.markdown("### 📦 My Collection - Sets")
+    st.markdown("""
+    Manage your LEGO sets collection:
+    - Upload sets CSV or add manually
+    - Retrieve set inventories via API
+    - View your complete set collection
+    """)
+    if st.button("📦 Go to My Collection - Sets", use_container_width=True):
+        st.switch_page("pages/3_My_Collection_Sets.py")
+
+with col3:
     st.markdown("### 🔍 Find Wanted Parts")
     st.markdown("""
     Find parts you need for new builds:
     - Upload wanted parts lists
-    - Match against your collection
+    - Match against collection or sets
     - Get pickup lists by location
     """)
     if st.button("🔎 Go to Find Wanted Parts", use_container_width=True):
-        st.switch_page("pages/3_Find_Wanted_Parts.py")
+        st.switch_page("pages/4_Find_Wanted_Parts.py")
 
 st.markdown("---")
 
