@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 
 # Page configuration
 st.title("🏷️ My Collection - Parts")
+st.markdown("Manage your loose LEGO parts collection. Upload CSV files, download labels and images from BrickArchitect, and organize your parts inventory.")
 st.sidebar.header("🏷️ My Collection - Parts")
 
 # Load environment variables
@@ -33,11 +34,88 @@ if not st.session_state.get("authentication_status"):
 # Get paths and user info
 paths = init_paths()
 username = st.session_state.get("username")
-user_collection_dir = paths.user_data_dir / username / "collection"
+user_collection_dir = paths.get_user_collection_parts_dir(username)
 user_uploaded_images_dir = paths.get_user_uploaded_images_dir(username)
+user_data_dir = paths.user_data_dir / username
 
 # Sidebar sections for collection management
 with st.sidebar:
+    st.markdown("---")
+    
+    # Rebrickable API Key Section
+    with st.expander("🔑 Rebrickable API Key", expanded=False):
+        from core.api_keys import load_api_key, save_api_key
+        from core.rebrickable_api import RebrickableAPI
+        
+        st.markdown("""
+        To retrieve set inventories, you need a Rebrickable API key. 
+        Get your free API key at [rebrickable.com/api](https://rebrickable.com/api/).
+        """)
+        
+        # Load current API key
+        current_api_key = load_api_key(user_data_dir)
+        
+        # Show current status
+        if current_api_key:
+            st.success("✅ API key is configured")
+            
+            # Option to update the key
+            with st.expander("🔄 Update API Key"):
+                new_key = st.text_input(
+                    "Enter new API key",
+                    type="password",
+                    key="new_api_key_input_page2",
+                    help="Your Rebrickable API key will be validated before saving"
+                )
+                
+                col1, col2 = st.columns([1, 3])
+                with col1:
+                    if st.button("💾 Save New Key", key="save_new_api_key_page2"):
+                        if new_key and new_key.strip():
+                            # Validate the new key
+                            with st.spinner("Validating API key..."):
+                                try:
+                                    api_client = RebrickableAPI(new_key.strip())
+                                    if api_client.validate_key():
+                                        save_api_key(user_data_dir, new_key.strip())
+                                        st.success("✅ API key validated and saved successfully!")
+                                        st.rerun()
+                                    else:
+                                        st.error("❌ Invalid API key. Please check your key and try again.")
+                                except Exception as e:
+                                    st.error(f"❌ Error validating API key: {str(e)}")
+                        else:
+                            st.warning("⚠️ Please enter an API key")
+        else:
+            st.info("ℹ️ No API key configured. Add your API key to retrieve set inventories.")
+            
+            # Input for new API key
+            api_key_input = st.text_input(
+                "Enter your Rebrickable API key",
+                type="password",
+                key="api_key_input_page2",
+                help="Your Rebrickable API key will be validated before saving"
+            )
+            
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                if st.button("💾 Save API Key", key="save_api_key_page2"):
+                    if api_key_input and api_key_input.strip():
+                        # Validate the key
+                        with st.spinner("Validating API key..."):
+                            try:
+                                api_client = RebrickableAPI(api_key_input.strip())
+                                if api_client.validate_key():
+                                    save_api_key(user_data_dir, api_key_input.strip())
+                                    st.success("✅ API key validated and saved successfully!")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Invalid API key. Please check your key and try again.")
+                            except Exception as e:
+                                st.error(f"❌ Error validating API key: {str(e)}")
+                    else:
+                        st.warning("⚠️ Please enter an API key")
+    
     st.markdown("---")
     
     # Sync latest Labels/Images from BrickArchitect

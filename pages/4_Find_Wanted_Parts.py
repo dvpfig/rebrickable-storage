@@ -20,6 +20,7 @@ from pages.find_wanted_parts_helpers import get_unfound_parts, merge_set_results
 
 # Page configuration
 st.title("🔍 Find Wanted Parts")
+st.markdown("Search for wanted parts in your collection. Upload wanted parts lists, match them against your inventory, and track your progress by location.")
 st.sidebar.header("🔍 Find Wanted Parts")
 
 # Load environment variables
@@ -202,12 +203,12 @@ if not st.session_state.get("authentication_status"):
 # Get paths and user info
 paths = init_paths()
 username = st.session_state.get("username")
-user_collection_dir = paths.user_data_dir / username / "collection"
+user_collection_dir = paths.get_user_collection_parts_dir(username)
 user_uploaded_images_dir = paths.get_user_uploaded_images_dir(username)
 
 # Save/Load Progress buttons in sidebar
 with st.sidebar:
-   
+    st.markdown("---")
     # Save progress
     if st.button("💾 Save Progress", use_container_width=True):
         session_data = {
@@ -705,7 +706,7 @@ if st.session_state.get("start_processing"):
     # ---------------------------------------------------------------------
     # Initialize SetsManager for set search functionality
     try:
-        sets_manager = SetsManager(paths.user_data_dir / username)
+        sets_manager = SetsManager(paths.user_data_dir / username, paths.cache_set_inventories)
         render_set_search_section(merged, sets_manager, color_lookup)
         
         # Display set search results in a separate section (Requirement 8.3)

@@ -21,6 +21,18 @@ from core.rebrickable_api import RebrickableAPI, APIError
 st.title("📦 My Collection - Sets")
 st.sidebar.header("📦 My Collection - Sets")
 
+# Check authentication early
+if not st.session_state.get("authentication_status"):
+    st.warning("⚠️ Please login on the first page to access this feature.")
+    if st.button("🔐 Go to Login Page"):
+        st.switch_page("pages/1_Rebrickable_Storage.py")
+    st.stop()
+
+# Get paths and user info early for sidebar
+paths = init_paths()
+username = st.session_state.get("username")
+user_data_dir = paths.user_data_dir / username
+
 def render_csv_upload_section(sets_manager: SetsManager) -> None:
     """
     Render CSV file upload interface.
@@ -415,18 +427,20 @@ def render_sets_display(sets_manager: SetsManager) -> None:
                 st.markdown("<hr style='margin: 5px 0; opacity: 0.3;'>", unsafe_allow_html=True)
 
 
-def render_api_key_section(user_data_dir: Path, current_api_key: str = None) -> str:
+def render_api_key_section(user_data_dir: Path, current_api_key: str = None, in_sidebar: bool = False) -> str:
     """
     Render API key input and validation section.
     
     Args:
         user_data_dir: Path to user's data directory
         current_api_key: Currently saved API key (if any)
+        in_sidebar: Whether this is being rendered in the sidebar
         
     Returns:
         Updated API key if saved, otherwise current_api_key
     """
-    st.markdown("### 🔑 Rebrickable API Key")
+    if not in_sidebar:
+        st.markdown("### 🔑 Rebrickable API Key")
     st.markdown("""
     To retrieve set inventories, you need a Rebrickable API key. 
     Get your free API key at [rebrickable.com/api](https://rebrickable.com/api/).
@@ -496,23 +510,19 @@ def render_api_key_section(user_data_dir: Path, current_api_key: str = None) -> 
     return load_api_key(user_data_dir)
 
 
-# Check authentication
-if not st.session_state.get("authentication_status"):
-    st.warning("⚠️ Please login on the first page to access this feature.")
-    if st.button("🔐 Go to Login Page"):
-        st.switch_page("pages/1_Rebrickable_Storage.py")
-    st.stop()
-
-# Get paths and user info
-paths = init_paths()
-username = st.session_state.get("username")
-user_data_dir = paths.user_data_dir / username
+# Sidebar - API Key Management Section
+with st.sidebar:
+    st.markdown("---")
+    with st.expander("🔑 Rebrickable API Key", expanded=False):
+        api_key = load_api_key(user_data_dir)
+        api_key = render_api_key_section(user_data_dir, api_key, in_sidebar=True)
 
 # Initialize SetsManager
-sets_manager = SetsManager(user_data_dir)
+sets_manager = SetsManager(user_data_dir, paths.cache_set_inventories)
 
 # Load API key if available
-api_key = load_api_key(user_data_dir)
+if not api_key:
+    api_key = load_api_key(user_data_dir)
 if api_key:
     sets_manager.api_key = api_key
 
@@ -524,22 +534,14 @@ set numbers, then retrieve inventories from Rebrickable to enable searching for 
 
 st.markdown("---")
 
-# API Key Management Section
-api_key = render_api_key_section(user_data_dir, api_key)
+# CSV Upload and Manual Entry Sections - Side by Side
+col1, col2 = st.columns(2)
 
-# Update SetsManager with the current API key
-if api_key:
-    sets_manager.api_key = api_key
+with col1:
+    render_csv_upload_section(sets_manager)
 
-st.markdown("---")
-
-# CSV Upload Section
-render_csv_upload_section(sets_manager)
-
-st.markdown("---")
-
-# Manual Set Entry Section
-render_manual_entry_section(sets_manager)
+with col2:
+    render_manual_entry_section(sets_manager)
 
 st.markdown("---")
 

@@ -16,23 +16,25 @@ from core.rebrickable_api import RebrickableAPI, APIError
 class SetsManager:
     """Manages LEGO set collection and inventory data."""
     
-    def __init__(self, user_data_dir: Path, api_key: Optional[str] = None):
+    def __init__(self, user_data_dir: Path, global_cache_dir: Path, api_key: Optional[str] = None):
         """
         Initialize the sets manager.
-        
+
         Args:
             user_data_dir: Path to user's data directory
+            global_cache_dir: Path to global cache directory
             api_key: Optional Rebrickable API key
         """
         self.user_data_dir = user_data_dir
         self.sets_dir = user_data_dir / "sets"
-        self.inventories_dir = user_data_dir / "set_inventories"
+        self.inventories_dir = global_cache_dir / "set_inventories"
         self.api_key = api_key
-        self.sets_metadata_file = self.sets_dir / "collection.json"
-        
+        self.sets_metadata_file = user_data_dir / "collection_sets.json"
+
         # Ensure directories exist
         self.sets_dir.mkdir(parents=True, exist_ok=True)
         self.inventories_dir.mkdir(parents=True, exist_ok=True)
+
     
     def load_sets_from_csv(self, csv_file, source_name: str) -> List[Dict]:
         """
@@ -134,7 +136,7 @@ class SetsManager:
 
     def save_sets_metadata(self, sets: List[Dict]) -> None:
         """
-        Save sets metadata to collection.json.
+        Save sets metadata to collection_sets.json.
         
         Args:
             sets: List of set dictionaries to save
@@ -150,7 +152,7 @@ class SetsManager:
     
     def load_sets_metadata(self) -> List[Dict]:
         """
-        Load sets metadata from collection.json.
+        Load sets metadata from collection_sets.json.
         
         Returns:
             List of set dictionaries, or empty list if file doesn't exist
@@ -277,21 +279,45 @@ class SetsManager:
     def fetch_inventory(self, set_number: str, api_client: RebrickableAPI) -> Dict:
         """
         Fetch inventory for a single set from Rebrickable API.
-        
+        First checks global cache, only fetches from API if not cached.
+
         Args:
             set_number: LEGO set number
             api_client: Configured API client
-            
+
         Returns:
             Inventory data dictionary
-            
+
         Raises:
             APIError: If API call fails
         """
-        # Get set info and parts
+        # Check if inventory already exists in global cache
+        inventory_file = self.inventories_dir / f"{set_number}.json"
+        if inventory_file.exists():
+            try:
+                with open(inventory_file, 'r', encoding='utf-8') as f:
+                    cached_inventory = json.load(f)
+
+                # Update set metadata with cached info
+                sets = self.load_sets_metadata()
+                for set_data in sets:
+                    if set_data["set_number"] == set_number:
+                        set_data["inventory_fetched"] = True
+                        set_data["inventory_fetch_date"] = cached_inventory.get("fetch_date", "unknown")
+                        set_data["set_name"] = cached_inventory.get("set_name", set_number)
+                        set_data["part_count"] = cached_inventory.get("total_parts", 0)
+                        break
+                self.save_sets_metadata(sets)
+
+                return cached_inventory
+            except (json.JSONDecodeError, IOError):
+                # If cached file is corrupted, fetch from API
+                pass
+
+        # Get set info and parts from API
         set_info = api_client.get_set_info(set_number)
         parts = api_client.get_set_parts(set_number, include_spares=True)
-        
+
         # Build inventory structure
         inventory = {
             "set_number": set_number,
@@ -300,12 +326,11 @@ class SetsManager:
             "parts": parts,
             "total_parts": len(parts)
         }
-        
-        # Save to cache
-        inventory_file = self.inventories_dir / f"{set_number}.json"
+
+        # Save to global cache
         with open(inventory_file, 'w', encoding='utf-8') as f:
             json.dump(inventory, f, indent=2, ensure_ascii=False)
-        
+
         # Update set metadata
         sets = self.load_sets_metadata()
         for set_data in sets:
@@ -316,8 +341,9 @@ class SetsManager:
                 set_data["part_count"] = len(parts)
                 break
         self.save_sets_metadata(sets)
-        
+
         return inventory
+
     
     def fetch_all_inventories(self, api_client: RebrickableAPI, 
                              progress_callback=None) -> Dict:

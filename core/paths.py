@@ -13,6 +13,7 @@ class Paths:
         self.global_cache_dir = self.root / "cache"
         self.cache_images = self.global_cache_dir / "images"
         self.cache_labels = self.global_cache_dir / "labels"
+        self.cache_set_inventories = self.global_cache_dir / "set_inventories"
         self.resources_dir = self.root / "resources"
         self.user_data_dir = self.root / "user_data"
 
@@ -35,10 +36,10 @@ class Paths:
                 "`part number - BA vs RB - YYYY-MM-DD.xlsx`"
             )
             st.stop()
-        
+
         self.colors_path = self.resources_dir / "colors.csv"
 
-        for d in [self.global_cache_dir, self.cache_images, self.cache_labels, self.resources_dir, self.user_data_dir]:
+        for d in [self.global_cache_dir, self.cache_images, self.cache_labels, self.cache_set_inventories, self.resources_dir, self.user_data_dir]:
             d.mkdir(parents=True, exist_ok=True)
     
     def get_user_uploaded_images_dir(self, username: str) -> Path:
@@ -53,11 +54,17 @@ class Paths:
         sets_dir.mkdir(parents=True, exist_ok=True)
         return sets_dir
     
-    def get_user_set_inventories_dir(self, username: str) -> Path:
-        """Get the user-specific set inventories directory."""
-        inv_dir = self.user_data_dir / username / "set_inventories"
-        inv_dir.mkdir(parents=True, exist_ok=True)
-        return inv_dir
+    def get_user_collection_parts_dir(self, username: str) -> Path:
+        """Get the user-specific collection parts directory."""
+        collection_parts_dir = self.user_data_dir / username / "collection_parts"
+        collection_parts_dir.mkdir(parents=True, exist_ok=True)
+        return collection_parts_dir
+
+    def get_user_collection_sets_dir(self, username: str) -> Path:
+        """Get the user-specific collection sets directory."""
+        collection_sets_dir = self.user_data_dir / username / "collection_sets"
+        collection_sets_dir.mkdir(parents=True, exist_ok=True)
+        return collection_sets_dir
 
 def init_paths() -> Paths:
     return Paths()

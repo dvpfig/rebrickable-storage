@@ -82,7 +82,7 @@ if auth_status is True:
     if not st.session_state.get("sets_data_loaded", False):
         from core.sets import SetsManager
         user_data_dir = paths.user_data_dir / username
-        sets_manager = SetsManager(user_data_dir)
+        sets_manager = SetsManager(user_data_dir, paths.cache_set_inventories)
         sets_manager.load_into_session_state(st.session_state)
     
     with st.sidebar:

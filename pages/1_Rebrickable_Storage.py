@@ -132,7 +132,7 @@ render_app_features_content()
 if st.session_state.get("authentication_status"):
     paths = init_paths()
     username = st.session_state.get("username")
-    user_collection_dir = paths.user_data_dir / username / "collection"
+    user_collection_dir = paths.get_user_collection_parts_dir(username)
     
     with st.sidebar:
         st.markdown("---")
