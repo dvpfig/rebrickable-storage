@@ -18,6 +18,10 @@ from typing import List, Tuple, Dict
 from core.sets import SetsManager
 from pages.find_wanted_parts_helpers import get_unfound_parts, merge_set_results, render_missing_parts_by_set
 
+# Page configuration
+st.title("🔍 Find Wanted Parts")
+st.sidebar.header("🔍 Find Wanted Parts")
+
 # Load environment variables
 load_dotenv()
 
@@ -189,11 +193,11 @@ def render_set_search_section(merged_df: pd.DataFrame, sets_manager: SetsManager
 
 # Check authentication
 if not st.session_state.get("authentication_status"):
-    st.warning("⚠️ Please login first")
+    st.warning("⚠️ Please login on the first page to access this feature.")
+    if st.button("🔐 Go to Login Page"):
+        st.switch_page("pages/1_Rebrickable_Storage.py")
     st.stop()
 
-st.title("🔍 Find Wanted Parts")
-st.sidebar.header("🔍 Find Wanted Parts")
 
 # Get paths and user info
 paths = init_paths()
@@ -203,8 +207,7 @@ user_uploaded_images_dir = paths.get_user_uploaded_images_dir(username)
 
 # Save/Load Progress buttons in sidebar
 with st.sidebar:
-    st.markdown("---")
-    
+   
     # Save progress
     if st.button("💾 Save Progress", use_container_width=True):
         session_data = {
@@ -230,8 +233,6 @@ with st.sidebar:
                 st.info("No saved progress found.")
         else:
             st.error("❌ Authentication manager not available.")
-    
-    st.markdown("---")
 
 # Load mapping and color data
 ba_mapping = load_ba_mapping(paths.mapping_path)
@@ -351,8 +352,17 @@ if collection_files_stream:
     
     if not precompute_done:
         if st.button("🔄 Precompute collection images", key="precompute_button"):
-            with st.spinner("Precomputing collection images..."):
-                try:
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            # Progress callback function
+            def update_progress(current, total, item, status):
+                progress = current / total if total > 0 else 0
+                progress_bar.progress(progress)
+                status_text.text(f"Processing {current}/{total}: {item} - {status}")
+            
+            try:
+                with st.spinner("Precomputing collection images..."):
                     # Load collection files
                     collection = load_collection_files(collection_files_stream)
                     collection_bytes = collection.to_csv(index=False).encode('utf-8')
@@ -362,7 +372,8 @@ if collection_files_stream:
                         collection_bytes, 
                         ba_mapping, 
                         paths.cache_images,
-                        user_uploaded_dir=user_uploaded_images_dir
+                        user_uploaded_dir=user_uploaded_images_dir,
+                        progress_callback=update_progress
                     )
                     
                     # Save to session state
@@ -374,8 +385,12 @@ if collection_files_stream:
                     
                     st.success("✅ Collection images precomputed successfully!")
                     st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Error precomputing images: {e}")
+            except Exception as e:
+                st.error(f"❌ Error precomputing images: {e}")
+            finally:
+                # Clear progress indicators
+                progress_bar.empty()
+                status_text.empty()
     else:
         st.button("✅ Collection images precomputed", key="precompute_button_done", disabled=True)
     

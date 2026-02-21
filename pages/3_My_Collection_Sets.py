@@ -17,6 +17,9 @@ from core.sets import SetsManager
 from core.api_keys import load_api_key, save_api_key
 from core.rebrickable_api import RebrickableAPI, APIError
 
+# Page configuration
+st.title("📦 My Collection - Sets")
+st.sidebar.header("📦 My Collection - Sets")
 
 def render_csv_upload_section(sets_manager: SetsManager) -> None:
     """
@@ -493,13 +496,11 @@ def render_api_key_section(user_data_dir: Path, current_api_key: str = None) -> 
     return load_api_key(user_data_dir)
 
 
-# Page configuration
-st.title("📦 My Collection - Sets")
-st.sidebar.header("📦 My Collection - Sets")
-
 # Check authentication
 if not st.session_state.get("authentication_status"):
-    st.warning("⚠️ Please login first")
+    st.warning("⚠️ Please login on the first page to access this feature.")
+    if st.button("🔐 Go to Login Page"):
+        st.switch_page("pages/1_Rebrickable_Storage.py")
     st.stop()
 
 # Get paths and user info

@@ -17,7 +17,8 @@ def organize_labels_by_location(
     collection_df: pd.DataFrame,
     ba_mapping: dict,
     labels_source_dir: Path,
-    output_mode: Literal["both", "merged_only"] = "both"
+    output_mode: Literal["both", "merged_only"] = "both",
+    progress_callback=None
 ) -> Tuple[bytes, dict]:
     """
     Organize label files (.lbx) by location based on collection CSV data.
@@ -79,7 +80,16 @@ def organize_labels_by_location(
         merger = LbxMerger(max_length_mm=9999, spacing_mm=0)
         
         # Create folders and copy files
+        total_locations = len(location_to_ba_parts)
+        current_location = 0
+        
         for location, ba_parts_set in location_to_ba_parts.items():
+            current_location += 1
+            
+            # Report progress
+            if progress_callback:
+                progress_callback(current_location, total_locations, location, "Processing")
+            
             # Sanitize location name for use as a directory name
             sanitized_location_name = re.sub(r'[\\/|:*?"<>]', '_', location)
             location_dir = output_base_dir / sanitized_location_name
@@ -158,7 +168,8 @@ def generate_collection_labels_zip(
     collection_files_stream,
     ba_mapping: dict,
     labels_source_dir: Path,
-    output_mode: Literal["both", "merged_only"] = "both"
+    output_mode: Literal["both", "merged_only"] = "both",
+    progress_callback=None
 ):
 
     with st.spinner("Organizing labels by location..."):
@@ -179,7 +190,8 @@ def generate_collection_labels_zip(
                 collection_for_labels,
                 ba_mapping,
                 labels_source_dir,
-                output_mode
+                output_mode,
+                progress_callback
             )
             
             if zip_bytes and stats['locations_count'] > 0:

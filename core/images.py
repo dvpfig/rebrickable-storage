@@ -1,4 +1,5 @@
 # core/images.py
+import streamlit as st
 import re
 import pandas as pd
 import requests
@@ -13,8 +14,7 @@ from typing import Dict, List, Set, Optional
 MAX_WORKERS = 10  # Thread pool size for parallel image fetching
 TIMEOUT = 6  # HTTP request timeout in seconds
 
-@cache_data(show_spinner=False)
-def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict, cache_images_dir, user_uploaded_dir=None):
+def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict, cache_images_dir, user_uploaded_dir=None, progress_callback=None):
     df = pd.read_csv(BytesIO(collection_df_serialized))
     
     # Filter out rows with missing Location or Part
@@ -24,11 +24,10 @@ def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict
         return {}, {}
     
     # Vectorized regex cleaning: remove "pr\d+" suffix and strip whitespace
-    df_clean["Part_cleaned"] = df_clean["Part"].astype(str).str.strip().str.replace(
-        r"pr\d+$", "", regex=True, case=False
-    )
+    # Note: The "pr\d+" pattern is handled by generalized rules in the mapping
+    df_clean["Part_cleaned"] = df_clean["Part"].astype(str).str.strip()
     
-    # Vectorized mapping using ba_mapping
+    # Vectorized mapping using ba_mapping (includes generalized rules)
     df_clean["Part_mapped"] = df_clean["Part_cleaned"].map(
         lambda x: ba_mapping.get(x, x)
     )
@@ -44,14 +43,26 @@ def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict
     all_unique_ids = set()
     for part_ids in location_parts.values():
         all_unique_ids.update(part_ids)
-    
+
     # Batch fetch all images in parallel (including user-uploaded)
-    image_cache = get_cached_images_batch(list(all_unique_ids), cache_images_dir, user_uploaded_dir=user_uploaded_dir)
+    image_cache = get_cached_images_batch(
+        list(all_unique_ids), 
+        cache_images_dir, 
+        user_uploaded_dir=user_uploaded_dir,
+        progress_callback=progress_callback
+    )
     
     # Build part_num -> image_path mapping for quick lookup
     # Map original part numbers (before cleaning/mapping) to their image paths
     part_image_map: Dict[str, str] = {}
+    total_parts = len(df_clean)
+    current_part = 0
+    
     for _, row in df_clean.iterrows():
+        current_part += 1
+        if progress_callback and current_part % 100 == 0:
+            progress_callback(current_part, total_parts, f"Mapping part {current_part}", "Processing")
+        
         original_part = str(row["Part"])
         mapped_part = row["Part_mapped"]
         if mapped_part in image_cache:
@@ -59,7 +70,14 @@ def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict
     
     # Build output dictionary with sorted image paths per location
     out = {}
+    total_locations = len(location_parts)
+    current_location = 0
+    
     for location, part_ids in location_parts.items():
+        current_location += 1
+        if progress_callback:
+            progress_callback(current_location, total_locations, location, "Building index")
+        
         imgs = []
         for pid in sorted(part_ids):
             img_path = image_cache.get(pid)
@@ -91,13 +109,11 @@ def fetch_image_bytes(url: str, _session: Optional[requests.Session] = None):
 
 def _fetch_single_image(identifier: str, cache_dir: Path, session: Optional[requests.Session] = None) -> tuple[str, str]:
     """
-    Fetch a single image (thread-safe worker function).
+    Fetch a single image from URL and save to cache (thread-safe worker function).
+    This function assumes the cache has already been checked.
     Returns (identifier, image_path) tuple, or (identifier, "") if not found.
     """
-    # Check PNG cache first
     local_png = cache_dir / f"{identifier}.png"
-    if local_png.exists():
-        return (identifier, str(local_png))
     
     # Try to fetch PNG from URL
     url = f"https://brickarchitect.com/content/parts/{identifier}.png"
@@ -112,7 +128,7 @@ def _fetch_single_image(identifier: str, cache_dir: Path, session: Optional[requ
     
     return (identifier, "")
 
-def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: int = MAX_WORKERS, user_uploaded_dir: Optional[Path] = None) -> Dict[str, str]:
+def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: int = MAX_WORKERS, user_uploaded_dir: Optional[Path] = None, progress_callback=None) -> Dict[str, str]:
     """
     Batch fetch images for multiple part IDs in parallel.
     Returns a dictionary mapping part_id -> image_path (or empty string if not found).
@@ -122,30 +138,45 @@ def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: i
         cache_dir: Path to global image cache directory
         max_workers: Number of parallel workers for fetching
         user_uploaded_dir: Optional path to user-uploaded images directory
+        progress_callback: Optional callback function(current, total, item, status) for progress reporting
     """
     if not part_ids:
         return {}
     
+    total_parts = len(part_ids)
+    
     # Pre-check file existence for all parts (batch file I/O check)
+    if progress_callback:
+        progress_callback(0, total_parts, "Checking cache", "Starting")
+    
     file_cache: Dict[str, Optional[str]] = {}
     png_paths = {pid: cache_dir / f"{pid}.png" for pid in part_ids}
     
     # Batch check PNG files
-    for pid, png_path in png_paths.items():
+    for idx, (pid, png_path) in enumerate(png_paths.items()):
         if png_path.exists():
             file_cache[pid] = str(png_path)
+        if progress_callback and (idx + 1) % 100 == 0:
+            progress_callback(idx + 1, total_parts, f"Checked {idx + 1} files", "Checking cache")
     
     # Separate cached and uncached parts
     cached_results = {pid: path for pid, path in file_cache.items() if path}
     uncached_parts = [pid for pid in part_ids if pid not in cached_results]
     
+    if progress_callback:
+        progress_callback(len(cached_results), total_parts, f"Found {len(cached_results)} cached", "Cache check complete")
+    
     if not uncached_parts:
         return cached_results
     
     # Fetch uncached images in parallel
+    if progress_callback:
+        progress_callback(len(cached_results), total_parts, f"Fetching {len(uncached_parts)} images", "Downloading")
+    
     # Create a session for connection reuse across requests
     session = requests.Session()
     results = cached_results.copy()
+    completed_count = len(cached_results)
     
     try:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -160,12 +191,20 @@ def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: i
                 pid, img_path = future.result()
                 if img_path:
                     results[pid] = img_path
+                completed_count += 1
+                
+                # Report progress every 10 images or at the end
+                if progress_callback and (completed_count % 10 == 0 or completed_count == total_parts):
+                    progress_callback(completed_count, total_parts, f"Downloaded {completed_count - len(cached_results)}", "Downloading")
     finally:
         session.close()
     
     # Check user-uploaded images for any remaining parts without images
     if user_uploaded_dir and user_uploaded_dir.exists():
         still_missing = [pid for pid in part_ids if pid not in results]
+        if still_missing and progress_callback:
+            progress_callback(completed_count, total_parts, "Checking user uploads", "Finalizing")
+        
         for pid in still_missing:
             user_png = user_uploaded_dir / f"{pid}.png"
             user_jpg = user_uploaded_dir / f"{pid}.jpg"
@@ -199,14 +238,12 @@ def fetch_wanted_part_images(merged_df_serialized: bytes, ba_mapping: dict, cach
     # Get all unique wanted parts
     wanted_parts = df["Part"].dropna().unique()
 
-    # Clean and map part numbers
+    # Clean and map part numbers (generalized rules applied via ba_mapping)
     part_mapping = {}
     for part in wanted_parts:
         part_str = str(part).strip()
-        # Remove "pr\d+" suffix
-        part_cleaned = re.sub(r"pr\d+$", "", part_str, flags=re.IGNORECASE)
-        # Map to BA part number if available
-        part_mapped = ba_mapping.get(part_cleaned, part_cleaned)
+        # Map to BA part number (includes generalized rules)
+        part_mapped = ba_mapping.get(part_str, part_str)
         part_mapping[part_str] = part_mapped
 
     # Batch fetch all images (including user-uploaded)
