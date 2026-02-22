@@ -223,12 +223,17 @@ class AuthManager:
         except Exception as e:
             st.error(f"Registration failed: {e}")
 
-    def logout(self):
+    def logout(self, skip_audit_log: bool = False):
         username = st.session_state.get("username")
-        if username and self.audit_logger:
-            self.audit_logger.log_logout(username)
+        was_authenticated = st.session_state.get("authentication_status") is True
         
+        # Call the authenticator's logout (renders button and handles click)
         self.authenticator.logout()
+        
+        # Only log if user actually logged out (status changed from True to False/None)
+        is_authenticated = st.session_state.get("authentication_status") is True
+        if was_authenticated and not is_authenticated and username and self.audit_logger and not skip_audit_log:
+            self.audit_logger.log_logout(username)
 
     def save_user_session(self, username: str, session_data: dict, user_data_dir: Path):
         user_path = user_data_dir / username

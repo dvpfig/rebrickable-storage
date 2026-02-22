@@ -249,9 +249,10 @@ class SessionTimeoutManager:
             elapsed = (datetime.now() - last_activity).total_seconds() / 60
             
             if elapsed > self.timeout_minutes:
-                # Session timed out
-                if audit_logger:
+                # Session timed out - only log once
+                if audit_logger and "session_timeout_logged" not in st.session_state:
                     audit_logger.log_session_timeout(username)
+                    st.session_state["session_timeout_logged"] = True
                 return False
             
             # Update activity timestamp

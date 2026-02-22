@@ -147,7 +147,7 @@ def render_manual_entry_section(sets_manager: SetsManager) -> None:
     
     with col2:
         st.markdown("<br>", unsafe_allow_html=True)  # Spacing to align button
-        if st.button("➕ Add Set", key="add_manual_set_button", use_container_width=True):
+        if st.button("➕ Add Set", key="add_manual_set_button", width='stretch'):
             if set_number_input and set_number_input.strip():
                 try:
                     # Add the set

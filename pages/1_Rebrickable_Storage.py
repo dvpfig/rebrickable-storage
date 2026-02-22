@@ -102,7 +102,7 @@ with col1:
     - Upload new collection CSVs
     - Generate printable labels by location
     """)
-    if st.button("📂 Go to My Collection - Parts", use_container_width=True):
+    if st.button("📂 Go to My Collection - Parts", width='stretch'):
         st.switch_page("pages/2_My_Collection_Parts.py")
 
 with col2:
@@ -113,7 +113,7 @@ with col2:
     - Retrieve set inventories via API
     - View your complete set collection
     """)
-    if st.button("📦 Go to My Collection - Sets", use_container_width=True):
+    if st.button("📦 Go to My Collection - Sets", width='stretch'):
         st.switch_page("pages/3_My_Collection_Sets.py")
 
 with col3:
@@ -124,7 +124,7 @@ with col3:
     - Match against collection or sets
     - Get pickup lists by location
     """)
-    if st.button("🔎 Go to Find Wanted Parts", use_container_width=True):
+    if st.button("🔎 Go to Find Wanted Parts", width='stretch'):
         st.switch_page("pages/4_Find_Wanted_Parts.py")
 
 st.markdown("---")

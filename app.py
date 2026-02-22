@@ -65,7 +65,8 @@ username = st.session_state.get("username", None)
 if auth_status is True and username:
     if not auth_manager.check_session_timeout(username):
         st.error("⏱️ Your session has expired due to inactivity. Please login again.")
-        auth_manager.logout()
+        # Skip audit log since timeout is already logged
+        auth_manager.logout(skip_audit_log=True)
         st.rerun()
 else:
     # Unauthenticated - Show login prompt in sidebar

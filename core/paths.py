@@ -49,11 +49,6 @@ class Paths:
         user_images_dir.mkdir(parents=True, exist_ok=True)
         return user_images_dir
     
-    def get_user_sets_dir(self, username: str) -> Path:
-        """Get the user-specific sets directory."""
-        sets_dir = self.user_data_dir / username / "sets"
-        sets_dir.mkdir(parents=True, exist_ok=True)
-        return sets_dir
     
     def get_user_collection_parts_dir(self, username: str) -> Path:
         """Get the user-specific collection parts directory."""

@@ -574,7 +574,7 @@ with col_sync3:
         # Display as a table
         st.dataframe(
             rules_df,
-            use_container_width=True,
+            width='stretch',
             hide_index=True,
             column_config={
                 "Description": st.column_config.TextColumn("Rule Description", width="medium"),
@@ -632,7 +632,8 @@ if collection_files_stream:
                             user_uploaded_dir=user_uploaded_images_dir,
                             progress_callback=update_progress,
                             cache_rb_dir=paths.cache_images_rb,
-                            api_key=api_key
+                            api_key=api_key,
+                            user_data_dir=user_data_dir
                         )
                         
                         # Find parts without images
@@ -641,9 +642,16 @@ if collection_files_stream:
                         parts_with_images = set(part_images_map.keys())
                         missing_images = sorted(all_parts - parts_with_images)
                         
+                        # Also load unavailable images to include in the display
+                        from core.images import _load_unavailable_images
+                        unavailable_images_set = _load_unavailable_images(user_data_dir)
+                        
+                        # Combine missing and unavailable (some unavailable might already be in missing)
+                        all_missing_or_unavailable = sorted(set(missing_images) | unavailable_images_set)
+                        
                         # Save to session state (including stats for display after rerun)
                         st.session_state["precompute_collection_done"] = True
-                        st.session_state["precompute_missing_images"] = missing_images
+                        st.session_state["precompute_missing_images"] = all_missing_or_unavailable
                         st.session_state["precompute_stats"] = stats
                         st.session_state["precompute_parts_count"] = len(parts_with_images)
                         
@@ -655,7 +663,7 @@ if collection_files_stream:
                     progress_bar.empty()
                     status_text.empty()
         else:
-            st.success("✅ Collection images precomputed")
+            st.success("✅ Collection images precomputed!")
             
             # Show download statistics if available
             stats = st.session_state.get("precompute_stats")
@@ -668,54 +676,121 @@ if collection_files_stream:
                     st.info(f"📥 Downloaded {stats['ba_downloaded']} image(s) from BrickArchitect")
                 if stats["rb_downloaded"] > 0:
                     st.success(f"🎉 Downloaded {stats['rb_downloaded']} image(s) from Rebrickable API")
-                if stats["rb_api_errors"] > 0:
+                if stats["rb_rate_limit_errors"] > 0:
                     st.warning(
-                        f"⚠️ {stats['rb_api_errors']} Rebrickable API request(s) failed (likely rate limit). "
+                        f"⚠️ {stats['rb_rate_limit_errors']} Rebrickable API rate limit error(s) (HTTP 429). "
                         f"Click '🔄 Recompute images' to retry and fetch more images."
                     )
+                if stats["rb_other_errors"] > 0:
+                    st.info(f"ℹ️ {stats['rb_other_errors']} temporary API error(s) (network/server issues)")
             
             # Show missing images if any
             missing_images = st.session_state.get("precompute_missing_images", [])
             if missing_images:
-                with st.expander(f"⚠️ Parts without images ({len(missing_images)})", expanded=False):
-                    st.markdown("The following parts have no images in cache, BrickArchitect, or Rebrickable. You can upload custom images using the **Custom Images** section in the sidebar.")
-                    st.markdown("---")
+                # Get unavailable images set from session state
+                from core.images import _load_unavailable_images
+                unavailable_images = _load_unavailable_images(user_data_dir)
+                
+                # Separate into unavailable vs. missing (but not yet marked unavailable)
+                unavailable_parts = [p for p in missing_images if p in unavailable_images]
+                missing_not_unavailable = [p for p in missing_images if p not in unavailable_images]
+                
+                # Display unavailable parts (confirmed not available)
+                if unavailable_parts:
+                    with st.expander(f"❌ Parts confirmed  unavailable ({len(unavailable_parts)})", expanded=False):
+                        st.markdown("These parts have been confirmed as unavailable (404 errors from both BrickArchitect and Rebrickable). You can upload custom images using the **Custom Images** section in the sidebar.")
+                        st.markdown("---")
 
-                    # Create reverse mapping (BA -> RB) for display
-                    rb_to_ba = {v: k for k, v in ba_mapping.items()}
-                    
-                    # Prepare data for table display
-                    table_data = []
-                    for part_num in missing_images:
-                        # Determine if this is BA or RB part number
-                        ba_num = part_num if part_num not in ba_mapping else ba_mapping[part_num]
-                        rb_num = rb_to_ba.get(part_num, part_num)
+                        # Create reverse mapping (BA -> RB) for display
+                        rb_to_ba = {v: k for k, v in ba_mapping.items()}
                         
-                        # Show both numbers if they differ
-                        if ba_num != rb_num:
-                            display_text = f"{part_num} (BA: {ba_num}, RB: {rb_num})"
-                        else:
-                            display_text = part_num
+                        # Prepare data for table display
+                        table_data = []
+                        for part_num in unavailable_parts:
+                            # Determine if this is BA or RB part number
+                            ba_num = part_num if part_num not in ba_mapping else ba_mapping[part_num]
+                            rb_num = rb_to_ba.get(part_num, part_num)
+                            
+                            # Show both numbers if they differ
+                            if ba_num != rb_num:
+                                display_text = f"{part_num} (BA: {ba_num}, RB: {rb_num})"
+                            else:
+                                display_text = part_num
+                            
+                            table_data.append(display_text)
                         
-                        table_data.append(display_text)
-                    
-                    # Display in multi-column table (4 columns)
-                    cols_per_row = 4
-                    for i in range(0, len(table_data), cols_per_row):
-                        cols = st.columns(cols_per_row)
-                        for j, col in enumerate(cols):
-                            if i + j < len(table_data):
-                                col.markdown(f"• {table_data[i + j]}")
-                    
-                    st.markdown("---")
-                    st.info(f"💡 **Tip:** Use the **Custom Images** section in the sidebar to upload images for these parts.")
+                        # Display in multi-column table (4 columns)
+                        cols_per_row = 4
+                        for i in range(0, len(table_data), cols_per_row):
+                            cols = st.columns(cols_per_row)
+                            for j, col in enumerate(cols):
+                                if i + j < len(table_data):
+                                    col.markdown(f"• {table_data[i + j]}")
+                        
+                        st.markdown("---")
+                        st.info(f"💡 **Tip:** Use the **Custom Images** section in the sidebar to upload images for these parts.")
+                
+                # Display missing parts (not yet confirmed unavailable)
+                if missing_not_unavailable:
+                    with st.expander(f"⚠️ Parts without images - not yet checked ({len(missing_not_unavailable)})", expanded=False):
+                        st.markdown("These parts don't have cached images yet. They may be available from BrickArchitect or Rebrickable. Click '🔄 Recompute images' to attempt fetching them.")
+                        st.markdown("---")
+
+                        # Create reverse mapping (BA -> RB) for display
+                        rb_to_ba = {v: k for k, v in ba_mapping.items()}
+                        
+                        # Prepare data for table display
+                        table_data = []
+                        for part_num in missing_not_unavailable:
+                            # Determine if this is BA or RB part number
+                            ba_num = part_num if part_num not in ba_mapping else ba_mapping[part_num]
+                            rb_num = rb_to_ba.get(part_num, part_num)
+                            
+                            # Show both numbers if they differ
+                            if ba_num != rb_num:
+                                display_text = f"{part_num} (BA: {ba_num}, RB: {rb_num})"
+                            else:
+                                display_text = part_num
+                            
+                            table_data.append(display_text)
+                        
+                        # Display in multi-column table (4 columns)
+                        cols_per_row = 4
+                        for i in range(0, len(table_data), cols_per_row):
+                            cols = st.columns(cols_per_row)
+                            for j, col in enumerate(cols):
+                                if i + j < len(table_data):
+                                    col.markdown(f"• {table_data[i + j]}")
+                        
+                        st.markdown("---")
+                        st.info(f"💡 **Tip:** Click '🔄 Recompute images' below to attempt fetching these images.")
             
-            if st.button("🔄 Recompute images", key="recompute_collection_button", type="primary"):
-                st.session_state["precompute_collection_done"] = False
-                st.session_state.pop("precompute_missing_images", None)
-                st.session_state.pop("precompute_stats", None)
-                st.session_state.pop("precompute_parts_count", None)
-                st.rerun()
+            # Add buttons for recompute and reset unavailable
+            col_btn1, col_btn2 = st.columns(2)
+            
+            with col_btn1:
+                if st.button("🔄 Recompute images", key="recompute_collection_button", type="primary"):
+                    st.session_state["precompute_collection_done"] = False
+                    st.session_state.pop("precompute_missing_images", None)
+                    st.session_state.pop("precompute_stats", None)
+                    st.session_state.pop("precompute_parts_count", None)
+                    st.rerun()
+            
+            with col_btn2:
+                from core.images import get_unavailable_images_count, clear_unavailable_images_cache
+                unavailable_count = get_unavailable_images_count(user_data_dir)
+                
+                if unavailable_count > 0:
+                    if st.button(f"🔓 Reset unavailable list ({unavailable_count})", key="reset_unavailable_button", help="Clear the list of parts marked as unavailable to retry fetching them"):
+                        cleared_count = clear_unavailable_images_cache(user_data_dir)
+                        st.success(f"✅ Cleared {cleared_count} parts from unavailable list. Click '🔄 Recompute images' to retry fetching them.")
+                        st.session_state["precompute_collection_done"] = False
+                        st.session_state.pop("precompute_missing_images", None)
+                        st.session_state.pop("precompute_stats", None)
+                        st.session_state.pop("precompute_parts_count", None)
+                        st.rerun()
+                else:
+                    st.button("🔓 Reset unavailable list (0)", key="reset_unavailable_button_disabled", disabled=True, help="No parts currently marked as unavailable")
     
     # ---------------------------------------------------------------------
     # --- Labels Generation Section

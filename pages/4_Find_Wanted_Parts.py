@@ -208,7 +208,7 @@ user_uploaded_images_dir = paths.get_user_uploaded_images_dir(username)
 with st.sidebar:
     st.markdown("---")
     # Save progress
-    if st.button("💾 Save Progress", use_container_width=True, type="primary"):
+    if st.button("💾 Save Progress", width='stretch', type="primary"):
         session_data = {
             "found_counts": st.session_state.get("found_counts", {}),
             "locations_index": st.session_state.get("locations_index", {})
@@ -220,7 +220,7 @@ with st.sidebar:
             st.error("❌ Authentication manager not available.")
 
     # Load progress
-    if st.button("📂 Load Progress", use_container_width=True, type="primary"):
+    if st.button("📂 Load Progress", width='stretch', type="primary"):
         if st.session_state.get("auth_manager"):
             saved_data = st.session_state.auth_manager.load_user_session(username, paths.user_data_dir)
             if saved_data:
@@ -380,7 +380,8 @@ if collection_files_stream:
                         user_uploaded_dir=user_uploaded_images_dir,
                         progress_callback=update_progress,
                         cache_rb_dir=paths.cache_images_rb,
-                        api_key=api_key
+                        api_key=api_key,
+                        user_data_dir=user_data_dir
                     )
                     
                     # Save to session state (including stats for display after rerun)
@@ -408,11 +409,13 @@ if collection_files_stream:
                 st.info(f"📥 Downloaded {stats['ba_downloaded']} image(s) from BrickArchitect")
             if stats["rb_downloaded"] > 0:
                 st.success(f"🎉 Downloaded {stats['rb_downloaded']} image(s) from Rebrickable API")
-            if stats["rb_api_errors"] > 0:
+            if stats["rb_rate_limit_errors"] > 0:
                 st.warning(
-                    f"⚠️ {stats['rb_api_errors']} Rebrickable API request(s) failed (likely rate limit). "
+                    f"⚠️ {stats['rb_rate_limit_errors']} Rebrickable API rate limit error(s) (HTTP 429). "
                     f"Re-run precompute to retry and fetch more images."
                 )
+            if stats["rb_other_errors"] > 0:
+                st.info(f"ℹ️ {stats['rb_other_errors']} temporary API error(s) (network/server issues)")
     
     # Generate pickup list button
     can_generate = wanted_files and precompute_done
@@ -483,16 +486,18 @@ if st.session_state.get("start_processing"):
         )
         
         # Show download statistics for wanted parts
-        if wanted_stats["ba_downloaded"] > 0 or wanted_stats["rb_downloaded"] > 0 or wanted_stats["rb_api_errors"] > 0:
+        if wanted_stats["ba_downloaded"] > 0 or wanted_stats["rb_downloaded"] > 0 or wanted_stats["rb_rate_limit_errors"] > 0 or wanted_stats["rb_other_errors"] > 0:
             if wanted_stats["ba_downloaded"] > 0:
                 st.info(f"📥 Downloaded {wanted_stats['ba_downloaded']} wanted part image(s) from BrickArchitect")
             if wanted_stats["rb_downloaded"] > 0:
                 st.success(f"🎉 Downloaded {wanted_stats['rb_downloaded']} wanted part image(s) from Rebrickable API")
-            if wanted_stats["rb_api_errors"] > 0:
+            if wanted_stats["rb_rate_limit_errors"] > 0:
                 st.warning(
-                    f"⚠️ {wanted_stats['rb_api_errors']} Rebrickable API request(s) failed for wanted parts (likely rate limit). "
+                    f"⚠️ {wanted_stats['rb_rate_limit_errors']} Rebrickable API rate limit error(s) (HTTP 429) for wanted parts. "
                     f"Refresh the page to retry."
                 )
+            if wanted_stats["rb_other_errors"] > 0:
+                st.info(f"ℹ️ {wanted_stats['rb_other_errors']} temporary API error(s) for wanted parts")
         
         # Merge with precomputed collection images
         precomputed_images = st.session_state.get("part_images_map", {})
@@ -541,7 +546,7 @@ if st.session_state.get("start_processing"):
         button_icon = "▼" if is_expanded else "▶"
         button_label = f"{button_icon} 📦 {location} — {status_indicator}"
         
-        if st.button(button_label, key=f"toggle_{location}", use_container_width=True, type="secondary"):
+        if st.button(button_label, key=f"toggle_{location}", width='stretch', type="secondary"):
             if is_expanded:
                 st.session_state["expanded_locations"].discard(location)
             else:
@@ -700,14 +705,14 @@ if st.session_state.get("start_processing"):
             st.markdown("---")
             colM, colC = st.columns([1, 1])
             with colM:
-                if st.button("Mark all found ✔", key=short_key("markall", location), help="Fill all items for this location", use_container_width=True):
+                if st.button("Mark all found ✔", key=short_key("markall", location), help="Fill all items for this location", width='stretch'):
                     if "found_counts" not in st.session_state:
                         st.session_state["found_counts"] = {}
                     for _, r in loc_group.iterrows():
                         k = (str(r["Part"]), str(r["Color"]), str(r["Location"]))
                         st.session_state["found_counts"][k] = int(r["Quantity_wanted"])
             with colC:
-                if st.button("Clear found ✖", key=short_key("clearall", location), help="Clear found counts for this location", use_container_width=True):
+                if st.button("Clear found ✖", key=short_key("clearall", location), help="Clear found counts for this location", width='stretch'):
                     for _, r in loc_group.iterrows():
                         k = (str(r["Part"]), str(r["Color"]), str(r["Location"]))
                         st.session_state.get("found_counts", {}).pop(k, None)
