@@ -22,12 +22,12 @@ class SetsManager:
 
         Args:
             user_data_dir: Path to user's data directory
-            global_cache_dir: Path to global cache directory
+            global_cache_dir: Path to global cache directory for set inventories
             api_key: Optional Rebrickable API key
         """
         self.user_data_dir = user_data_dir
         self.sets_dir = user_data_dir / "sets"
-        self.inventories_dir = global_cache_dir / "set_inventories"
+        self.inventories_dir = global_cache_dir  # Use the path directly, it's already cache/set_inventories
         self.api_key = api_key
         self.sets_metadata_file = user_data_dir / "collection_sets.json"
 

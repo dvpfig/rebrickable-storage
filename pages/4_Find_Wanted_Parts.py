@@ -649,7 +649,7 @@ if st.session_state.get("start_processing"):
                 header[2].markdown("**Available**")
                 header[3].markdown("**Found**")
 
-                for _, row in part_group.iterrows():
+                for row_idx, row in part_group.iterrows():
                     color_html = render_color_cell(row["Color"], color_lookup)
                     qty_wanted = int(row["Quantity_wanted"])
                     qty_have = int(row["Quantity_have"])
@@ -668,7 +668,7 @@ if st.session_state.get("start_processing"):
                         available_display = f"⚠️ {qty_have}"
                     cols[2].markdown(available_display)
 
-                    widget_key = short_key("found_input", row["Part"], row["Color"], row["Location"])
+                    widget_key = short_key("found_input", row["Part"], row["Color"], row["Location"], row_idx)
                     new_found = cols[3].number_input(
                         " ", min_value=0, max_value=qty_wanted, value=int(found), step=1,
                         key=widget_key, label_visibility="collapsed"
@@ -740,6 +740,25 @@ if st.session_state.get("start_processing"):
     # Download button
     csv = merged.to_csv(index=False).encode("utf-8")
     st.download_button("💾 Download merged CSV", csv, "lego_wanted_with_location.csv")
+    
+    # Export missing parts button
+    not_found_parts = merged[merged["Location"] == "❌ Not Found"].copy()
+    if not not_found_parts.empty:
+        st.markdown("---")
+        st.markdown("### ❌ Not Available")
+        st.markdown(f"**{len(not_found_parts)} part(s)** not found in your collection.")
+        
+        # Create Rebrickable format CSV (Part, Color, Quantity)
+        export_df = not_found_parts[["Part", "Color", "Quantity_wanted"]].copy()
+        export_df.columns = ["Part", "Color", "Quantity"]
+        export_csv = export_df.to_csv(index=False).encode("utf-8")
+        
+        st.download_button(
+            "📥 Export Missing Parts (Rebrickable Format)",
+            export_csv,
+            "missing_parts_rebrickable.csv",
+            help="Download missing parts in Rebrickable CSV format"
+        )
 
     # ---------------------------------------------------------------------
     # --- Set Search Section (Requirements 7.2, 7.3, 7.4, 7.5)
