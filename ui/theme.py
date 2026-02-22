@@ -6,20 +6,16 @@ def apply_custom_styles():
     st.markdown(r"""
     <style>
 
-    /* ---- Action Buttons - Softer blue color ---- */
-    .stButton>button {
+    /* ---- Primary Action Buttons - Blue color for type="primary" ---- */
+    div[data-testid="stButton"] > button[kind="primary"],
+    div[data-testid="stDownloadButton"] > button[kind="primary"] {
         background-color: #4A90E2 !important;
+        border: #4A90E2 !important;
         color: #FFFFFF !important;
-        border-radius: 10px !important;
-        border: none !important;
-        padding: 0.55rem 1.2rem !important;
-        font-weight: 600 !important;
-        transition: 0.15s ease-in-out;
     }
-    .stButton>button:hover {
+    div[data-testid="stButton"] > button[kind="primary"]:hover,
+    div[data-testid="stDownloadButton"] > button[kind="primary"]:hover {
         background-color: #357ABD !important;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 10px rgba(74, 144, 226, 0.3);
     }
 
     /* ---- Location Cards ---- */

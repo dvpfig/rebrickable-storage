@@ -64,7 +64,7 @@ def render_csv_upload_section(sets_manager: SetsManager) -> None:
         # Add a button to process the file
         col1, col2 = st.columns([1, 3])
         with col1:
-            if st.button("📥 Import Sets", key="import_csv_button"):
+            if st.button("📥 Import Sets", key="import_csv_button", type="primary"):
                 try:
                     # Parse and validate CSV
                     with st.spinner("Parsing CSV file..."):
@@ -459,24 +459,22 @@ def render_api_key_section(user_data_dir: Path, current_api_key: str = None, in_
                 help="Your Rebrickable API key will be validated before saving"
             )
             
-            col1, col2 = st.columns([1, 3])
-            with col1:
-                if st.button("💾 Save New Key", key="save_new_api_key"):
-                    if new_key and new_key.strip():
-                        # Validate the new key
-                        with st.spinner("Validating API key..."):
-                            try:
-                                api_client = RebrickableAPI(new_key.strip())
-                                if api_client.validate_key():
-                                    save_api_key(user_data_dir, new_key.strip())
-                                    st.success("✅ API key validated and saved successfully!")
-                                    st.rerun()
-                                else:
-                                    st.error("❌ Invalid API key. Please check your key and try again.")
-                            except Exception as e:
-                                st.error(f"❌ Error validating API key: {str(e)}")
-                    else:
-                        st.warning("⚠️ Please enter an API key")
+            if st.button("💾 Save New Key", key="save_new_api_key", type="primary"):
+                if new_key and new_key.strip():
+                    # Validate the new key
+                    with st.spinner("Validating API key..."):
+                        try:
+                            api_client = RebrickableAPI(new_key.strip())
+                            if api_client.validate_key():
+                                save_api_key(user_data_dir, new_key.strip())
+                                st.success("✅ API key validated and saved successfully!")
+                                st.rerun()
+                            else:
+                                st.error("❌ Invalid API key. Please check your key and try again.")
+                        except Exception as e:
+                            st.error(f"❌ Error validating API key: {str(e)}")
+                else:
+                    st.warning("⚠️ Please enter an API key")
     else:
         st.info("ℹ️ No API key configured. Add your API key to retrieve set inventories.")
         

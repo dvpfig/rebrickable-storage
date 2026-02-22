@@ -68,24 +68,22 @@ with st.sidebar:
                     help="Your Rebrickable API key will be validated before saving"
                 )
                 
-                col1, col2 = st.columns([1, 3])
-                with col1:
-                    if st.button("💾 Save New Key", key="save_new_api_key_page2"):
-                        if new_key and new_key.strip():
-                            # Validate the new key
-                            with st.spinner("Validating API key..."):
-                                try:
-                                    api_client = RebrickableAPI(new_key.strip())
-                                    if api_client.validate_key():
-                                        save_api_key(user_data_dir, new_key.strip())
-                                        st.success("✅ API key validated and saved successfully!")
-                                        st.rerun()
-                                    else:
-                                        st.error("❌ Invalid API key. Please check your key and try again.")
-                                except Exception as e:
-                                    st.error(f"❌ Error validating API key: {str(e)}")
-                        else:
-                            st.warning("⚠️ Please enter an API key")
+                if st.button("💾 Save New Key", key="save_new_api_key_page2", type="primary"):
+                    if new_key and new_key.strip():
+                        # Validate the new key
+                        with st.spinner("Validating API key..."):
+                            try:
+                                api_client = RebrickableAPI(new_key.strip())
+                                if api_client.validate_key():
+                                    save_api_key(user_data_dir, new_key.strip())
+                                    st.success("✅ API key validated and saved successfully!")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Invalid API key. Please check your key and try again.")
+                            except Exception as e:
+                                st.error(f"❌ Error validating API key: {str(e)}")
+                    else:
+                        st.warning("⚠️ Please enter an API key")
         else:
             st.info("ℹ️ No API key configured. Add your API key to retrieve set inventories.")
             
@@ -129,7 +127,7 @@ with st.sidebar:
             st.info(f"📊 You have **{custom_image_count}** custom image(s) uploaded.")
             
             # Download button
-            if st.button("📥 Download all custom images", key="download_custom_images"):
+            if st.button("📥 Download all custom images", key="download_custom_images", type="primary"):
                 try:
                     zip_buffer = create_custom_images_zip(user_uploaded_images_dir)
                     
@@ -317,7 +315,7 @@ with col_sync1:
             st.session_state.ba_labels_stop_flag = False
         
         if not st.session_state.get("ba_labels_downloading", False):
-            if st.button("📥 Get latest BA labels", key="download_ba_labels"):
+            if st.button("📥 Get latest BA labels", key="download_ba_labels", type="primary"):
                 st.session_state.ba_labels_downloading = True
                 st.session_state.ba_labels_stop_flag = False
                 st.rerun()
@@ -388,7 +386,7 @@ with col_sync1:
             st.session_state.ba_images_stop_flag = False
         
         if not st.session_state.get("ba_images_downloading", False):
-            if st.button("📥 Get latest BA images", key="download_ba_images"):
+            if st.button("📥 Get latest BA images", key="download_ba_images", type="primary"):
                 st.session_state.ba_images_downloading = True
                 st.session_state.ba_images_stop_flag = False
                 st.rerun()
@@ -454,7 +452,7 @@ with col_sync2:
         
         # Show start button if not fetching
         if not st.session_state.get("ba_parts_fetching", False):
-            if st.button("📋 Get full list of BA parts", key="fetch_ba_parts"):
+            if st.button("📋 Get full list of BA parts", key="fetch_ba_parts", type="primary"):
                 st.session_state.ba_parts_fetching = True
                 st.session_state.ba_parts_stop_flag = False
                 st.rerun()
@@ -508,7 +506,7 @@ with col_sync2:
         
         # Show start button if not updating
         if not st.session_state.get("ba_mappings_updating", False):
-            if st.button("🔗 Get BA mappings for parts", key="update_ba_mappings"):
+            if st.button("🔗 Get BA mappings for parts", key="update_ba_mappings", type="primary"):
                 st.session_state.ba_mappings_updating = True
                 st.session_state.ba_mappings_stop_flag = False
                 st.rerun()
@@ -606,7 +604,7 @@ if collection_files_stream:
         precompute_done = st.session_state.get("precompute_collection_done", False)
         
         if not precompute_done:
-            if st.button("🔄 Precompute collection images", key="precompute_collection_button"):
+            if st.button("🔄 Precompute collection images", key="precompute_collection_button", type="primary"):
                 progress_bar = st.progress(0)
                 status_text = st.empty()
                 
@@ -712,7 +710,7 @@ if collection_files_stream:
                     st.markdown("---")
                     st.info(f"💡 **Tip:** Use the **Custom Images** section in the sidebar to upload images for these parts.")
             
-            if st.button("🔄 Recompute images", key="recompute_collection_button"):
+            if st.button("🔄 Recompute images", key="recompute_collection_button", type="primary"):
                 st.session_state["precompute_collection_done"] = False
                 st.session_state.pop("precompute_missing_images", None)
                 st.session_state.pop("precompute_stats", None)
@@ -737,7 +735,7 @@ if collection_files_stream:
             horizontal=True
         )
         
-        if st.button("📦 Generate Labels Zip File", key="generate_labels"):
+        if st.button("📦 Generate Labels Zip File", key="generate_labels", type="primary"):
             progress_bar = st.progress(0)
             status_text = st.empty()
             

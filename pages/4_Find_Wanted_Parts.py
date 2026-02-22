@@ -45,8 +45,6 @@ def render_set_search_section(merged_df: pd.DataFrame, sets_manager: SetsManager
         merged_df: Merged dataframe containing wanted parts and collection matches
         sets_manager: SetsManager instance for accessing set data
         color_lookup: Dictionary mapping color IDs to color info (for ID->name conversion)
-        
-    Requirements: 7.2, 7.3, 7.4, 7.5
     """
     # Get unfound parts (with color names for API compatibility)
     unfound_parts = get_unfound_parts(merged_df, color_lookup)
@@ -91,7 +89,7 @@ def render_set_search_section(merged_df: pd.DataFrame, sets_manager: SetsManager
     
     # "Include Owned Sets" button
     if not st.session_state["show_set_selection"]:
-        if st.button("🔍 Include Owned Sets", key="include_owned_sets_btn", help="Search for these parts in your LEGO sets"):
+        if st.button("🔍 Include Owned Sets", key="include_owned_sets_btn", type="primary"):
             st.session_state["show_set_selection"] = True
             st.rerun()
         return
@@ -163,7 +161,7 @@ def render_set_search_section(merged_df: pd.DataFrame, sets_manager: SetsManager
         if selected_count == 0:
             st.button("🔍 Search Selected Sets", key="search_sets_btn", disabled=True, help="Select at least one set to search")
         else:
-            if st.button(f"🔍 Search Selected Sets ({selected_count})", key="search_sets_btn", help="Search for parts in selected sets"):
+            if st.button(f"🔍 Search Selected Sets ({selected_count})", key="search_sets_btn", help="Search for parts in selected sets", type="primary"):
                 with st.spinner(f"Searching {selected_count} set(s)..."):
                     # Get cached inventories from session state
                     inventories_cache = st.session_state.get("sets_inventories_cache", {})
@@ -210,7 +208,7 @@ user_uploaded_images_dir = paths.get_user_uploaded_images_dir(username)
 with st.sidebar:
     st.markdown("---")
     # Save progress
-    if st.button("💾 Save Progress", use_container_width=True):
+    if st.button("💾 Save Progress", use_container_width=True, type="primary"):
         session_data = {
             "found_counts": st.session_state.get("found_counts", {}),
             "locations_index": st.session_state.get("locations_index", {})
@@ -222,7 +220,7 @@ with st.sidebar:
             st.error("❌ Authentication manager not available.")
 
     # Load progress
-    if st.button("📂 Load Progress", use_container_width=True):
+    if st.button("📂 Load Progress", use_container_width=True, type="primary"):
         if st.session_state.get("auth_manager"):
             saved_data = st.session_state.auth_manager.load_user_session(username, paths.user_data_dir)
             if saved_data:
@@ -353,7 +351,7 @@ if collection_files_stream:
     precompute_done = st.session_state.get("precompute_done", False)
     
     if not precompute_done:
-        if st.button("🔄 Precompute collection images", key="precompute_button"):
+        if st.button("🔄 Precompute collection images", key="precompute_button", type="primary"):
             progress_bar = st.progress(0)
             status_text = st.empty()
             
@@ -424,7 +422,7 @@ if collection_files_stream:
         st.button("🚀 Generate pickup list", key="generate_button", disabled=True)
         st.session_state["start_processing"] = False
     else:
-        if st.button("🚀 Generate pickup list", key="generate_button"):
+        if st.button("🚀 Generate pickup list", key="generate_button", type="primary"):
             st.session_state["start_processing"] = True
 else:
     st.info("📤 Upload at least one Collection file to begin.")
@@ -508,7 +506,12 @@ if st.session_state.get("start_processing"):
     loc_summary = loc_summary.sort_values("Location")
 
     # Display Parts By Location
-    st.markdown('<hr class="location-separator">', unsafe_allow_html=True)    
+    st.markdown('<hr class="location-separator">', unsafe_allow_html=True)
+    
+    # Initialize expanded locations tracking in session state
+    if "expanded_locations" not in st.session_state:
+        st.session_state["expanded_locations"] = set()
+    
     for _, loc_row in loc_summary.iterrows():
         location = loc_row["Location"]
         parts_count = loc_row["parts_count"]
@@ -525,207 +528,190 @@ if st.session_state.get("start_processing"):
                 all_found = False
                 break
 
-        # Location Header
-        st.markdown('<div class="location-card">', unsafe_allow_html=True)
-
-        st.markdown(f"""
-        <div class="location-header">
-            <div class="location-title">📦 {location}</div>
-        """, unsafe_allow_html=True)
-        
-        if all_found:
-            st.markdown("✅ **All parts found in this location**", unsafe_allow_html=True)
-        
-        st.markdown('<div class="loc-btn-row">', unsafe_allow_html=True)
-
-        # Open/Close buttons
-        colA, colB = st.columns([0.1, 0.7])
-        with colA:
-            if st.button("Open ▼", key=short_key("open", location), help="Show this location", use_container_width=False):
-                st.session_state["expanded_loc"] = location
-        with colB:
-            if st.button("Close ▶", key=short_key("close", location), help="Hide this location", use_container_width=False):
-                if st.session_state.get("expanded_loc") == location:
-                    st.session_state["expanded_loc"] = None
-            
-        st.markdown("</div></div>", unsafe_allow_html=True)
-
-        # Collapsed display
-        if st.session_state.get("expanded_loc") != location:
-            imgs = st.session_state.get("locations_index", {}).get(location, [])
-            if imgs:
-                st.image(imgs[:10], width=25)
-            st.markdown('<hr class="location-separator">', unsafe_allow_html=True)
-            continue
-        
-        # Expanded display
-        st.markdown(f"#### Details for {location}")
-
+        # Location Header with preview images
         imgs = st.session_state.get("locations_index", {}).get(location, [])
-        if imgs:
-            st.markdown("**Stored here (sample images):**")
-            st.image(imgs[:50], width=60)
-            st.markdown("---")
         
-        # Check for insufficient parts
-        loc_parts_df = merged.loc[merged["Location"] == location].copy()
-        has_insufficient_parts = False
-        for _, row in loc_parts_df.iterrows():
-            qty_wanted = int(row["Quantity_wanted"])
-            qty_have = int(row.get("Quantity_have", 0))
-            available = row.get("Available", False)
-            if not available or qty_have < qty_wanted:
-                has_insufficient_parts = True
-                break
+        # Build expander label with status indicator
+        status_indicator = "✅ All parts found" if all_found else f"{parts_count} part(s), {int(total_wanted)} total wanted"
         
-        # Color similarity slider
-        alternative_colors = {}
-        if has_insufficient_parts:
-            st.markdown("**🎨 Color Similarity Settings**")
-            color_distance_key = f"color_distance_{location}"
-            if color_distance_key not in st.session_state:
-                st.session_state[color_distance_key] = 30.0
+        # Check if this location is currently expanded
+        is_expanded = location in st.session_state["expanded_locations"]
+        
+        # Create toggle button that looks like an expander (discrete styling like other buttons)
+        button_icon = "▼" if is_expanded else "▶"
+        button_label = f"{button_icon} 📦 {location} — {status_indicator}"
+        
+        if st.button(button_label, key=f"toggle_{location}", use_container_width=True, type="secondary"):
+            if is_expanded:
+                st.session_state["expanded_locations"].discard(location)
+            else:
+                st.session_state["expanded_locations"].add(location)
+            st.rerun()
+        
+        # Only render content if expanded (performance optimization)
+        if is_expanded:
+            # Show preview images at the top
+            if imgs:
+                st.markdown("**Stored here (sample images):**")
+                st.image(imgs[:50], width=60)
+                st.markdown("---")
             
-            color_distance = st.slider(
-                "Adjust color similarity threshold (lower = closer colors only)",
-                min_value=0.0,
-                max_value=100.0,
-                value=st.session_state[color_distance_key],
-                step=5.0,
-                key=f"slider_{color_distance_key}",
-                help="0 = exact match only, 30 = similar colors, 60 = broader range"
-            )
-            st.session_state[color_distance_key] = color_distance
+            # Check for insufficient parts
+            loc_parts_df = merged.loc[merged["Location"] == location].copy()
+            has_insufficient_parts = False
+            for _, row in loc_parts_df.iterrows():
+                qty_wanted = int(row["Quantity_wanted"])
+                qty_have = int(row.get("Quantity_have", 0))
+                available = row.get("Available", False)
+                if not available or qty_have < qty_wanted:
+                    has_insufficient_parts = True
+                    break
             
-            if color_distance > 0:
-                alternative_colors = find_alternative_colors_for_parts(
-                    loc_parts_df,
-                    st.session_state.get("collection_df"),
-                    color_similarity_matrix,
-                    max_distance=color_distance
+            # Color similarity slider
+            alternative_colors = {}
+            if has_insufficient_parts:
+                st.markdown("**🎨 Color Similarity Settings**")
+                color_distance_key = f"color_distance_{location}"
+                if color_distance_key not in st.session_state:
+                    st.session_state[color_distance_key] = 30.0
+                
+                color_distance = st.slider(
+                    "Adjust color similarity threshold (lower = closer colors only)",
+                    min_value=0.0,
+                    max_value=100.0,
+                    value=st.session_state[color_distance_key],
+                    step=5.0,
+                    key=f"slider_{color_distance_key}",
+                    help="0 = exact match only, 30 = similar colors, 60 = broader range"
                 )
-            
-            st.markdown("---")
-
-        # List parts in this location
-        loc_group = merged.loc[merged["Location"] == location]
-        for part_num, part_group in loc_group.groupby("Part"):
-            img_url = st.session_state.get("part_images_map", {}).get(str(part_num), "")
-            ba_name = part_group["BA_part_name"].iloc[0] if "BA_part_name" in part_group.columns else ""
-            
-            left, right = st.columns([1, 4])
-            with left:
-                st.markdown(f"##### **{part_num}**")
-                st.markdown(f"{ba_name}")
-                replacement_parts = part_group["Replacement_parts"].iloc[0] if "Replacement_parts" in part_group.columns else ""
-                if replacement_parts:
-                    st.markdown(f"(replace with {replacement_parts})")
-
-                if img_url:
-                    st.image(img_url, width=100)
-                else:
-                    st.text("🚫 No image")
-                    upload_key = f"upload_{part_num}_{location}"
-                    uploaded_file = st.file_uploader(
-                        "Upload image",
-                        type=["png", "jpg", "jpeg"],
-                        key=upload_key,
-                        label_visibility="collapsed",
-                        help=f"Upload a custom image for part {part_num}"
+                st.session_state[color_distance_key] = color_distance
+                
+                if color_distance > 0:
+                    alternative_colors = find_alternative_colors_for_parts(
+                        loc_parts_df,
+                        st.session_state.get("collection_df"),
+                        color_similarity_matrix,
+                        max_distance=color_distance
                     )
-                    if uploaded_file is not None:
-                        if save_user_uploaded_image(uploaded_file, str(part_num), user_uploaded_images_dir):
-                            st.success("✅ Image saved!")
-                            precompute_location_images.clear()
-                            fetch_wanted_part_images.clear()
-                            st.rerun()
-                        else:
-                            st.error("❌ Failed to save image")
-            
-            with right:
-                header = st.columns([2.5, 1, 1, 2])
-                header[0].markdown("**Color**")
-                header[1].markdown("**Wanted**")
-                header[2].markdown("**Available**")
-                header[3].markdown("**Found**")
+                
+                st.markdown("---")
 
-                for row_idx, row in part_group.iterrows():
-                    color_html = render_color_cell(row["Color"], color_lookup)
-                    qty_wanted = int(row["Quantity_wanted"])
-                    qty_have = int(row["Quantity_have"])
-                    key = (str(row["Part"]), str(row["Color"]), str(row["Location"]))
-                    found = st.session_state.get("found_counts", {}).get(key, 0)
+            # List parts in this location
+            loc_group = merged.loc[merged["Location"] == location]
+            for part_num, part_group in loc_group.groupby("Part"):
+                img_url = st.session_state.get("part_images_map", {}).get(str(part_num), "")
+                ba_name = part_group["BA_part_name"].iloc[0] if "BA_part_name" in part_group.columns else ""
+                
+                left, right = st.columns([1, 4])
+                with left:
+                    st.markdown(f"##### **{part_num}**")
+                    st.markdown(f"{ba_name}")
+                    replacement_parts = part_group["Replacement_parts"].iloc[0] if "Replacement_parts" in part_group.columns else ""
+                    if replacement_parts:
+                        st.markdown(f"(replace with {replacement_parts})")
 
-                    cols = st.columns([2.5, 1, 1, 2])
-                    cols[0].markdown(color_html, unsafe_allow_html=True)
-                    cols[1].markdown(f"{qty_wanted}")
-                    
-                    if not row["Available"] or qty_have == 0:
-                        available_display = "0 ❌"
-                    elif qty_have >= qty_wanted:
-                        available_display = f"✅ {qty_have}"
+                    if img_url:
+                        st.image(img_url, width=100)
                     else:
-                        available_display = f"⚠️ {qty_have}"
-                    cols[2].markdown(available_display)
+                        st.text("🚫 No image")
+                        upload_key = f"upload_{part_num}_{location}"
+                        uploaded_file = st.file_uploader(
+                            "Upload image",
+                            type=["png", "jpg", "jpeg"],
+                            key=upload_key,
+                            label_visibility="collapsed",
+                            help=f"Upload a custom image for part {part_num}"
+                        )
+                        if uploaded_file is not None:
+                            if save_user_uploaded_image(uploaded_file, str(part_num), user_uploaded_images_dir):
+                                st.success("✅ Image saved!")
+                                precompute_location_images.clear()
+                                fetch_wanted_part_images.clear()
+                                st.rerun()
+                            else:
+                                st.error("❌ Failed to save image")
+                
+                with right:
+                    header = st.columns([2.5, 1, 1, 2])
+                    header[0].markdown("**Color**")
+                    header[1].markdown("**Wanted**")
+                    header[2].markdown("**Available**")
+                    header[3].markdown("**Found**")
 
-                    widget_key = short_key("found_input", row["Part"], row["Color"], row["Location"], row_idx)
-                    new_found = cols[3].number_input(
-                        " ", min_value=0, max_value=qty_wanted, value=int(found), step=1,
-                        key=widget_key, label_visibility="collapsed"
-                    )
-                    if int(new_found) != int(found):
-                        if "found_counts" not in st.session_state:
-                            st.session_state["found_counts"] = {}
-                        st.session_state["found_counts"][key] = int(new_found)
+                    for row_idx, row in part_group.iterrows():
+                        color_html = render_color_cell(row["Color"], color_lookup)
+                        qty_wanted = int(row["Quantity_wanted"])
+                        qty_have = int(row["Quantity_have"])
+                        key = (str(row["Part"]), str(row["Color"]), str(row["Location"]))
+                        found = st.session_state.get("found_counts", {}).get(key, 0)
 
-                    complete = st.session_state.get("found_counts", {}).get(key, 0) >= qty_wanted
-                    cols[3].markdown(
-                        f"✅ Found all ({st.session_state.get('found_counts', {}).get(key, 0)}/{qty_wanted})"
-                        if complete 
-                        else f"**Found:** {st.session_state.get('found_counts', {}).get(key, 0)}/{qty_wanted}"
-                    )
-                    
-                    # Show alternative colors
-                    alt_key = (str(row["Part"]), int(row["Color"]), str(row["Location"]))
-                    if alt_key in alternative_colors and (not row["Available"] or qty_have < qty_wanted):
-                        alternatives = alternative_colors[alt_key]
-                        if alternatives:
-                            with st.expander(f"🎨 {len(alternatives)} alternative color(s) available", expanded=False):
-                                st.markdown("**Alternative colors in this location:**")
-                                for alt_color_id, alt_color_name, alt_qty, distance in alternatives[:5]:
-                                    alt_color_html = render_color_cell(alt_color_id, color_lookup)
-                                    alt_cols = st.columns([2.5, 1, 1])
-                                    alt_cols[0].markdown(alt_color_html, unsafe_allow_html=True)
-                                    alt_cols[1].markdown(f"Qty: **{alt_qty}**")
-                                    if distance < 15:
-                                        similarity = "Very similar"
-                                    elif distance < 30:
-                                        similarity = "Similar"
-                                    elif distance < 50:
-                                        similarity = "Somewhat similar"
-                                    else:
-                                        similarity = "Different"
-                                    alt_cols[2].markdown(f"*{similarity}*")
+                        cols = st.columns([2.5, 1, 1, 2])
+                        cols[0].markdown(color_html, unsafe_allow_html=True)
+                        cols[1].markdown(f"{qty_wanted}")
+                        
+                        if not row["Available"] or qty_have == 0:
+                            available_display = "0 ❌"
+                        elif qty_have >= qty_wanted:
+                            available_display = f"✅ {qty_have}"
+                        else:
+                            available_display = f"⚠️ {qty_have}"
+                        cols[2].markdown(available_display)
 
-        # Mark all / Clear all buttons
-        st.markdown('<div class="loc-btn-row">', unsafe_allow_html=True)
-        colM, colC = st.columns([0.1, 0.7])
-        with colM:
-            if st.button("Mark all found ✔", key=short_key("markall", location), help="Fill all items for this location", use_container_width=False):
-                if "found_counts" not in st.session_state:
-                    st.session_state["found_counts"] = {}
-                for _, r in loc_group.iterrows():
-                    k = (str(r["Part"]), str(r["Color"]), str(r["Location"]))
-                    st.session_state["found_counts"][k] = int(r["Quantity_wanted"])
-                if st.session_state.get("expanded_loc") == location:
-                    st.session_state["expanded_loc"] = None
-        with colC:
-            if st.button("Clear found ✖", key=short_key("clearall", location), help="Clear found counts for this location", use_container_width=False):
-                for _, r in loc_group.iterrows():
-                    k = (str(r["Part"]), str(r["Color"]), str(r["Location"]))
-                    st.session_state.get("found_counts", {}).pop(k, None)
+                        widget_key = short_key("found_input", row["Part"], row["Color"], row["Location"], row_idx)
+                        new_found = cols[3].number_input(
+                            " ", min_value=0, max_value=qty_wanted, value=int(found), step=1,
+                            key=widget_key, label_visibility="collapsed"
+                        )
+                        if int(new_found) != int(found):
+                            if "found_counts" not in st.session_state:
+                                st.session_state["found_counts"] = {}
+                            st.session_state["found_counts"][key] = int(new_found)
 
-        st.markdown("</div>", unsafe_allow_html=True)
+                        complete = st.session_state.get("found_counts", {}).get(key, 0) >= qty_wanted
+                        cols[3].markdown(
+                            f"✅ Found all ({st.session_state.get('found_counts', {}).get(key, 0)}/{qty_wanted})"
+                            if complete 
+                            else f"**Found:** {st.session_state.get('found_counts', {}).get(key, 0)}/{qty_wanted}"
+                        )
+                        
+                        # Show alternative colors
+                        alt_key = (str(row["Part"]), int(row["Color"]), str(row["Location"]))
+                        if alt_key in alternative_colors and (not row["Available"] or qty_have < qty_wanted):
+                            alternatives = alternative_colors[alt_key]
+                            if alternatives:
+                                with st.expander(f"🎨 {len(alternatives)} alternative color(s) available", expanded=False):
+                                    st.markdown("**Alternative colors in this location:**")
+                                    for alt_color_id, alt_color_name, alt_qty, distance in alternatives[:5]:
+                                        alt_color_html = render_color_cell(alt_color_id, color_lookup)
+                                        alt_cols = st.columns([2.5, 1, 1])
+                                        alt_cols[0].markdown(alt_color_html, unsafe_allow_html=True)
+                                        alt_cols[1].markdown(f"Qty: **{alt_qty}**")
+                                        if distance < 15:
+                                            similarity = "Very similar"
+                                        elif distance < 30:
+                                            similarity = "Similar"
+                                        elif distance < 50:
+                                            similarity = "Somewhat similar"
+                                        else:
+                                            similarity = "Different"
+                                        alt_cols[2].markdown(f"*{similarity}*")
+
+            # Mark all / Clear all buttons
+            st.markdown("---")
+            colM, colC = st.columns([1, 1])
+            with colM:
+                if st.button("Mark all found ✔", key=short_key("markall", location), help="Fill all items for this location", use_container_width=True):
+                    if "found_counts" not in st.session_state:
+                        st.session_state["found_counts"] = {}
+                    for _, r in loc_group.iterrows():
+                        k = (str(r["Part"]), str(r["Color"]), str(r["Location"]))
+                        st.session_state["found_counts"][k] = int(r["Quantity_wanted"])
+            with colC:
+                if st.button("Clear found ✖", key=short_key("clearall", location), help="Clear found counts for this location", use_container_width=True):
+                    for _, r in loc_group.iterrows():
+                        k = (str(r["Part"]), str(r["Color"]), str(r["Location"]))
+                        st.session_state.get("found_counts", {}).pop(k, None)
+        
         st.markdown('<hr class="location-separator">', unsafe_allow_html=True)
 
     # Update merged dataframe with found counts
@@ -739,7 +725,7 @@ if st.session_state.get("start_processing"):
 
     # Download button
     csv = merged.to_csv(index=False).encode("utf-8")
-    st.download_button("💾 Download merged CSV", csv, "lego_wanted_with_location.csv")
+    st.download_button("💾 Download merged CSV", csv, "lego_wanted_with_location.csv", type="primary")
     
     # Export missing parts button
     not_found_parts = merged[merged["Location"] == "❌ Not Found"].copy()
@@ -753,22 +739,18 @@ if st.session_state.get("start_processing"):
         export_df.columns = ["Part", "Color", "Quantity"]
         export_csv = export_df.to_csv(index=False).encode("utf-8")
         
-        st.download_button(
-            "📥 Export Missing Parts (Rebrickable Format)",
-            export_csv,
-            "missing_parts_rebrickable.csv",
-            help="Download missing parts in Rebrickable CSV format"
-        )
+        st.download_button("📥 Export Missing Parts (Rebrickable Format)",
+            export_csv, "missing_parts_rebrickable.csv", type="primary")
 
     # ---------------------------------------------------------------------
-    # --- Set Search Section (Requirements 7.2, 7.3, 7.4, 7.5)
+    # --- Set Search Section
     # ---------------------------------------------------------------------
     # Initialize SetsManager for set search functionality
     try:
         sets_manager = SetsManager(paths.user_data_dir / username, paths.cache_set_inventories)
         render_set_search_section(merged, sets_manager, color_lookup)
         
-        # Display set search results in a separate section (Requirement 8.3)
+        # Display set search results in a separate section
         set_search_results = st.session_state.get("set_search_results", {})
         if set_search_results:
             render_missing_parts_by_set(
