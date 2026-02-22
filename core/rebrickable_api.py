@@ -165,6 +165,75 @@ class RebrickableAPI:
         except requests.RequestException as e:
             raise APIError(f"Network error fetching info for set {set_number}: {str(e)}")
     
+    def get_part_info(self, part_num: str) -> Optional[Dict]:
+        """
+        Get information about a specific part including image URL.
+        
+        Args:
+            part_num: Part number (e.g., "3001")
+        
+        Returns:
+            Dictionary with part_num, name, part_img_url, or None if not found
+            
+        Raises:
+            APIError: If request fails (except 404)
+        """
+        url = f"{self.BASE_URL}/lego/parts/{part_num}/"
+        
+        self._rate_limit()
+        
+        try:
+            response = self.session.get(url, timeout=self.timeout)
+            
+            # Handle 404 gracefully - part doesn't exist
+            if response.status_code == 404:
+                return None
+            
+            data = self._handle_response(response)
+            
+            return {
+                "part_num": data["part_num"],
+                "name": data.get("name", ""),
+                "part_img_url": data.get("part_img_url", "")
+            }
+            
+        except requests.RequestException as e:
+            raise APIError(f"Network error fetching info for part {part_num}: {str(e)}")
+    def get_part_info(self, part_num: str) -> Optional[Dict]:
+        """
+        Get information about a specific part including image URL.
+
+        Args:
+            part_num: Part number (e.g., "3001")
+
+        Returns:
+            Dictionary with part_num, name, part_img_url, or None if not found
+
+        Raises:
+            APIError: If request fails (except 404)
+        """
+        url = f"{self.BASE_URL}/lego/parts/{part_num}/"
+
+        self._rate_limit()
+
+        try:
+            response = self.session.get(url, timeout=self.timeout)
+
+            # Handle 404 gracefully - part doesn't exist
+            if response.status_code == 404:
+                return None
+
+            data = self._handle_response(response)
+
+            return {
+                "part_num": data["part_num"],
+                "name": data.get("name", ""),
+                "part_img_url": data.get("part_img_url", "")
+            }
+
+        except requests.RequestException as e:
+            raise APIError(f"Network error fetching info for part {part_num}: {str(e)}")
+    
     def _rate_limit(self) -> None:
         """Enforce rate limiting between requests."""
         current_time = time.time()

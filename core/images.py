@@ -14,14 +14,17 @@ from typing import Dict, List, Set, Optional
 MAX_WORKERS = 10  # Thread pool size for parallel image fetching
 TIMEOUT = 6  # HTTP request timeout in seconds
 
-def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict, cache_images_dir, user_uploaded_dir=None, progress_callback=None):
+# Global set to track parts with unavailable images (persists across function calls)
+_UNAVAILABLE_IMAGES: Set[str] = set()
+
+def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict, cache_images_dir, user_uploaded_dir=None, progress_callback=None, cache_rb_dir=None, api_key=None):
     df = pd.read_csv(BytesIO(collection_df_serialized))
     
     # Filter out rows with missing Location or Part
     df_clean = df[df["Location"].notna() & df["Part"].notna()].copy()
     
     if df_clean.empty:
-        return {}, {}
+        return {}, {}, {"ba_downloaded": 0, "rb_downloaded": 0, "rb_api_errors": 0}
     
     # Vectorized regex cleaning: remove "pr\d+" suffix and strip whitespace
     # Note: The "pr\d+" pattern is handled by generalized rules in the mapping
@@ -44,12 +47,14 @@ def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict
     for part_ids in location_parts.values():
         all_unique_ids.update(part_ids)
 
-    # Batch fetch all images in parallel (including user-uploaded)
-    image_cache = get_cached_images_batch(
+    # Batch fetch all images in parallel (including user-uploaded and Rebrickable fallback)
+    image_cache, stats = get_cached_images_batch(
         list(all_unique_ids), 
         cache_images_dir, 
         user_uploaded_dir=user_uploaded_dir,
-        progress_callback=progress_callback
+        progress_callback=progress_callback,
+        cache_rb_dir=cache_rb_dir,
+        api_key=api_key
     )
     
     # Build part_num -> image_path mapping for quick lookup
@@ -85,7 +90,7 @@ def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict
                 imgs.append(img_path)
         out[location] = imgs
     
-    return out, part_image_map
+    return out, part_image_map, stats
     
 @cache_data(show_spinner=False)
 def fetch_image_bytes(url: str, _session: Optional[requests.Session] = None):
@@ -107,41 +112,110 @@ def fetch_image_bytes(url: str, _session: Optional[requests.Session] = None):
         return None
     return None
 
-def _fetch_single_image(identifier: str, cache_dir: Path, session: Optional[requests.Session] = None) -> tuple[str, str]:
+def _fetch_single_image(identifier: str, cache_dir: Path, session: Optional[requests.Session] = None, cache_rb_dir: Optional[Path] = None, api_key: Optional[str] = None) -> tuple[str, str, str]:
     """
     Fetch a single image from URL and save to cache (thread-safe worker function).
     This function assumes the cache has already been checked.
-    Returns (identifier, image_path) tuple, or (identifier, "") if not found.
+    Returns (identifier, image_path, source) tuple.
+    - source can be: "ba" (BrickArchitect), "rb" (Rebrickable), "rb_api_error", or "" (not found)
+    
+    Args:
+        identifier: Part number identifier
+        cache_dir: Path to BrickArchitect cache directory
+        session: Optional requests session for connection reuse
+        cache_rb_dir: Optional path to Rebrickable cache directory
+        api_key: Optional Rebrickable API key for fallback
     """
+    # Check if this part is already marked as unavailable
+    if identifier in _UNAVAILABLE_IMAGES:
+        return (identifier, "", "")
+    
     local_png = cache_dir / f"{identifier}.png"
     
-    # Try to fetch PNG from URL
+    # Try to fetch PNG from BrickArchitect URL
     url = f"https://brickarchitect.com/content/parts/{identifier}.png"
     data = fetch_image_bytes(url, session)
     if data:
         try:
             with open(local_png, "wb") as f:
                 f.write(data)
-            return (identifier, str(local_png))
+            return (identifier, str(local_png), "ba")
         except Exception:
             pass
     
-    return (identifier, "")
+    # Fallback to Rebrickable API if BrickArchitect failed
+    if cache_rb_dir and api_key:
+        try:
+            from core.rebrickable_api import RebrickableAPI, APIError, RateLimitError
+            
+            # Initialize API client
+            api_client = RebrickableAPI(api_key)
+            
+            # Get part info including image URL
+            part_info = api_client.get_part_info(identifier)
+            
+            if part_info and part_info.get("part_img_url"):
+                img_url = part_info["part_img_url"]
+                
+                # Fetch image from Rebrickable
+                rb_data = fetch_image_bytes(img_url, session)
+                if rb_data:
+                    # Save to Rebrickable cache
+                    rb_png = cache_rb_dir / f"{identifier}.png"
+                    try:
+                        cache_rb_dir.mkdir(parents=True, exist_ok=True)
+                        with open(rb_png, "wb") as f:
+                            f.write(rb_data)
+                        return (identifier, str(rb_png), "rb")
+                    except Exception:
+                        pass
+        except (APIError, RateLimitError) as e:
+            # API error - don't mark as unavailable, might work on retry
+            return (identifier, "", "rb_api_error")
+        except Exception:
+            # Other error - mark as unavailable
+            pass
+    
+    # Mark this part as unavailable to skip in future calls
+    _UNAVAILABLE_IMAGES.add(identifier)
+    return (identifier, "", "")
 
-def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: int = MAX_WORKERS, user_uploaded_dir: Optional[Path] = None, progress_callback=None) -> Dict[str, str]:
+def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: int = MAX_WORKERS, user_uploaded_dir: Optional[Path] = None, progress_callback=None, cache_rb_dir: Optional[Path] = None, api_key: Optional[str] = None) -> tuple[Dict[str, str], Dict[str, int]]:
     """
     Batch fetch images for multiple part IDs in parallel.
-    Returns a dictionary mapping part_id -> image_path (or empty string if not found).
+    Returns a tuple of (image_dict, stats_dict).
+    
+    image_dict: mapping part_id -> image_path
+    stats_dict: statistics with keys:
+        - ba_downloaded: Count of images downloaded from BrickArchitect
+        - rb_downloaded: Count of images downloaded from Rebrickable API
+        - rb_api_errors: Count of Rebrickable API errors (rate limits, etc.)
+    
+    Priority order:
+    1. BrickArchitect cache (cache/images/)
+    2. Rebrickable cache (cache/images_rb/)
+    3. User-uploaded images (user_data/{username}/images_uploaded/)
+    4. Download from BrickArchitect
+    5. Download from Rebrickable API (if API key available)
     
     Args:
         part_ids: List of part identifiers to fetch images for
-        cache_dir: Path to global image cache directory
+        cache_dir: Path to BrickArchitect image cache directory
         max_workers: Number of parallel workers for fetching
         user_uploaded_dir: Optional path to user-uploaded images directory
         progress_callback: Optional callback function(current, total, item, status) for progress reporting
+        cache_rb_dir: Optional path to Rebrickable image cache directory
+        api_key: Optional Rebrickable API key for fallback
     """
     if not part_ids:
-        return {}
+        return {}, {"ba_downloaded": 0, "rb_downloaded": 0, "rb_api_errors": 0}
+    
+    # Initialize statistics
+    stats = {
+        "ba_downloaded": 0,
+        "rb_downloaded": 0,
+        "rb_api_errors": 0
+    }
     
     total_parts = len(part_ids)
     
@@ -152,24 +226,55 @@ def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: i
     file_cache: Dict[str, Optional[str]] = {}
     png_paths = {pid: cache_dir / f"{pid}.png" for pid in part_ids}
     
-    # Batch check PNG files
-    for idx, (pid, png_path) in enumerate(png_paths.items()):
-        if png_path.exists():
-            file_cache[pid] = str(png_path)
+    # Also check Rebrickable cache if available
+    rb_png_paths = {}
+    if cache_rb_dir:
+        rb_png_paths = {pid: cache_rb_dir / f"{pid}.png" for pid in part_ids}
+    
+    # Also check user-uploaded images if available
+    user_png_paths = {}
+    user_jpg_paths = {}
+    if user_uploaded_dir and user_uploaded_dir.exists():
+        user_png_paths = {pid: user_uploaded_dir / f"{pid}.png" for pid in part_ids}
+        user_jpg_paths = {pid: user_uploaded_dir / f"{pid}.jpg" for pid in part_ids}
+    
+    # Batch check files in priority order
+    for idx, pid in enumerate(part_ids):
+        # Skip if already marked as unavailable
+        if pid in _UNAVAILABLE_IMAGES:
+            continue
+            
+        # Priority 1: Check BrickArchitect cache
+        if png_paths[pid].exists():
+            file_cache[pid] = str(png_paths[pid])
+        # Priority 2: Check Rebrickable cache
+        elif pid in rb_png_paths and rb_png_paths[pid].exists():
+            file_cache[pid] = str(rb_png_paths[pid])
+        # Priority 3: Check user-uploaded images (PNG)
+        elif pid in user_png_paths and user_png_paths[pid].exists():
+            file_cache[pid] = str(user_png_paths[pid])
+        # Priority 3: Check user-uploaded images (JPG)
+        elif pid in user_jpg_paths and user_jpg_paths[pid].exists():
+            file_cache[pid] = str(user_jpg_paths[pid])
+            
         if progress_callback and (idx + 1) % 100 == 0:
             progress_callback(idx + 1, total_parts, f"Checked {idx + 1} files", "Checking cache")
     
-    # Separate cached and uncached parts
+    # Separate cached and uncached parts (excluding unavailable)
     cached_results = {pid: path for pid, path in file_cache.items() if path}
-    uncached_parts = [pid for pid in part_ids if pid not in cached_results]
+    uncached_parts = [pid for pid in part_ids if pid not in cached_results and pid not in _UNAVAILABLE_IMAGES]
     
     if progress_callback:
-        progress_callback(len(cached_results), total_parts, f"Found {len(cached_results)} cached", "Cache check complete")
+        unavailable_count = len([pid for pid in part_ids if pid in _UNAVAILABLE_IMAGES])
+        status_msg = f"Found {len(cached_results)} cached"
+        if unavailable_count > 0:
+            status_msg += f", {unavailable_count} unavailable"
+        progress_callback(len(cached_results), total_parts, status_msg, "Cache check complete")
     
     if not uncached_parts:
-        return cached_results
+        return cached_results, stats
     
-    # Fetch uncached images in parallel
+    # Fetch uncached images in parallel (Priority 4 & 5: Download from BA or RB)
     if progress_callback:
         progress_callback(len(cached_results), total_parts, f"Fetching {len(uncached_parts)} images", "Downloading")
     
@@ -182,15 +287,23 @@ def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: i
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all fetch tasks
             future_to_pid = {
-                executor.submit(_fetch_single_image, pid, cache_dir, session): pid
+                executor.submit(_fetch_single_image, pid, cache_dir, session, cache_rb_dir, api_key): pid
                 for pid in uncached_parts
             }
             
             # Collect results as they complete
             for future in as_completed(future_to_pid):
-                pid, img_path = future.result()
+                pid, img_path, source = future.result()
                 if img_path:
                     results[pid] = img_path
+                    # Track download source
+                    if source == "ba":
+                        stats["ba_downloaded"] += 1
+                    elif source == "rb":
+                        stats["rb_downloaded"] += 1
+                elif source == "rb_api_error":
+                    stats["rb_api_errors"] += 1
+                    
                 completed_count += 1
                 
                 # Report progress every 10 images or at the end
@@ -199,24 +312,10 @@ def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: i
     finally:
         session.close()
     
-    # Check user-uploaded images for any remaining parts without images
-    if user_uploaded_dir and user_uploaded_dir.exists():
-        still_missing = [pid for pid in part_ids if pid not in results]
-        if still_missing and progress_callback:
-            progress_callback(completed_count, total_parts, "Checking user uploads", "Finalizing")
-        
-        for pid in still_missing:
-            user_png = user_uploaded_dir / f"{pid}.png"
-            user_jpg = user_uploaded_dir / f"{pid}.jpg"
-            if user_png.exists():
-                results[pid] = str(user_png)
-            elif user_jpg.exists():
-                results[pid] = str(user_jpg)
-    
-    return results
+    return results, stats
 
 @cache_data(show_spinner=False)
-def fetch_wanted_part_images(merged_df_serialized: bytes, ba_mapping: dict, cache_images_dir, user_uploaded_dir=None):
+def fetch_wanted_part_images(merged_df_serialized: bytes, ba_mapping: dict, cache_images_dir, user_uploaded_dir=None, cache_rb_dir=None, api_key=None):
     """
     Fetch images for all wanted parts (including those not in collection).
     This complements precompute_location_images by handling "Not Found" parts.
@@ -226,14 +325,18 @@ def fetch_wanted_part_images(merged_df_serialized: bytes, ba_mapping: dict, cach
         ba_mapping: Dictionary mapping RB part numbers to BA part numbers
         cache_images_dir: Path to image cache directory
         user_uploaded_dir: Optional path to user-uploaded images directory
+        cache_rb_dir: Optional path to Rebrickable image cache directory
+        api_key: Optional Rebrickable API key for fallback
 
     Returns:
-        Dict mapping part_num -> image_path for all wanted parts
+        Tuple of (image_dict, stats_dict)
+        - image_dict: Dict mapping part_num -> image_path for all wanted parts
+        - stats_dict: Statistics about downloads
     """
     df = pd.read_csv(BytesIO(merged_df_serialized))
 
     if df.empty or "Part" not in df.columns:
-        return {}
+        return {}, {"ba_downloaded": 0, "rb_downloaded": 0, "rb_api_errors": 0}
 
     # Get all unique wanted parts
     wanted_parts = df["Part"].dropna().unique()
@@ -246,9 +349,15 @@ def fetch_wanted_part_images(merged_df_serialized: bytes, ba_mapping: dict, cach
         part_mapped = ba_mapping.get(part_str, part_str)
         part_mapping[part_str] = part_mapped
 
-    # Batch fetch all images (including user-uploaded)
+    # Batch fetch all images (including user-uploaded and Rebrickable fallback)
     unique_mapped_parts = list(set(part_mapping.values()))
-    image_cache = get_cached_images_batch(unique_mapped_parts, cache_images_dir, user_uploaded_dir=user_uploaded_dir)
+    image_cache, stats = get_cached_images_batch(
+        unique_mapped_parts, 
+        cache_images_dir, 
+        user_uploaded_dir=user_uploaded_dir,
+        cache_rb_dir=cache_rb_dir,
+        api_key=api_key
+    )
 
     # Build final mapping from original part numbers to image paths
     result = {}
@@ -256,7 +365,7 @@ def fetch_wanted_part_images(merged_df_serialized: bytes, ba_mapping: dict, cach
         if mapped_part in image_cache:
             result[original_part] = image_cache[mapped_part]
 
-    return result
+    return result, stats
 
 
 
@@ -430,4 +539,28 @@ def delete_all_custom_images(user_uploaded_dir: Path) -> int:
             pass
 
     return deleted_count
+
+
+def clear_unavailable_images_cache() -> int:
+    """
+    Clear the cache of parts marked as having unavailable images.
+    This allows the system to retry fetching images for these parts.
+    
+    Returns:
+        Number of parts cleared from the unavailable cache
+    """
+    global _UNAVAILABLE_IMAGES
+    count = len(_UNAVAILABLE_IMAGES)
+    _UNAVAILABLE_IMAGES.clear()
+    return count
+
+
+def get_unavailable_images_count() -> int:
+    """
+    Get the count of parts currently marked as having unavailable images.
+    
+    Returns:
+        Number of parts in the unavailable cache
+    """
+    return len(_UNAVAILABLE_IMAGES)
 

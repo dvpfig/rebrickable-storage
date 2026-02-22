@@ -347,6 +347,7 @@ if collection_files_stream:
     if st.session_state.get("collection_hash") != current_collection_hash:
         st.session_state["collection_hash"] = current_collection_hash
         st.session_state["precompute_done"] = False
+        st.session_state.pop("precompute_stats_page4", None)  # Clear stats when collection changes
     
     # Precompute collection images button
     precompute_done = st.session_state.get("precompute_done", False)
@@ -368,23 +369,30 @@ if collection_files_stream:
                     collection = load_collection_files(collection_files_stream)
                     collection_bytes = collection.to_csv(index=False).encode('utf-8')
                     
+                    # Load API key for Rebrickable fallback
+                    from core.api_keys import load_api_key
+                    user_data_dir = paths.user_data_dir / username
+                    api_key = load_api_key(user_data_dir)
+                    
                     # Precompute location images
-                    images_index, part_images_map = precompute_location_images(
+                    images_index, part_images_map, stats = precompute_location_images(
                         collection_bytes, 
                         ba_mapping, 
                         paths.cache_images,
                         user_uploaded_dir=user_uploaded_images_dir,
-                        progress_callback=update_progress
+                        progress_callback=update_progress,
+                        cache_rb_dir=paths.cache_images_rb,
+                        api_key=api_key
                     )
                     
-                    # Save to session state
+                    # Save to session state (including stats for display after rerun)
                     st.session_state["locations_index"] = images_index
                     st.session_state["part_images_map"] = part_images_map
                     st.session_state["collection_df"] = collection
                     st.session_state["collection_bytes"] = collection_bytes
                     st.session_state["precompute_done"] = True
+                    st.session_state["precompute_stats_page4"] = stats
                     
-                    st.success("✅ Collection images precomputed successfully!")
                     st.rerun()
             except Exception as e:
                 st.error(f"❌ Error precomputing images: {e}")
@@ -394,6 +402,19 @@ if collection_files_stream:
                 status_text.empty()
     else:
         st.button("✅ Collection images precomputed", key="precompute_button_done", disabled=True)
+        
+        # Show download statistics if available
+        stats = st.session_state.get("precompute_stats_page4")
+        if stats:
+            if stats["ba_downloaded"] > 0:
+                st.info(f"📥 Downloaded {stats['ba_downloaded']} image(s) from BrickArchitect")
+            if stats["rb_downloaded"] > 0:
+                st.success(f"🎉 Downloaded {stats['rb_downloaded']} image(s) from Rebrickable API")
+            if stats["rb_api_errors"] > 0:
+                st.warning(
+                    f"⚠️ {stats['rb_api_errors']} Rebrickable API request(s) failed (likely rate limit). "
+                    f"Re-run precompute to retry and fetch more images."
+                )
     
     # Generate pickup list button
     can_generate = wanted_files and precompute_done
@@ -447,14 +468,33 @@ if st.session_state.get("start_processing"):
 
         merged = st.session_state["merged_df"]
         
+        # Load API key for Rebrickable fallback
+        from core.api_keys import load_api_key
+        user_data_dir = paths.user_data_dir / username
+        api_key = load_api_key(user_data_dir)
+        
         # Fetch images for all wanted parts (including "Not Found" parts)
         merged_bytes = _df_bytes(merged)
-        wanted_images_map = fetch_wanted_part_images(
+        wanted_images_map, wanted_stats = fetch_wanted_part_images(
             merged_bytes, 
             ba_mapping, 
             paths.cache_images,
-            user_uploaded_dir=user_uploaded_images_dir
+            user_uploaded_dir=user_uploaded_images_dir,
+            cache_rb_dir=paths.cache_images_rb,
+            api_key=api_key
         )
+        
+        # Show download statistics for wanted parts
+        if wanted_stats["ba_downloaded"] > 0 or wanted_stats["rb_downloaded"] > 0 or wanted_stats["rb_api_errors"] > 0:
+            if wanted_stats["ba_downloaded"] > 0:
+                st.info(f"📥 Downloaded {wanted_stats['ba_downloaded']} wanted part image(s) from BrickArchitect")
+            if wanted_stats["rb_downloaded"] > 0:
+                st.success(f"🎉 Downloaded {wanted_stats['rb_downloaded']} wanted part image(s) from Rebrickable API")
+            if wanted_stats["rb_api_errors"] > 0:
+                st.warning(
+                    f"⚠️ {wanted_stats['rb_api_errors']} Rebrickable API request(s) failed for wanted parts (likely rate limit). "
+                    f"Refresh the page to retry."
+                )
         
         # Merge with precomputed collection images
         precomputed_images = st.session_state.get("part_images_map", {})

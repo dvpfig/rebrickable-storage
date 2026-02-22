@@ -12,6 +12,7 @@ class Paths:
 
         self.global_cache_dir = self.root / "cache"
         self.cache_images = self.global_cache_dir / "images"
+        self.cache_images_rb = self.global_cache_dir / "images_rb"
         self.cache_labels = self.global_cache_dir / "labels"
         self.cache_set_inventories = self.global_cache_dir / "set_inventories"
         self.resources_dir = self.root / "resources"
@@ -39,7 +40,7 @@ class Paths:
 
         self.colors_path = self.resources_dir / "colors.csv"
 
-        for d in [self.global_cache_dir, self.cache_images, self.cache_labels, self.cache_set_inventories, self.resources_dir, self.user_data_dir]:
+        for d in [self.global_cache_dir, self.cache_images, self.cache_images_rb, self.cache_labels, self.cache_set_inventories, self.resources_dir, self.user_data_dir]:
             d.mkdir(parents=True, exist_ok=True)
     
     def get_user_uploaded_images_dir(self, username: str) -> Path:

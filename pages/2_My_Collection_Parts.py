@@ -213,6 +213,13 @@ col_collection1, col_collection2 = st.columns(2)
 # Column 1: Upload Parts CSV
 with col_collection1:
     st.markdown("#### 📤 Upload Parts CSV")
+    st.markdown("""
+    Upload CSV files containing your loose LEGO parts collection. Expected format (Rebrickable CSV export):
+    - **Part**: Part number (e.g., "3001")
+    - **Color**: Color ID (e.g., "4" for Red)
+    - **Quantity**: Number of parts
+    - **Location**: Storage location (e.g., "Box A", "Drawer 3")
+    """)
     
     uploaded_files_list = st.file_uploader(
         "Upload Collection CSVs",
@@ -615,13 +622,19 @@ if collection_files_stream:
                         collection = load_collection_files(collection_files_stream)
                         collection_bytes = collection.to_csv(index=False).encode('utf-8')
                         
+                        # Load API key for Rebrickable fallback
+                        from core.api_keys import load_api_key
+                        api_key = load_api_key(user_data_dir)
+                        
                         # Precompute location images
-                        images_index, part_images_map = precompute_location_images(
+                        images_index, part_images_map, stats = precompute_location_images(
                             collection_bytes, 
                             ba_mapping, 
                             paths.cache_images,
                             user_uploaded_dir=user_uploaded_images_dir,
-                            progress_callback=update_progress
+                            progress_callback=update_progress,
+                            cache_rb_dir=paths.cache_images_rb,
+                            api_key=api_key
                         )
                         
                         # Find parts without images
@@ -630,14 +643,11 @@ if collection_files_stream:
                         parts_with_images = set(part_images_map.keys())
                         missing_images = sorted(all_parts - parts_with_images)
                         
-                        # Save to session state
+                        # Save to session state (including stats for display after rerun)
                         st.session_state["precompute_collection_done"] = True
                         st.session_state["precompute_missing_images"] = missing_images
-                        
-                        st.success(f"✅ Collection images precomputed successfully! Found {len(parts_with_images)} images.")
-                        
-                        if missing_images:
-                            st.warning(f"⚠️ {len(missing_images)} part(s) have no cached or downloadable images.")
+                        st.session_state["precompute_stats"] = stats
+                        st.session_state["precompute_parts_count"] = len(parts_with_images)
                         
                         st.rerun()
                 except Exception as e:
@@ -649,23 +659,64 @@ if collection_files_stream:
         else:
             st.success("✅ Collection images precomputed")
             
+            # Show download statistics if available
+            stats = st.session_state.get("precompute_stats")
+            parts_count = st.session_state.get("precompute_parts_count", 0)
+            
+            if stats:
+                st.info(f"📊 Found {parts_count} images total")
+                
+                if stats["ba_downloaded"] > 0:
+                    st.info(f"📥 Downloaded {stats['ba_downloaded']} image(s) from BrickArchitect")
+                if stats["rb_downloaded"] > 0:
+                    st.success(f"🎉 Downloaded {stats['rb_downloaded']} image(s) from Rebrickable API")
+                if stats["rb_api_errors"] > 0:
+                    st.warning(
+                        f"⚠️ {stats['rb_api_errors']} Rebrickable API request(s) failed (likely rate limit). "
+                        f"Click '🔄 Recompute images' to retry and fetch more images."
+                    )
+            
             # Show missing images if any
             missing_images = st.session_state.get("precompute_missing_images", [])
             if missing_images:
                 with st.expander(f"⚠️ Parts without images ({len(missing_images)})", expanded=False):
-                    st.markdown("The following parts could not find cached images or download from BrickArchitect:")
+                    st.markdown("The following parts have no images in cache, BrickArchitect, or Rebrickable. You can upload custom images using the **Custom Images** section in the sidebar.")
+                    st.markdown("---")
+
+                    # Create reverse mapping (BA -> RB) for display
+                    rb_to_ba = {v: k for k, v in ba_mapping.items()}
                     
-                    # Display in columns for better readability
-                    cols_per_row = 5
-                    for i in range(0, len(missing_images), cols_per_row):
+                    # Prepare data for table display
+                    table_data = []
+                    for part_num in missing_images:
+                        # Determine if this is BA or RB part number
+                        ba_num = part_num if part_num not in ba_mapping else ba_mapping[part_num]
+                        rb_num = rb_to_ba.get(part_num, part_num)
+                        
+                        # Show both numbers if they differ
+                        if ba_num != rb_num:
+                            display_text = f"{part_num} (BA: {ba_num}, RB: {rb_num})"
+                        else:
+                            display_text = part_num
+                        
+                        table_data.append(display_text)
+                    
+                    # Display in multi-column table (4 columns)
+                    cols_per_row = 4
+                    for i in range(0, len(table_data), cols_per_row):
                         cols = st.columns(cols_per_row)
                         for j, col in enumerate(cols):
-                            if i + j < len(missing_images):
-                                col.text(missing_images[i + j])
+                            if i + j < len(table_data):
+                                col.markdown(f"• {table_data[i + j]}")
+                    
+                    st.markdown("---")
+                    st.info(f"💡 **Tip:** Use the **Custom Images** section in the sidebar to upload images for these parts.")
             
             if st.button("🔄 Recompute images", key="recompute_collection_button"):
                 st.session_state["precompute_collection_done"] = False
                 st.session_state.pop("precompute_missing_images", None)
+                st.session_state.pop("precompute_stats", None)
+                st.session_state.pop("precompute_parts_count", None)
                 st.rerun()
     
     # ---------------------------------------------------------------------

@@ -119,7 +119,9 @@ class EnhancedMapping(dict):
             # Return cleaned key if no Excel mapping found
             return cleaned
 
-        # Return default if no mapping found
+        # IMPORTANT: If no mapping found and no default provided, return the key itself
+        # This maintains backward compatibility where unmapped parts use their original number
+        # The key might be a BA part number already, or an RB part without a BA equivalent
         return default if default is not None else key
 
     def __getitem__(self, key):

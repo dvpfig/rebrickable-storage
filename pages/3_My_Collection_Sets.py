@@ -42,7 +42,7 @@ def render_csv_upload_section(sets_manager: SetsManager) -> None:
     """
     st.markdown("### 📤 Upload Sets CSV")
     st.markdown("""
-    Upload CSV files containing your LEGO sets. Expected format:
+    Upload CSV files containing your LEGO sets. Expected format (Rebrickable CSV export):
     - **Set number**: LEGO set number (e.g., "31147-1")
     - **Quantity**: Number of this set owned
     - **Includes spares**: Whether to include spare parts
