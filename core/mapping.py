@@ -15,13 +15,14 @@ def apply_generalized_rb_to_ba_rules(rb_part: str) -> str:
     Rules applied (in order):
     1. 3626{letter}pr{number} -> 3626pb (minifig head printed variants)
     2. 28621pr{number} -> 3626pb (minifig head printed)
-    3. Remove pr{number} suffix (returns cleaned part for Excel lookup)
-    4. Remove pat{number} suffix (returns cleaned part for Excel lookup)
-    5. 970l{color}r{color} -> 73200 (minifig legs with color codes)
-    6. 973c{color}h{color} -> 973 (minifig torso with color codes)
-    7. 973g{number}c{color}h{color} -> 973 (minifig torso dual molded with color codes)
+    3. 973{letter}{number}{any other suffix} -> 973 (minifig torso with color codes)
+    4. 970{letter}{color}{any other suffix} -> 73200 (minifig legs with color codes)
+    5. 92456{letter}{color}{any other suffix} or 92816{letter}{color}{any other suffix} -> 73141 (minidoll torso girl)
+    6. 11408{letter}{color}{any other suffix} or 92815{letter}{color}{any other suffix} -> 73161 (minidoll torso boy)
+    7. Remove pr{number} suffix (returns cleaned part for Excel lookup)
+    8. Remove pat{number} suffix (returns cleaned part for Excel lookup)
 
-    Note: Rules 3-4 clean the part number and return it for subsequent Excel lookup.
+    Note: Rules 7-8 clean the part number and return it for subsequent Excel lookup.
     For example: 11055pr9999 -> 11055 (then Excel maps 11055 -> 80326)
 
     Args:
@@ -40,23 +41,27 @@ def apply_generalized_rb_to_ba_rules(rb_part: str) -> str:
     if re.match(r'^28621pr\d+$', rb_part_lower):
         return '3626pb'
 
-    # Rule 3: Remove pr{number} suffix (preprocessing step)
-    rb_part_lower = re.sub(r'pr\d+$', '', rb_part_lower)
+    # Rule 3: 973{letter}{number}{any other suffix} -> 973 (minifig torso with color codes)
+    if re.match(r'^973[a-z]\d+', rb_part_lower):
+        return '973'
 
-    # Rule 4: Remove pat{number} suffix (preprocessing step)
-    rb_part_lower = re.sub(r'pat\d+$', '', rb_part_lower)
-
-    # Rule 5: 970l{color}r{color} -> 73200 (minifig legs with color codes)
-    if re.match(r'^970l\d+r\d+$', rb_part_lower):
+    # Rule 4: 970{letter}{color}{any other suffix} -> 73200 (minifig legs with color codes)
+    if re.match(r'^970[a-z]\d+', rb_part_lower):
         return '73200'
 
-    # Rule 6: 973c{color}h{color} -> 973 (minifig torso with color codes)
-    if re.match(r'^973c\d+h\d+$', rb_part_lower):
-        return '973'
+    # Rule 5: 92456{letter}{color}{any other suffix} or 92816{letter}{color}{any other suffix} -> 73141 (minidoll torso girl)
+    if re.match(r'^(92456|92816)[a-z]\d+', rb_part_lower):
+        return '73141'
 
-    # Rule 7: 973g{number}c{color}h{color} -> 973 (minifig torso dual molded with color codes)
-    if re.match(r'^973g\d+c\d+h\d+$', rb_part_lower):
-        return '973'
+    # Rule 6: 11408{letter}{color}{any other suffix} or 92815{letter}{color}{any other suffix} -> 73161 (minidoll torso boy)
+    if re.match(r'^(11408|92815)[a-z]\d+', rb_part_lower):
+        return '73161'
+
+    # Rule 7: Remove pr{number} suffix (preprocessing step)
+    rb_part_lower = re.sub(r'pr\d+$', '', rb_part_lower)
+
+    # Rule 8: Remove pat{number} suffix (preprocessing step)
+    rb_part_lower = re.sub(r'pat\d+$', '', rb_part_lower)
 
     # Return cleaned part number if no specific rule matched
     return rb_part_lower
@@ -69,16 +74,17 @@ def get_mapping_deviation_rules() -> list:
     Get a list of mapping deviation rules for display purposes.
 
     Returns:
-        list: List of tuples (rule_description, example_rb, example_ba, pattern_rule)
+        list: List of tuples (rule_description, example_rb, pattern_rule)
     """
     return [
-        ("Minifig head printed variants", "3626apr0456", "3626pb", "3626{letter}pr{number} → 3626pb"),
-        ("Minifig head printed (28621)", "28621pr0123", "3626pb", "28621pr{number} → 3626pb"),
-        ("Remove print suffix then lookup", "11055pr9999", "80326", "{part}pr{number} → {part} → Excel lookup"),
-        ("Remove pattern suffix then lookup", "16768pat0001", "16768", "{part}pat{number} → {part} → Excel lookup"),
-        ("Minifig legs with color codes", "970l24r65pr0001", "73200", "970l{color}r{color} → 73200 (after cleanup)"),
-        ("Minifig torso with color codes", "973c28h22pr0001", "973", "973c{color}h{color} → 973 (after cleanup)"),
-        ("Minifig torso dual molded", "973g01c02h02", "973", "973g{number}c{color}h{color} → 973"),
+        ("Minifig head printed variants", "3626apr0456", "3626{letter}pr{number} → 3626pb"),
+        ("Minifig head printed (28621)", "28621pr0123", "28621pr{number} → 3626pb"),
+        ("Minifig torso with color codes", "973c28h22pr0001", "973{letter}{number}{any other suffix} → 973"),
+        ("Minifig legs with color codes", "970l24r65pr0001", "970{letter}{color}{any other suffix} → 73200"),
+        ("Minidoll torso girl", "92816c01pr0105", "92456{letter}{color}{any other suffix} or 92816{letter}{color}{any other suffix} → 73141"),
+        ("Minidoll torso boy", "92815c01pr0112", "11408{letter}{color}{any other suffix} or 92815{letter}{color}{any other suffix} → 73161"),
+        ("Remove print suffix then lookup", "11055pr9999", "{part}pr{number} → {part} → Excel lookup"),
+        ("Remove pattern suffix then lookup", "16768pat0001", "{part}pat{number} → {part} → Excel lookup"),
     ]
 
 

@@ -569,7 +569,7 @@ with col_sync3:
         rules = get_mapping_deviation_rules()
         
         # Create a dataframe for better display
-        rules_df = pd.DataFrame(rules, columns=["Description", "Example RB", "Example BA", "Pattern Rule"])
+        rules_df = pd.DataFrame(rules, columns=["Description", "Example RB", "Pattern RB->BA"])
         
         # Display as a table
         st.dataframe(
@@ -579,8 +579,7 @@ with col_sync3:
             column_config={
                 "Description": st.column_config.TextColumn("Rule Description", width="medium"),
                 "Example RB": st.column_config.TextColumn("Example RB Part", width="small"),
-                "Example BA": st.column_config.TextColumn("Maps to BA Part", width="small"),
-                "Pattern Rule": st.column_config.TextColumn("Pattern", width="medium"),
+                "Pattern RB->BA": st.column_config.TextColumn("Pattern RB->BA", width="large"),
             }
         )
         
@@ -637,10 +636,17 @@ if collection_files_stream:
                         )
                         
                         # Find parts without images
-                        collection_clean = collection[collection["Part"].notna()].copy()
+                        # Only consider parts that have locations (same filter as precompute)
+                        collection_clean = collection[collection["Part"].notna() & collection["Location"].notna()].copy()
                         all_parts = set(collection_clean["Part"].astype(str).str.strip().unique())
                         parts_with_images = set(part_images_map.keys())
                         missing_images = sorted(all_parts - parts_with_images)
+                        
+                        # Find parts without locations
+                        parts_without_location = collection[
+                            collection["Part"].notna() & collection["Location"].isna()
+                        ]["Part"].astype(str).str.strip().unique()
+                        parts_without_location = sorted(set(parts_without_location))
                         
                         # Also load unavailable images to include in the display
                         from core.images import _load_unavailable_images
@@ -652,6 +658,7 @@ if collection_files_stream:
                         # Save to session state (including stats for display after rerun)
                         st.session_state["precompute_collection_done"] = True
                         st.session_state["precompute_missing_images"] = all_missing_or_unavailable
+                        st.session_state["precompute_parts_without_location"] = parts_without_location
                         st.session_state["precompute_stats"] = stats
                         st.session_state["precompute_parts_count"] = len(parts_with_images)
                         
@@ -765,15 +772,49 @@ if collection_files_stream:
                         st.markdown("---")
                         st.info(f"💡 **Tip:** Click '🔄 Recompute images' below to attempt fetching these images.")
             
+            # Show parts without locations
+            parts_without_location = st.session_state.get("precompute_parts_without_location", [])
+            if parts_without_location:
+                with st.expander(f"📍 Parts without location ({len(parts_without_location)})", expanded=False):
+                    st.markdown("These parts are in your collection but don't have a storage location assigned. They are excluded from image precompute and label generation because these features organize parts by location.")
+                    st.markdown("---")
+                    st.markdown("**To include these parts:**")
+                    st.markdown("1. Edit your collection CSV files")
+                    st.markdown("2. Add a location value in the 'Location' column for each part")
+                    st.markdown("3. Re-upload the updated CSV files")
+                    st.markdown("---")
+                    
+                    # Display parts in multi-column table (4 columns)
+                    cols_per_row = 4
+                    for i in range(0, len(parts_without_location), cols_per_row):
+                        cols = st.columns(cols_per_row)
+                        for j, col in enumerate(cols):
+                            if i + j < len(parts_without_location):
+                                col.markdown(f"• {parts_without_location[i + j]}")
+                    
+                    st.markdown("---")
+                    st.info(f"💡 **Tip:** Assign locations to these parts in your CSV files to include them in image precompute and label generation.")
+            
             # Add buttons for recompute and reset unavailable
             col_btn1, col_btn2 = st.columns(2)
             
             with col_btn1:
                 if st.button("🔄 Recompute images", key="recompute_collection_button", type="primary"):
+                    # Clear session state
                     st.session_state["precompute_collection_done"] = False
                     st.session_state.pop("precompute_missing_images", None)
+                    st.session_state.pop("precompute_parts_without_location", None)
                     st.session_state.pop("precompute_stats", None)
                     st.session_state.pop("precompute_parts_count", None)
+                    
+                    # Clear Streamlit cache for fetch_image_bytes to ensure fresh fetches
+                    # This is important when images become available after initial failure
+                    try:
+                        from streamlit import cache_data
+                        cache_data.clear()
+                    except Exception:
+                        pass
+                    
                     st.rerun()
             
             with col_btn2:
