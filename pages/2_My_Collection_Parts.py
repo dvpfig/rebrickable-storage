@@ -265,11 +265,11 @@ if default_collection_files:
 st.markdown("---")
 
 # ---------------------------------------------------------------------
-# --- BrickArchitect Sync Sections (Three-Column Layout)
+# --- BrickArchitect Sync Sections (Two-Column Layout)
 # ---------------------------------------------------------------------
 st.markdown("### 🔄 BrickArchitect Sync")
 
-col_sync1, col_sync2, col_sync3 = st.columns(3)
+col_sync1, col_sync2 = st.columns(2)
 
 # Column 1: Get latest Labels/Images
 with col_sync1:
@@ -552,38 +552,44 @@ with col_sync2:
                 st.session_state.ba_mappings_updating = False
                 st.session_state.ba_mappings_stop_flag = False
 
-# Column 3: Part Number Mapping Rules
-with col_sync3:
-    with st.expander("🔄 Part Number Mapping Rules", expanded=False):
-        st.markdown("""
-        The application uses a two-tier mapping system to convert Rebrickable (RB) part numbers to BrickArchitect (BA) part numbers:
-        
-        1. **Excel File Mapping** (Primary): Explicit mappings from `part number - BA vs RB - {date}.xlsx`
-        2. **Generalized Pattern Rules** (Fallback): Automatic pattern-based conversions for common cases
-        """)
-        
-        st.markdown("---")
-        st.markdown("**Generalized Mapping Rules:**")
-        st.markdown("These rules automatically handle common RB part number patterns not explicitly listed in the Excel file:")
-        
-        rules = get_mapping_deviation_rules()
-        
-        # Create a dataframe for better display
-        rules_df = pd.DataFrame(rules, columns=["Description", "Example RB", "Pattern RB->BA"])
-        
-        # Display as a table
-        st.dataframe(
-            rules_df,
-            width='stretch',
-            hide_index=True,
-            column_config={
-                "Description": st.column_config.TextColumn("Rule Description", width="medium"),
-                "Example RB": st.column_config.TextColumn("Example RB Part", width="small"),
-                "Pattern RB->BA": st.column_config.TextColumn("Pattern RB->BA", width="large"),
-            }
-        )
-        
-        st.info("💡 **Priority**: Excel file mappings are checked first. If no match is found, these generalized rules are applied automatically.")
+
+st.markdown("---")
+
+# ---------------------------------------------------------------------
+# --- Custom RB-> BA Mapping Rules
+# ---------------------------------------------------------------------
+st.markdown("### 🧩 Custom RB->BA Mapping Rules")
+with st.expander("🧩 Custom RB-> BA Mapping Rules", expanded=False):
+    st.markdown("""
+    The application uses a two-tier mapping system to convert Rebrickable (RB) part numbers to BrickArchitect (BA) part numbers:
+    
+    1. **Excel File Mapping** (Primary): Explicit mappings from `part number - BA vs RB - {date}.xlsx`
+    2. **Generalized Pattern Rules** (Fallback): Automatic pattern-based conversions for common cases
+    """)
+    
+    st.markdown("---")
+    st.markdown("**Generalized Mapping Rules:**")
+    st.markdown("These rules automatically handle common RB part number patterns not explicitly listed in the Excel file:")
+    
+    rules = get_mapping_deviation_rules()
+    
+    # Create a dataframe for better display
+    rules_df = pd.DataFrame(rules, columns=["Description", "Example RB", "Pattern RB->BA"])
+    
+    # Display as a table
+    st.dataframe(
+        rules_df,
+        width='stretch',
+        hide_index=True,
+        column_config={
+            "Description": st.column_config.TextColumn("Rule Description", width="medium"),
+            "Example RB": st.column_config.TextColumn("Example RB Part", width="small"),
+            "Pattern RB->BA": st.column_config.TextColumn("Pattern RB->BA", width="large"),
+        }
+    )
+    
+    st.info("💡 **Priority**: Excel file mappings are checked first. If no match is found, these generalized rules are applied automatically.")
+
 
 st.markdown("---")
 
