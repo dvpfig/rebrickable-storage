@@ -4,6 +4,15 @@ from streamlit import cache_data
 
 @cache_data(show_spinner=False)
 def load_colors(colors_path):
+    """
+    Load and parse LEGO color data from CSV file.
+    
+    Args:
+        colors_path: Path to the colors CSV file
+        
+    Returns:
+        pd.DataFrame: DataFrame with columns id, name, rgb, is_trans
+    """
     try:
         colors = pd.read_csv(colors_path)
         if "name" in colors.columns:
@@ -20,6 +29,15 @@ def load_colors(colors_path):
 
 @cache_data(show_spinner=False)
 def build_color_lookup(colors_df):
+    """
+    Build a lookup dictionary for fast color information retrieval.
+    
+    Args:
+        colors_df: DataFrame with color data (id, name, rgb, is_trans)
+        
+    Returns:
+        dict: {color_id: {'name': str, 'rgb': str, 'is_trans': bool}}
+    """
     lookup = {}
     for _, r in colors_df.iterrows():
         try:
@@ -35,6 +53,16 @@ def build_color_lookup(colors_df):
 
 @cache_data(show_spinner=False)
 def render_color_cell(color_id, color_lookup):
+    """
+    Render an HTML color cell with color swatch and name.
+    
+    Args:
+        color_id: LEGO color ID (integer)
+        color_lookup: Dictionary mapping color IDs to color info
+        
+    Returns:
+        str: HTML string with color swatch and label
+    """
     try:
         cid = int(color_id)
     except Exception:

@@ -5,16 +5,11 @@ from io import BytesIO
 from pathlib import Path
 from streamlit import cache_data
 
-from core.custom_mapping import (
+from core.parts.custom_mapping import (
     load_custom_mapping_csv,
     build_custom_mapping_dict,
     apply_custom_mapping
 )
-
-
-
-
-
 
 
 class EnhancedMapping(dict):
@@ -35,6 +30,16 @@ class EnhancedMapping(dict):
         self.custom_mapping = custom_mapping or {'exact': {}, 'patterns': []}
 
     def get(self, key, default=None):
+        """
+        Get mapped BA part number for an RB part number.
+        
+        Args:
+            key: RB part number to look up
+            default: Default value if no mapping found
+            
+        Returns:
+            str: Mapped BA part number, or default/original key if not found
+        """
         # Step 1: Check Excel mapping with original key
         if key in self.base_mapping:
             return self.base_mapping[key]
@@ -48,6 +53,18 @@ class EnhancedMapping(dict):
         return default if default is not None else key
 
     def __getitem__(self, key):
+        """
+        Get mapped BA part number using dictionary syntax.
+        
+        Args:
+            key: RB part number to look up
+            
+        Returns:
+            str: Mapped BA part number
+            
+        Raises:
+            KeyError: If key not found and no default mapping available
+        """
         result = self.get(key)
         if result is None:
             raise KeyError(key)
@@ -56,6 +73,15 @@ class EnhancedMapping(dict):
 
 @st.cache_data(show_spinner=False)
 def read_ba_mapping_from_excel_bytes(excel_bytes: bytes) -> dict:
+    """
+    Read BA to RB part number mapping from Excel file bytes.
+    
+    Args:
+        excel_bytes: Excel file content as bytes
+        
+    Returns:
+        dict: {rb_part: ba_part} mapping dictionary
+    """
     try:
         df = pd.read_excel(BytesIO(excel_bytes))
     except Exception:

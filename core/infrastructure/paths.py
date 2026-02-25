@@ -4,9 +4,17 @@ from pathlib import Path
 import os
 
 class Paths:
+    """
+    Centralized path management for the application.
+    
+    Handles all file system paths including cache directories, user data,
+    and resource files. Ensures cross-platform compatibility.
+    """
     def __init__(self):
+        """Initialize all application paths and create necessary directories."""
         try:
-            self.root = Path(__file__).resolve().parents[1]
+            # Go up 2 levels: core/infrastructure/paths.py -> core/ -> root/
+            self.root = Path(__file__).resolve().parents[2]
         except NameError:
             self.root = Path(os.getcwd()).resolve()
 
@@ -44,29 +52,69 @@ class Paths:
             d.mkdir(parents=True, exist_ok=True)
     
     def get_user_uploaded_images_dir(self, username: str) -> Path:
-        """Get the user-specific uploaded images directory."""
+        """
+        Get the user-specific uploaded images directory.
+        
+        Args:
+            username: Username for the directory
+            
+        Returns:
+            Path: Path to user's uploaded images directory
+        """
         user_images_dir = self.user_data_dir / username / "images_uploaded"
         user_images_dir.mkdir(parents=True, exist_ok=True)
         return user_images_dir
     
     
     def get_user_collection_parts_dir(self, username: str) -> Path:
-        """Get the user-specific collection parts directory."""
+        """
+        Get the user-specific collection parts directory.
+        
+        Args:
+            username: Username for the directory
+            
+        Returns:
+            Path: Path to user's collection parts directory
+        """
         collection_parts_dir = self.user_data_dir / username / "collection_parts"
         collection_parts_dir.mkdir(parents=True, exist_ok=True)
         return collection_parts_dir
 
     def get_user_collection_sets_dir(self, username: str) -> Path:
-        """Get the user-specific collection sets directory."""
+        """
+        Get the user-specific collection sets directory.
+        
+        Args:
+            username: Username for the directory
+            
+        Returns:
+            Path: Path to user's collection sets directory
+        """
         collection_sets_dir = self.user_data_dir / username / "collection_sets"
         collection_sets_dir.mkdir(parents=True, exist_ok=True)
         return collection_sets_dir
 
 def init_paths() -> Paths:
+    """
+    Initialize and return the Paths object.
+    
+    Returns:
+        Paths: Configured Paths instance
+    """
     return Paths()
 
 
 def save_uploadedfiles(uploadedfiles_list, user_collection_dir: Path):
+    """
+    Save uploaded files to user's collection directory.
+    
+    Args:
+        uploadedfiles_list: List of Streamlit UploadedFile objects
+        user_collection_dir: Path to user's collection directory
+        
+    Returns:
+        Streamlit success message or None if no files
+    """
     if uploadedfiles_list:
         for uploadedfile in uploadedfiles_list:
             with open(os.path.join(user_collection_dir,uploadedfile.name),"wb") as f:
@@ -76,6 +124,15 @@ def save_uploadedfiles(uploadedfiles_list, user_collection_dir: Path):
         return
         
 def manage_default_collection(user_collection_dir: Path):
+    """
+    Display UI for managing (deleting) collection CSV files.
+    
+    Args:
+        user_collection_dir: Path to user's collection directory
+        
+    Returns:
+        None
+    """
     default_collection_files = sorted(user_collection_dir.glob("*.csv"))
     if default_collection_files:
         mark_for_delete = False

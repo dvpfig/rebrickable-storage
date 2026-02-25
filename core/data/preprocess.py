@@ -3,6 +3,20 @@ import pandas as pd
 from streamlit import cache_data
 
 def sanitize_and_validate(df, required, label):
+    """
+    Sanitize column names and validate required columns exist.
+    
+    Args:
+        df: DataFrame to validate
+        required: List of required column names
+        label: Label for error messages
+        
+    Returns:
+        pd.DataFrame: Validated DataFrame with sanitized column names
+        
+    Raises:
+        ValueError: If required columns are missing
+    """
     df.columns = df.columns.str.strip().str.title()
     missing = [c for c in required if c not in df.columns]
     if missing:
@@ -11,6 +25,15 @@ def sanitize_and_validate(df, required, label):
 
 @cache_data(show_spinner=False)
 def load_wanted_files(files):
+    """
+    Load and concatenate wanted parts CSV files.
+    
+    Args:
+        files: List of file objects or paths to wanted parts CSV files
+        
+    Returns:
+        pd.DataFrame: Concatenated DataFrame with columns Part, Color, Quantity_wanted
+    """
     dfs = []
     for file in files:
         df = pd.read_csv(file)
@@ -21,6 +44,15 @@ def load_wanted_files(files):
 
 @cache_data(show_spinner=False)
 def load_collection_files(files):
+    """
+    Load and concatenate collection CSV files.
+    
+    Args:
+        files: List of file objects or paths to collection CSV files
+        
+    Returns:
+        pd.DataFrame: Concatenated DataFrame with columns Part, Color, Quantity, Location
+    """
     dfs = []
     for file in files:
         if hasattr(file, "read"):
@@ -55,6 +87,11 @@ def merge_wanted_collection(wanted, collection, rb_to_similar_mapping=None):
         how="left",
         suffixes=("_wanted", "_have")
     )
+    
+    # Ensure Location column exists (in case collection is empty or no matches)
+    if "Location" not in merged.columns:
+        merged["Location"] = None
+    
     merged["Available"] = merged["Location"].notna()
     merged["Quantity_have"] = merged.get("Quantity", 0).fillna(0).astype(int)
     merged["Replacement_parts"] = ""  # Initialize replacement parts column

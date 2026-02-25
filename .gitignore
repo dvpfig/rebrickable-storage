@@ -1,6 +1,7 @@
 # User-specific data
 user_data/
 resources/auth_config.yaml
+user_data/auth_config.yaml
 
 # Python
 __pycache__/
@@ -20,7 +21,6 @@ eggs/
 .eggs/
 lib/
 lib64/
-parts/
 sdist/
 var/
 wheels/

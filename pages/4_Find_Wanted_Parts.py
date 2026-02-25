@@ -3,20 +3,20 @@ import pandas as pd
 from pathlib import Path
 import hashlib
 
-from ui.layout import short_key
-from ui.summary import render_summary_table
-from core.paths import init_paths
-from core.mapping import load_ba_mapping, build_rb_to_similar_parts_mapping, load_ba_part_names
-from core.preprocess import load_wanted_files, load_collection_files, merge_wanted_collection
-from core.images import precompute_location_images, fetch_wanted_part_images, save_user_uploaded_image
-from core.colors import load_colors, build_color_lookup, render_color_cell
-from core.color_similarity import build_color_similarity_matrix, find_alternative_colors_for_parts
-from core.security import validate_csv_file
+from core.infrastructure.session import short_key
+from core.state.progress import render_summary_table
+from core.infrastructure.paths import init_paths
+from core.parts.mapping import load_ba_mapping, build_rb_to_similar_parts_mapping, load_ba_part_names
+from core.data.preprocess import load_wanted_files, load_collection_files, merge_wanted_collection
+from core.parts.images import precompute_location_images, fetch_wanted_part_images, save_user_uploaded_image
+from core.data.colors import load_colors, build_color_lookup, render_color_cell
+from core.data.color_similarity import build_color_similarity_matrix, find_alternative_colors_for_parts
+from core.auth.security import validate_csv_file
 import os
 from dotenv import load_dotenv
 from typing import List, Tuple, Dict
-from core.sets import SetsManager
-from pages.find_wanted_parts_helpers import get_unfound_parts, merge_set_results, render_missing_parts_by_set
+from core.data.sets import SetsManager
+from core.state.find_wanted_parts import get_unfound_parts, merge_set_results, render_missing_parts_by_set, render_set_search_section
 
 # Page configuration
 st.title("🔍 Find Wanted Parts")
@@ -25,170 +25,6 @@ st.sidebar.header("🔍 Find Wanted Parts")
 
 # Load environment variables
 load_dotenv()
-
-
-def render_set_search_section(merged_df: pd.DataFrame, sets_manager: SetsManager, color_lookup: Dict) -> None:
-    """
-    Render set search interface for parts not found or insufficient.
-    
-    This function displays a UI section that allows users to search for wanted parts
-    within their owned LEGO sets. It only appears when there are parts that are not
-    found or have insufficient quantities in the loose parts collection.
-    
-    The interface includes:
-    - "Include Owned Sets" button to trigger the set selection interface
-    - Set selection checkboxes grouped by source CSV
-    - "Search Selected Sets" button to execute the search
-    - Results display with set-based locations
-    
-    Args:
-        merged_df: Merged dataframe containing wanted parts and collection matches
-        sets_manager: SetsManager instance for accessing set data
-        color_lookup: Dictionary mapping color IDs to color info (for ID->name conversion)
-    """
-    # Get unfound parts (with color names for API compatibility)
-    unfound_parts = get_unfound_parts(merged_df, color_lookup)
-    
-    # Only show this section if there are unfound parts
-    if not unfound_parts:
-        return
-    
-    st.markdown("---")
-    st.markdown("### 📦 Search in Owned Sets")
-    
-    # Check if user has any sets with fetched inventories
-    # Use session state if available, otherwise load from disk
-    if st.session_state.get("sets_data_loaded", False) and st.session_state.get("sets_metadata") is not None:
-        all_sets = st.session_state["sets_metadata"]
-        # Group by source
-        sets_by_source = {}
-        for set_data in all_sets:
-            source = set_data["source_csv"]
-            if source not in sets_by_source:
-                sets_by_source[source] = []
-            sets_by_source[source].append(set_data)
-    else:
-        sets_by_source = sets_manager.get_sets_by_source()
-    
-    available_sets = []
-    for source, sets_list in sets_by_source.items():
-        for set_data in sets_list:
-            if set_data.get("inventory_fetched", False):
-                available_sets.append(set_data)
-    
-    if not available_sets:
-        st.info("📭 No set inventories available. Add sets and retrieve inventories on the 'My Collection - Sets' page.")
-        return
-    
-    # Display info about unfound parts
-    st.markdown(f"**{len(unfound_parts)} part(s)** not found or insufficient in your loose parts collection.")
-    
-    # Initialize session state for set search UI
-    if "show_set_selection" not in st.session_state:
-        st.session_state["show_set_selection"] = False
-    
-    # "Include Owned Sets" button
-    if not st.session_state["show_set_selection"]:
-        if st.button("🔍 Include Owned Sets", key="include_owned_sets_btn", type="primary"):
-            st.session_state["show_set_selection"] = True
-            st.rerun()
-        return
-    
-    # Set selection interface
-    st.markdown("#### Select Sets to Search")
-    st.markdown("Choose which sets to search for the missing parts:")
-    
-    # Initialize selected sets in session state
-    if "selected_sets_for_search" not in st.session_state:
-        st.session_state["selected_sets_for_search"] = set()
-    
-    # Group sets by source CSV and display with checkboxes
-    for source_name, sets_list in sorted(sets_by_source.items()):
-        # Filter to only sets with fetched inventories
-        fetched_sets = [s for s in sets_list if s.get("inventory_fetched", False)]
-        
-        if not fetched_sets:
-            continue
-        
-        with st.expander(f"📁 {source_name} ({len(fetched_sets)} set(s))", expanded=True):
-            # "Select All" / "Deselect All" for this source
-            col1, col2 = st.columns([1, 1])
-            with col1:
-                if st.button(f"Select All", key=f"select_all_{source_name}"):
-                    # Add all sets from this source to selected sets
-                    for set_data in fetched_sets:
-                        st.session_state["selected_sets_for_search"].add(set_data["set_number"])
-                    st.rerun()
-            with col2:
-                if st.button(f"Deselect All", key=f"deselect_all_{source_name}"):
-                    # Remove all sets from this source from selected sets
-                    for set_data in fetched_sets:
-                        st.session_state["selected_sets_for_search"].discard(set_data["set_number"])
-                    st.rerun()
-            
-            # Display checkboxes for each set
-            for set_data in fetched_sets:
-                set_number = set_data["set_number"]
-                set_name = set_data.get("set_name", set_number)
-                part_count = set_data.get("part_count", 0)
-                
-                # Check if this set is selected (read from session state)
-                is_selected = set_number in st.session_state["selected_sets_for_search"]
-                checkbox_label = f"{set_number} - {set_name} ({part_count} parts)"
-                
-                # Use on_change callback to update session state
-                def toggle_set(set_num=set_number):
-                    if set_num in st.session_state["selected_sets_for_search"]:
-                        st.session_state["selected_sets_for_search"].discard(set_num)
-                    else:
-                        st.session_state["selected_sets_for_search"].add(set_num)
-                
-                st.checkbox(
-                    checkbox_label, 
-                    value=is_selected, 
-                    key=f"set_checkbox_{set_number}",
-                    on_change=toggle_set,
-                    args=(set_number,)
-                )
-    
-    # Action buttons
-    st.markdown("---")
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        # "Search Selected Sets" button
-        selected_count = len(st.session_state["selected_sets_for_search"])
-        if selected_count == 0:
-            st.button("🔍 Search Selected Sets", key="search_sets_btn", disabled=True, type="primary")
-        else:
-            if st.button(f"🔍 Search Selected Sets ({selected_count})", key="search_sets_btn", type="primary"):
-                with st.spinner(f"Searching {selected_count} set(s)..."):
-                    # Get cached inventories from session state
-                    inventories_cache = st.session_state.get("sets_inventories_cache", {})
-                    
-                    # Search in selected sets with part/color combinations
-                    selected_sets_list = list(st.session_state["selected_sets_for_search"])
-                    set_results = sets_manager.search_parts(
-                        unfound_parts,  # Pass the full list of (part_num, color) tuples
-                        selected_sets=selected_sets_list,
-                        inventories_cache=inventories_cache
-                    )
-                    
-                    # Store results separately (don't merge into merged_df)
-                    if set_results:
-                        st.session_state["set_search_results"] = set_results
-                        st.success(f"✅ Found parts in {len(set_results)} part/color combination(s)!")
-                        st.rerun()
-                    else:
-                        st.session_state["set_search_results"] = {}
-                        st.warning("No matching parts found in selected sets.")
-    
-    with col2:
-        # "Cancel" button
-        if st.button("❌ Cancel", key="cancel_set_search_btn", help="Close set selection"):
-            st.session_state["show_set_selection"] = False
-            st.session_state["selected_sets_for_search"] = set()
-            st.rerun()
 
 # Check authentication
 if not st.session_state.get("authentication_status"):
@@ -369,7 +205,7 @@ if collection_files_stream:
                     collection_bytes = collection.to_csv(index=False).encode('utf-8')
                     
                     # Load API key for Rebrickable fallback
-                    from core.api_keys import load_api_key
+                    from core.auth.api_keys import load_api_key
                     user_data_dir = paths.user_data_dir / username
                     api_key = load_api_key(user_data_dir)
                     
@@ -471,7 +307,7 @@ if st.session_state.get("start_processing"):
         merged = st.session_state["merged_df"]
         
         # Load API key for Rebrickable fallback
-        from core.api_keys import load_api_key
+        from core.auth.api_keys import load_api_key
         user_data_dir = paths.user_data_dir / username
         api_key = load_api_key(user_data_dir)
         

@@ -121,11 +121,16 @@ See `.env.example` for all available options.
 ### User Data
 
 User-specific data is stored in `user_data/{username}/`:
-- `collection/` - Collection CSV files
-- `sets/` - Sets metadata and inventories
+- `collection_parts/` - Collection CSV files
+- `collection_sets/` - Sets CSV files
+- `collection_sets.json` - Sets metadata and inventories
 - `images_uploaded/` - Custom part images
 - `session_data.json` - Session progress
-- `api_keys.json` - Encrypted Rebrickable API key
+- `rebrickable_api_key.txt` - Rebrickable API key
+
+Shared user data in `user_data/`:
+- `auth_config.yaml` - User credentials (auto-generated, hashed passwords)
+- `_audit_logs/` - Security audit logs
 
 ### Cache
 
@@ -135,7 +140,23 @@ Shared cache in `cache/`:
 
 ### Authentication
 
-User credentials are managed in `resources/auth_config.yaml` (auto-generated on first run).
+User credentials are managed in `user_data/auth_config.yaml` (auto-generated on first run with a demo user).
+
+**Default demo user:**
+- Username: `demo`
+- Password: `demo123`
+
+**Security features:**
+- Passwords are hashed using bcrypt
+- Session timeout after inactivity (default: 90 minutes)
+- Rate limiting (account locked for 15 minutes after 5 failed attempts)
+- Audit logging of authentication events
+- Secure cookie-based session management
+
+**Managing users:**
+- Users can register through the web interface
+- Passwords can be reset by authenticated users
+- Admin can manually edit `user_data/auth_config.yaml` (passwords must be bcrypt hashed)
 
 ## Contributing
 
@@ -154,8 +175,8 @@ Contributions are welcome! This is a niche tool built for the LEGO community.
 - Try clearing cache and re-downloading
 
 ### Authentication issues
-- Delete `resources/auth_config.yaml` to reset
-- Check file permissions on user_data directory
+- Delete `user_data/auth_config.yaml` to reset to demo user
+- Check file permissions on `user_data/` directory
 - Review audit logs in `user_data/_audit_logs/audit.log`
 - Verify `.env` file exists and contains `COOKIE_SECRET_KEY`
 

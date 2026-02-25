@@ -242,7 +242,7 @@ def _fetch_single_image(identifier: str, cache_dir: Path, session: Optional[requ
     # Fallback to Rebrickable API if BrickArchitect failed
     if cache_rb_dir and api_key:
         try:
-            from core.rebrickable_api import RebrickableAPI, APIError, RateLimitError
+            from core.external.rebrickable_api import RebrickableAPI, APIError, RateLimitError
             
             # Initialize API client
             api_client = RebrickableAPI(api_key)
@@ -526,7 +526,7 @@ def save_user_uploaded_image(uploaded_file, part_num: str, user_uploaded_dir: Pa
         True if saved successfully, False otherwise
     """
     try:
-        from core.security import validate_image_file
+        from core.auth.security import validate_image_file
         
         # Validate image file (size and content)
         is_valid, error_msg = validate_image_file(uploaded_file, max_size_mb=1.0)

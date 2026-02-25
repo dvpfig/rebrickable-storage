@@ -3,13 +3,13 @@ import pandas as pd
 from pathlib import Path
 import hashlib
 
-from core.paths import init_paths, save_uploadedfiles, manage_default_collection
-from core.mapping import load_ba_mapping, count_parts_in_mapping
-from core.labels import generate_collection_labels_zip
-from core.preprocess import load_collection_files, get_collection_parts_tuple, get_collection_parts_set
-from core.images import precompute_location_images, create_custom_images_zip, count_custom_images, upload_custom_images, delete_all_custom_images
-from core.security import validate_csv_file
-from core.download_helpers import create_download_callbacks
+from core.infrastructure.paths import init_paths, save_uploadedfiles, manage_default_collection
+from core.parts.mapping import load_ba_mapping, count_parts_in_mapping
+from core.labels.labels import generate_collection_labels_zip
+from core.data.preprocess import load_collection_files, get_collection_parts_tuple, get_collection_parts_set
+from core.parts.images import precompute_location_images, create_custom_images_zip, count_custom_images, upload_custom_images, delete_all_custom_images
+from core.auth.security import validate_csv_file
+from core.external.download_helpers import create_download_callbacks
 from resources.ba_part_labels import download_ba_labels
 from resources.ba_part_images import download_ba_images
 from resources.ba_part_mappings import fetch_all_ba_parts, fetch_rebrickable_mappings, find_latest_mapping_file, display_mapping_files_info
@@ -44,8 +44,8 @@ with st.sidebar:
     
     # Rebrickable API Key Section
     with st.expander("🔑 Rebrickable API Key", expanded=False):
-        from core.api_keys import load_api_key, save_api_key
-        from core.rebrickable_api import RebrickableAPI
+        from core.auth.api_keys import load_api_key, save_api_key
+        from core.external.rebrickable_api import RebrickableAPI
         
         st.markdown("""
         To retrieve set inventories, you need a Rebrickable API key. 
@@ -586,7 +586,7 @@ with st.expander("🧩 Custom RB-> BA Mapping Rules", expanded=False):
     **Multiple RB Patterns:** Use RB part_1, RB part_2, and RB part_3 columns to define alternative patterns that map to the same BA part.
     """)
     
-    from core.custom_mapping import load_custom_mapping_csv, save_custom_mapping_csv
+    from core.parts.custom_mapping import load_custom_mapping_csv, save_custom_mapping_csv
     
     # Get custom mapping path
     custom_mapping_path = paths.resources_dir / "custom_rb_ba_mapping.csv"
@@ -643,7 +643,7 @@ with st.expander("🧩 Custom RB-> BA Mapping Rules", expanded=False):
     
     with col_reset:
         if st.button("🔄 Reset to Defaults", key="reset_custom_mapping"):
-            from core.custom_mapping import create_default_custom_mapping_csv
+            from core.parts.custom_mapping import create_default_custom_mapping_csv
             create_default_custom_mapping_csv(custom_mapping_path)
             st.success("✅ Reset to default mappings!")
             st.cache_data.clear()
@@ -688,7 +688,7 @@ if collection_files_stream:
                         collection_bytes = collection.to_csv(index=False).encode('utf-8')
                         
                         # Load API key for Rebrickable fallback
-                        from core.api_keys import load_api_key
+                        from core.auth.api_keys import load_api_key
                         api_key = load_api_key(user_data_dir)
                         
                         # Precompute location images
@@ -717,7 +717,7 @@ if collection_files_stream:
                         parts_without_location = sorted(set(parts_without_location))
                         
                         # Also load unavailable images to include in the display
-                        from core.images import _load_unavailable_images
+                        from core.parts.images import _load_unavailable_images
                         unavailable_images_set = _load_unavailable_images(user_data_dir)
                         
                         # Combine missing and unavailable (some unavailable might already be in missing)
@@ -763,7 +763,7 @@ if collection_files_stream:
             missing_images = st.session_state.get("precompute_missing_images", [])
             if missing_images:
                 # Get unavailable images set from session state
-                from core.images import _load_unavailable_images
+                from core.parts.images import _load_unavailable_images
                 unavailable_images = _load_unavailable_images(user_data_dir)
                 
                 # Separate into unavailable vs. missing (but not yet marked unavailable)
@@ -886,7 +886,7 @@ if collection_files_stream:
                     st.rerun()
             
             with col_btn2:
-                from core.images import get_unavailable_images_count, clear_unavailable_images_cache
+                from core.parts.images import get_unavailable_images_count, clear_unavailable_images_cache
                 unavailable_count = get_unavailable_images_count(user_data_dir)
                 
                 if unavailable_count > 0:

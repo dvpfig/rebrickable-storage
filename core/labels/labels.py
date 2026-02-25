@@ -10,8 +10,8 @@ from pathlib import Path
 from typing import Tuple, Literal
 from io import BytesIO
 
-from core.preprocess import load_collection_files
-from core.lbx_merger import LbxMerger
+from core.data.preprocess import load_collection_files
+from core.labels.lbx_merger import LbxMerger
 
 def organize_labels_by_location(
     collection_df: pd.DataFrame,

@@ -12,10 +12,10 @@ This page allows users to:
 import streamlit as st
 from pathlib import Path
 
-from core.paths import init_paths
-from core.sets import SetsManager
-from core.api_keys import load_api_key, save_api_key
-from core.rebrickable_api import RebrickableAPI, APIError
+from core.infrastructure.paths import init_paths
+from core.data.sets import SetsManager
+from core.auth.api_keys import load_api_key, save_api_key
+from core.external.rebrickable_api import RebrickableAPI, APIError
 
 # Page configuration
 st.title("📦 My Collection - Sets")

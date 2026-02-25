@@ -12,7 +12,7 @@ import json
 import os
 from datetime import datetime
 from typing import Optional
-from core.security import AuditLogger, SessionTimeoutManager, set_secure_file_permissions
+from core.auth.security import AuditLogger, SessionTimeoutManager, set_secure_file_permissions
 
 class AuthManager:
     # Bcrypt rounds for password hashing (higher = more secure but slower)
@@ -62,7 +62,12 @@ class AuthManager:
         )
 
     def _create_default_config(self):
-        """Create a default configuration file with demo user"""
+        """
+        Create a default configuration file with demo user.
+        
+        Creates auth_config.yaml with a demo user account and secure settings.
+        Uses environment variables for sensitive configuration.
+        """
         hashed_password = bcrypt.hashpw(
             'demo123'.encode('utf-8'),
             bcrypt.gensalt(rounds=self.BCRYPT_ROUNDS)
@@ -165,7 +170,7 @@ class AuthManager:
     
     def _record_login_attempt(self, username: str, success: bool):
         """
-        Record login attempt for rate limiting.
+        Record login attempt for rate limiting and audit logging.
         
         Args:
             username: Username that attempted login
@@ -192,12 +197,20 @@ class AuthManager:
         self._save_config()
     
     def _save_config(self):
-        """Save configuration to file."""
+        """
+        Save configuration to file with secure permissions.
+        """
         with open(self.config_path, 'w') as file:
             yaml.dump(self.config, file)
         set_secure_file_permissions(self.config_path)
 
     def register_user(self):
+        """
+        Handle user registration with validation and audit logging.
+        
+        Creates a new user account with rate limiting fields initialized.
+        Displays success/error messages in the UI.
+        """
         try:
             email, username, name = self.authenticator.register_user(
                 merge_username_email=True,
@@ -224,6 +237,12 @@ class AuthManager:
             st.error(f"Registration failed: {e}")
 
     def logout(self, skip_audit_log: bool = False):
+        """
+        Handle user logout with audit logging.
+        
+        Args:
+            skip_audit_log: If True, skip audit logging (used for timeout scenarios)
+        """
         username = st.session_state.get("username")
         was_authenticated = st.session_state.get("authentication_status") is True
         
@@ -236,6 +255,14 @@ class AuthManager:
             self.audit_logger.log_logout(username)
 
     def save_user_session(self, username: str, session_data: dict, user_data_dir: Path):
+        """
+        Save user session data to JSON file.
+        
+        Args:
+            username: Username for the session
+            session_data: Dictionary containing session state data
+            user_data_dir: Path to user data directory
+        """
         user_path = user_data_dir / username
         session_file = user_path / "session_data.json"
 
@@ -252,6 +279,16 @@ class AuthManager:
             json.dump(serializable_data, f, indent=2)
 
     def load_user_session(self, username: str, user_data_dir: Path) -> dict:
+        """
+        Load user session data from JSON file.
+        
+        Args:
+            username: Username for the session
+            user_data_dir: Path to user data directory
+            
+        Returns:
+            dict: Session data dictionary, or empty dict if file doesn't exist
+        """
         user_path = user_data_dir / username
         session_file = user_path / "session_data.json"
 
@@ -269,6 +306,11 @@ class AuthManager:
         return {}
 
     def reset_password(self):
+        """
+        Handle password reset for authenticated user with audit logging.
+        
+        Displays success/error messages in the UI.
+        """
         try:
             username = st.session_state.get("username")
             if username and self.authenticator.reset_password(username):

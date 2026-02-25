@@ -7,10 +7,10 @@ from io import BytesIO
 # --- Local Libraries
 # ---------------------------------------------------------------------
 from ui.theme import apply_custom_styles
-from ui.layout import ensure_session_state_keys
+from core.infrastructure.session import ensure_session_state_keys
 from ui.shared_content import render_about_info_content, render_new_user_content, render_app_features_content
-from core.paths import init_paths
-from core.auth import AuthManager
+from core.infrastructure.paths import init_paths
+from core.auth.auth import AuthManager
 import os
 from dotenv import load_dotenv
 
@@ -42,7 +42,7 @@ ensure_session_state_keys()
 # ---------------------------------------------------------------------
 # --- Initialize Authentication Manager (but don't show login UI here)
 # ---------------------------------------------------------------------
-auth_config_path = paths.resources_dir / "auth_config.yaml"
+auth_config_path = paths.user_data_dir / "auth_config.yaml"
 audit_log_dir = paths.user_data_dir / "_audit_logs"
 
 # Initialize AuthManager once with audit logging
@@ -81,7 +81,7 @@ else:
 if auth_status is True:
     # Load sets data into session state on first access
     if not st.session_state.get("sets_data_loaded", False):
-        from core.sets import SetsManager
+        from core.data.sets import SetsManager
         user_data_dir = paths.user_data_dir / username
         sets_manager = SetsManager(user_data_dir, paths.cache_set_inventories)
         sets_manager.load_into_session_state(st.session_state)

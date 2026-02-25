@@ -69,38 +69,92 @@ def setup_audit_logger(log_dir: Path) -> logging.Logger:
 
 
 class AuditLogger:
-    """Centralized audit logging for security events."""
+    """
+    Centralized audit logging for security events.
+    
+    Logs authentication events, file operations, and security-related activities
+    to a structured audit log file.
+    """
     
     def __init__(self, log_dir: Path):
+        """
+        Initialize audit logger.
+        
+        Args:
+            log_dir: Directory to store audit logs
+        """
         self.logger = setup_audit_logger(log_dir)
     
     def log_login_attempt(self, username: str, success: bool, ip: str = "unknown"):
-        """Log login attempt."""
+        """
+        Log login attempt.
+        
+        Args:
+            username: Username attempting login
+            success: Whether login was successful
+            ip: IP address of the client
+        """
         status = "SUCCESS" if success else "FAILED"
         self.logger.info(f"LOGIN_{status} | user={username} | ip={ip}")
     
     def log_logout(self, username: str):
-        """Log logout event."""
+        """
+        Log logout event.
+        
+        Args:
+            username: Username logging out
+        """
         self.logger.info(f"LOGOUT | user={username}")
     
     def log_registration(self, username: str, email: str):
-        """Log new user registration."""
+        """
+        Log new user registration.
+        
+        Args:
+            username: New username
+            email: User's email address
+        """
         self.logger.info(f"REGISTRATION | user={username} | email={email}")
     
     def log_password_change(self, username: str):
-        """Log password change."""
+        """
+        Log password change.
+        
+        Args:
+            username: Username changing password
+        """
         self.logger.info(f"PASSWORD_CHANGE | user={username}")
     
     def log_file_upload(self, username: str, filename: str, file_type: str, size: int):
-        """Log file upload."""
+        """
+        Log file upload.
+        
+        Args:
+            username: Username uploading file
+            filename: Name of uploaded file
+            file_type: Type of file (e.g., "csv", "image")
+            size: File size in bytes
+        """
         self.logger.info(f"FILE_UPLOAD | user={username} | file={filename} | type={file_type} | size={size}")
     
     def log_session_timeout(self, username: str):
-        """Log session timeout."""
+        """
+        Log session timeout.
+        
+        Args:
+            username: Username whose session timed out
+        """
         self.logger.info(f"SESSION_TIMEOUT | user={username}")
     
     def log_security_event(self, event_type: str, username: str, details: str = ""):
-        """Log generic security event."""
+        """
+        Log generic security event.
+        
+        Args:
+            event_type: Type of security event
+            username: Username associated with event
+            details: Additional details about the event
+        """
         self.logger.warning(f"SECURITY_EVENT | type={event_type} | user={username} | details={details}")
 
 
@@ -211,6 +265,8 @@ def validate_csv_file(uploaded_file, max_size_mb: float = 1.0) -> tuple[bool, st
 class SessionTimeoutManager:
     """
     Manages session timeout for user sessions.
+    
+    Tracks user activity and enforces inactivity timeout.
     """
     
     def __init__(self, timeout_minutes: int = 90):
@@ -223,7 +279,9 @@ class SessionTimeoutManager:
         self.timeout_minutes = timeout_minutes
     
     def update_activity(self):
-        """Update last activity timestamp."""
+        """
+        Update last activity timestamp in session state.
+        """
         st.session_state["last_activity"] = datetime.now().isoformat()
     
     def check_timeout(self, username: str, audit_logger: Optional[AuditLogger] = None) -> bool:

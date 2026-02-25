@@ -93,4 +93,4 @@ The application includes a demo account:
 - Username: `demo`
 - Password: `demo123`
 
-You can create additional users through the registration interface or by editing the `auth_config.yaml` file in the data directory.
+You can create additional users through the registration interface or by editing the `user_data/auth_config.yaml` file in the data directory.
