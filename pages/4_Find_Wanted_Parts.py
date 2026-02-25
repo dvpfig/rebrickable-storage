@@ -159,9 +159,9 @@ def render_set_search_section(merged_df: pd.DataFrame, sets_manager: SetsManager
         # "Search Selected Sets" button
         selected_count = len(st.session_state["selected_sets_for_search"])
         if selected_count == 0:
-            st.button("🔍 Search Selected Sets", key="search_sets_btn", disabled=True, help="Select at least one set to search")
+            st.button("🔍 Search Selected Sets", key="search_sets_btn", disabled=True, type="primary")
         else:
-            if st.button(f"🔍 Search Selected Sets ({selected_count})", key="search_sets_btn", help="Search for parts in selected sets", type="primary"):
+            if st.button(f"🔍 Search Selected Sets ({selected_count})", key="search_sets_btn", type="primary"):
                 with st.spinner(f"Searching {selected_count} set(s)..."):
                     # Get cached inventories from session state
                     inventories_cache = st.session_state.get("sets_inventories_cache", {})
@@ -234,7 +234,8 @@ with st.sidebar:
             st.error("❌ Authentication manager not available.")
 
 # Load mapping and color data
-ba_mapping = load_ba_mapping(paths.mapping_path)
+custom_mapping_path = paths.resources_dir / "custom_rb_ba_mapping.csv"
+ba_mapping = load_ba_mapping(paths.mapping_path, custom_mapping_path)
 rb_to_similar = build_rb_to_similar_parts_mapping(paths.mapping_path)
 ba_part_names = load_ba_part_names(paths.mapping_path)
 colors_df = load_colors(paths.colors_path)

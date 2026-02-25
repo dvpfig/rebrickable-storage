@@ -5,129 +5,46 @@ from io import BytesIO
 from pathlib import Path
 from streamlit import cache_data
 
-import re
-
-def apply_generalized_rb_to_ba_rules(rb_part: str) -> str:
-    """
-    Apply generalized mapping rules for RB to BA part number conversion.
-    These rules handle common patterns not included in the Excel mapping file.
-
-    Rules applied (in order):
-    1. 3626{letter}pr{number} -> 3626pb (minifig head printed variants)
-    2. 28621pr{number} -> 3626pb (minifig head printed)
-    3. 973{letter}{number}{any other suffix} -> 973 (minifig torso with color codes)
-    4. 970{letter}{color}{any other suffix} -> 73200 (minifig legs with color codes)
-    5. 92456{letter}{color}{any other suffix} or 92816{letter}{color}{any other suffix} -> 73141 (minidoll torso girl)
-    6. 11408{letter}{color}{any other suffix} or 92815{letter}{color}{any other suffix} -> 73161 (minidoll torso boy)
-    7. Remove pr{number} suffix (returns cleaned part for Excel lookup)
-    8. Remove pat{number} suffix (returns cleaned part for Excel lookup)
-
-    Note: Rules 7-8 clean the part number and return it for subsequent Excel lookup.
-    For example: 11055pr9999 -> 11055 (then Excel maps 11055 -> 80326)
-
-    Args:
-        rb_part: Rebrickable part number
-
-    Returns:
-        str: Mapped BA part number or cleaned part number for Excel lookup
-    """
-    rb_part_lower = rb_part.lower().strip()
-
-    # Rule 1: 3626{letter}pr{number} -> 3626pb (minifig head printed variants)
-    if re.match(r'^3626[a-z]pr\d+$', rb_part_lower):
-        return '3626pb'
-
-    # Rule 2: 28621pr{number} -> 3626pb (minifig head printed)
-    if re.match(r'^28621pr\d+$', rb_part_lower):
-        return '3626pb'
-
-    # Rule 3: 973{letter}{number}{any other suffix} -> 973 (minifig torso with color codes)
-    if re.match(r'^973[a-z]\d+', rb_part_lower):
-        return '973'
-
-    # Rule 4: 970{letter}{color}{any other suffix} -> 73200 (minifig legs with color codes)
-    if re.match(r'^970[a-z]\d+', rb_part_lower):
-        return '73200'
-
-    # Rule 5: 92456{letter}{color}{any other suffix} or 92816{letter}{color}{any other suffix} -> 73141 (minidoll torso girl)
-    if re.match(r'^(92456|92816)[a-z]\d+', rb_part_lower):
-        return '73141'
-
-    # Rule 6: 11408{letter}{color}{any other suffix} or 92815{letter}{color}{any other suffix} -> 73161 (minidoll torso boy)
-    if re.match(r'^(11408|92815)[a-z]\d+', rb_part_lower):
-        return '73161'
-
-    # Rule 7: Remove pr{number} suffix (preprocessing step)
-    rb_part_lower = re.sub(r'pr\d+$', '', rb_part_lower)
-
-    # Rule 8: Remove pat{number} suffix (preprocessing step)
-    rb_part_lower = re.sub(r'pat\d+$', '', rb_part_lower)
-
-    # Return cleaned part number if no specific rule matched
-    return rb_part_lower
+from core.custom_mapping import (
+    load_custom_mapping_csv,
+    build_custom_mapping_dict,
+    apply_custom_mapping
+)
 
 
 
 
-def get_mapping_deviation_rules() -> list:
-    """
-    Get a list of mapping deviation rules for display purposes.
 
-    Returns:
-        list: List of tuples (rule_description, example_rb, pattern_rule)
-    """
-    return [
-        ("Minifig head printed variants", "3626apr0456", "3626{letter}pr{number} → 3626pb"),
-        ("Minifig head printed (28621)", "28621pr0123", "28621pr{number} → 3626pb"),
-        ("Minifig torso with color codes", "973c28h22pr0001", "973{letter}{number}{any other suffix} → 973"),
-        ("Minifig legs with color codes", "970l24r65pr0001", "970{letter}{color}{any other suffix} → 73200"),
-        ("Minidoll torso girl", "92816c01pr0105", "92456{letter}{color}{any other suffix} or 92816{letter}{color}{any other suffix} → 73141"),
-        ("Minidoll torso boy", "92815c01pr0112", "11408{letter}{color}{any other suffix} or 92815{letter}{color}{any other suffix} → 73161"),
-        ("Remove print suffix then lookup", "11055pr9999", "{part}pr{number} → {part} → Excel lookup"),
-        ("Remove pattern suffix then lookup", "16768pat0001", "{part}pat{number} → {part} → Excel lookup"),
-    ]
 
 
 class EnhancedMapping(dict):
     """
-    Enhanced mapping dictionary that applies generalized rules as fallback.
+    Enhanced mapping dictionary that applies custom rules as fallback.
 
     Priority:
-    1. Explicit Excel mappings (base_mapping) for original key
-    2. Apply generalized pattern-based rules to clean the key
-    3. Check Excel mapping again with cleaned key
-    4. Return cleaned key if no mapping found
+    1. Check explicit Excel mappings (base_mapping) for original RB part
+    2. Check custom mapping (exact and wildcard patterns)
+    3. Return original key if no mapping found
+    
+    Note: Parts not found in either Excel or custom mapping will return the original
+    RB part number, allowing the application to attempt retrieval from Rebrickable API.
     """
-    def __init__(self, base_mapping):
+    def __init__(self, base_mapping, custom_mapping=None):
         super().__init__(base_mapping)
         self.base_mapping = base_mapping
+        self.custom_mapping = custom_mapping or {'exact': {}, 'patterns': []}
 
     def get(self, key, default=None):
-        # First check Excel mapping with original key
+        # Step 1: Check Excel mapping with original key
         if key in self.base_mapping:
             return self.base_mapping[key]
-
-        # Apply generalized rules to clean the key
-        cleaned = apply_generalized_rb_to_ba_rules(key)
         
-        # If the rule returned a specific mapping (not just cleaned), use it
-        # This handles rules like 3626apr0456 -> 3626pb
-        if cleaned != key and cleaned != key.lower().strip():
-            # Check if this is a direct mapping (like 3626pb, 73200, 973)
-            # vs a cleaned part number (like 11055, 4150)
-            if cleaned in ['3626pb', '73200', '973']:
-                return cleaned
-            
-            # Otherwise, check Excel mapping with cleaned key
-            if cleaned in self.base_mapping:
-                return self.base_mapping[cleaned]
-            
-            # Return cleaned key if no Excel mapping found
-            return cleaned
-
-        # IMPORTANT: If no mapping found and no default provided, return the key itself
-        # This maintains backward compatibility where unmapped parts use their original number
-        # The key might be a BA part number already, or an RB part without a BA equivalent
+        # Step 2: Check custom mapping (exact and wildcard patterns)
+        custom_result = apply_custom_mapping(key, self.custom_mapping)
+        if custom_result != key:
+            return custom_result
+        
+        # Step 3: Return original key if no mapping found
         return default if default is not None else key
 
     def __getitem__(self, key):
@@ -219,17 +136,21 @@ def load_ba_part_names(mapping_path):
         return {}
 
 @st.cache_data(show_spinner=False)
-def load_ba_mapping(mapping_path):
+def load_ba_mapping(mapping_path, custom_mapping_path=None):
     """
-    Load BA mapping from Excel file and apply generalized rules.
+    Load BA mapping from Excel file and apply custom rules.
 
     The mapping process follows this priority:
-    1. First, check Excel file for explicit mappings
-    2. If not found, apply generalized pattern-based rules
-    3. If no rule applies, return original part number
+    1. Check Excel file for explicit mappings (with original RB part)
+    2. Check custom mapping CSV (exact and wildcard patterns)
+    3. Return original part number if no mapping found
+
+    Parts not found in either Excel or custom mapping will return the original
+    RB part number, allowing the application to attempt retrieval from Rebrickable API.
 
     Args:
         mapping_path: Path to the Excel mapping file
+        custom_mapping_path: Path to the custom mapping CSV file (optional)
 
     Returns:
         EnhancedMapping: Mapping from RB part numbers to BA part numbers
@@ -240,8 +161,17 @@ def load_ba_mapping(mapping_path):
         with open(mapping_path, "rb") as f:
             excel_mapping = read_ba_mapping_from_excel_bytes(f.read())
 
-    # Return enhanced mapping that includes generalized rules
-    return EnhancedMapping(excel_mapping)
+    # Load custom mappings from CSV
+    custom_mapping = {'exact': {}, 'patterns': []}
+    if custom_mapping_path and custom_mapping_path.exists():
+        try:
+            custom_df = load_custom_mapping_csv(custom_mapping_path)
+            custom_mapping = build_custom_mapping_dict(custom_df)
+        except Exception as e:
+            st.warning(f"Could not load custom mapping: {e}")
+
+    # Return enhanced mapping that includes custom rules
+    return EnhancedMapping(excel_mapping, custom_mapping)
 
 
 

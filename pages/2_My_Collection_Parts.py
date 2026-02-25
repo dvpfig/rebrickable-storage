@@ -4,7 +4,7 @@ from pathlib import Path
 import hashlib
 
 from core.paths import init_paths, save_uploadedfiles, manage_default_collection
-from core.mapping import load_ba_mapping, count_parts_in_mapping, get_mapping_deviation_rules
+from core.mapping import load_ba_mapping, count_parts_in_mapping
 from core.labels import generate_collection_labels_zip
 from core.preprocess import load_collection_files, get_collection_parts_tuple, get_collection_parts_set
 from core.images import precompute_location_images, create_custom_images_zip, count_custom_images, upload_custom_images, delete_all_custom_images
@@ -194,7 +194,8 @@ with st.sidebar:
     
 
 # Load mapping
-ba_mapping = load_ba_mapping(paths.mapping_path)
+custom_mapping_path = paths.resources_dir / "custom_rb_ba_mapping.csv"
+ba_mapping = load_ba_mapping(paths.mapping_path, custom_mapping_path)
 
 # Get max file size from environment
 max_file_size_mb = float(os.getenv('MAX_FILE_SIZE_MB', '1.0'))
@@ -564,31 +565,92 @@ with st.expander("🧩 Custom RB-> BA Mapping Rules", expanded=False):
     The application uses a two-tier mapping system to convert Rebrickable (RB) part numbers to BrickArchitect (BA) part numbers:
     
     1. **Excel File Mapping** (Primary): Explicit mappings from `part number - BA vs RB - {date}.xlsx`
-    2. **Generalized Pattern Rules** (Fallback): Automatic pattern-based conversions for common cases
+    2. **Custom Mapping CSV** (Secondary): User-defined mappings with wildcard support
+    
+    All mapping rules are now managed in the custom CSV file below, including previously hardcoded patterns.
     """)
     
     st.markdown("---")
-    st.markdown("**Generalized Mapping Rules:**")
-    st.markdown("These rules automatically handle common RB part number patterns not explicitly listed in the Excel file:")
+    st.markdown("**Custom Mapping Editor:**")
+    st.markdown("""
+    Create your own mapping rules with wildcard support. Wildcards allow flexible pattern matching:
+    - `*` matches any single digit (0-9)
+    - `**` matches any sequence of digits (one or more)
+    - `?` matches any single letter (a-z, A-Z)
     
-    rules = get_mapping_deviation_rules()
+    **Examples:**
+    - `973?****` matches `973c1234`, `973a5678`, etc. (973 + letter + 4+ digits)
+    - `3626?pr**` matches `3626apr01`, `3626bpr9999`, etc. (3626 + letter + pr + digits)
+    - `970?**` matches `970c01`, `970a123`, etc. (970 + letter + digits)
     
-    # Create a dataframe for better display
-    rules_df = pd.DataFrame(rules, columns=["Description", "Example RB", "Pattern RB->BA"])
+    **Multiple RB Patterns:** Use RB part_1, RB part_2, and RB part_3 columns to define alternative patterns that map to the same BA part.
+    """)
     
-    # Display as a table
-    st.dataframe(
-        rules_df,
+    from core.custom_mapping import load_custom_mapping_csv, save_custom_mapping_csv
+    
+    # Get custom mapping path
+    custom_mapping_path = paths.resources_dir / "custom_rb_ba_mapping.csv"
+    
+    # Load custom mapping
+    custom_df = load_custom_mapping_csv(custom_mapping_path)
+    
+    # Display editable dataframe
+    edited_df = st.data_editor(
+        custom_df,
+        num_rows="dynamic",
         width='stretch',
-        hide_index=True,
         column_config={
-            "Description": st.column_config.TextColumn("Rule Description", width="medium"),
-            "Example RB": st.column_config.TextColumn("Example RB Part", width="small"),
-            "Pattern RB->BA": st.column_config.TextColumn("Pattern RB->BA", width="large"),
-        }
+            "BA partnum": st.column_config.TextColumn(
+                "BA Part Number",
+                help="BrickArchitect part number (can include wildcards: * for single digit, ** for multiple digits)",
+                required=True,
+                width="small"
+            ),
+            "RB part_1": st.column_config.TextColumn(
+                "RB Pattern 1",
+                help="Rebrickable part pattern (can include wildcards: * for single digit, ** for multiple digits)",
+                required=True,
+                width="small"
+            ),
+            "RB part_2": st.column_config.TextColumn(
+                "RB Pattern 2",
+                help="Alternative Rebrickable part pattern (optional)",
+                width="small"
+            ),
+            "RB part_3": st.column_config.TextColumn(
+                "RB Pattern 3",
+                help="Alternative Rebrickable part pattern (optional)",
+                width="small"
+            ),
+            "Description": st.column_config.TextColumn(
+                "Description",
+                help="Optional description of this mapping rule",
+                width="medium"
+            )
+        },
+        key="custom_mapping_editor"
     )
     
-    st.info("💡 **Priority**: Excel file mappings are checked first. If no match is found, these generalized rules are applied automatically.")
+    # Save button
+    col_save, col_reset = st.columns([1, 3])
+    with col_save:
+        if st.button("💾 Save Custom Mappings", key="save_custom_mapping", type="primary"):
+            save_custom_mapping_csv(edited_df, custom_mapping_path)
+            st.success("✅ Custom mappings saved!")
+            # Clear cache to reload mappings
+            st.cache_data.clear()
+            st.rerun()
+    
+    with col_reset:
+        if st.button("🔄 Reset to Defaults", key="reset_custom_mapping"):
+            from core.custom_mapping import create_default_custom_mapping_csv
+            create_default_custom_mapping_csv(custom_mapping_path)
+            st.success("✅ Reset to default mappings!")
+            st.cache_data.clear()
+            st.rerun()
+    
+    st.markdown("---")
+    st.info("💡 **Mapping Priority**: 1) Strip pr/pat suffixes → 2) Excel file → 3) Custom mappings (exact then wildcard) → 4) Check Excel with original (if had pr/pat)")
 
 
 st.markdown("---")

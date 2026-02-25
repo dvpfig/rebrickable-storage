@@ -98,8 +98,7 @@ def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict
     if df_clean.empty:
         return {}, {}, {"ba_downloaded": 0, "rb_downloaded": 0, "rb_rate_limit_errors": 0, "rb_other_errors": 0}
     
-    # Vectorized regex cleaning: remove "pr\d+" suffix and strip whitespace
-    # Note: The "pr\d+" pattern is handled by generalized rules in the mapping
+    # Cleaning of white spaces
     df_clean["Part_cleaned"] = df_clean["Part"].astype(str).str.strip()
     
     # Vectorized mapping using ba_mapping (includes generalized rules)
