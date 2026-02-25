@@ -151,9 +151,9 @@ def match_wildcard_pattern(rb_part: str, pattern: str) -> bool:
     escaped = re.escape(pattern)
     
     # Replace placeholders with regex patterns
-    regex = escaped.replace(r'\x00DOUBLESTAR\x00', r'\d+')  # ** -> one or more digits
-    regex = regex.replace(r'\x00STAR\x00', r'\d')           # * -> single digit
-    regex = regex.replace(r'\x00QUESTION\x00', r'[a-zA-Z]') # ? -> single letter
+    regex = escaped.replace('\x00DOUBLESTAR\x00', r'\d+')  # ** -> one or more digits
+    regex = regex.replace('\x00STAR\x00', r'\d')           # * -> single digit
+    regex = regex.replace('\x00QUESTION\x00', r'[a-zA-Z]') # ? -> single letter
 
     # Anchor the pattern to match the entire string
     regex = f"^{regex}$"

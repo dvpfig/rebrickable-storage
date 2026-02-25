@@ -15,7 +15,7 @@ def get_unfound_parts(merged_df: pd.DataFrame, color_lookup: Dict = None) -> Lis
     
     This function identifies parts from the merged dataframe that either:
     - Are not available in the collection (Available = False)
-    - Have insufficient quantity (Quantity_have < Quantity_wanted)
+    - Have insufficient quantity (Quantity_have + Quantity_similar < Quantity_wanted)
     
     Args:
         merged_df: Merged dataframe containing wanted parts and collection matches
@@ -32,10 +32,12 @@ def get_unfound_parts(merged_df: pd.DataFrame, color_lookup: Dict = None) -> Lis
     for _, row in merged_df.iterrows():
         qty_wanted = int(row.get("Quantity_wanted", 0))
         qty_have = int(row.get("Quantity_have", 0))
+        qty_similar = int(row.get("Quantity_similar", 0))
         available = row.get("Available", False)
         
-        # Check if part is not found or has insufficient quantity
-        if not available or qty_have < qty_wanted:
+        # Check if part is not found or has insufficient quantity (including similar parts)
+        total_available = qty_have + qty_similar
+        if not available or total_available < qty_wanted:
             part_num = str(row["Part"])
             color_id = row["Color"]
             

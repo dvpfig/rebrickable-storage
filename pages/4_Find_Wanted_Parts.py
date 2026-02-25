@@ -404,8 +404,10 @@ if st.session_state.get("start_processing"):
             for _, row in loc_parts_df.iterrows():
                 qty_wanted = int(row["Quantity_wanted"])
                 qty_have = int(row.get("Quantity_have", 0))
+                qty_similar = int(row.get("Quantity_similar", 0))
                 available = row.get("Available", False)
-                if not available or qty_have < qty_wanted:
+                total_available = qty_have + qty_similar
+                if not available or total_available < qty_wanted:
                     has_insufficient_parts = True
                     break
             
@@ -484,6 +486,7 @@ if st.session_state.get("start_processing"):
                         color_html = render_color_cell(row["Color"], color_lookup)
                         qty_wanted = int(row["Quantity_wanted"])
                         qty_have = int(row["Quantity_have"])
+                        qty_similar = int(row.get("Quantity_similar", 0))
                         key = (str(row["Part"]), str(row["Color"]), str(row["Location"]))
                         found = st.session_state.get("found_counts", {}).get(key, 0)
 
@@ -491,12 +494,29 @@ if st.session_state.get("start_processing"):
                         cols[0].markdown(color_html, unsafe_allow_html=True)
                         cols[1].markdown(f"{qty_wanted}")
                         
-                        if not row["Available"] or qty_have == 0:
-                            available_display = "0 ❌"
-                        elif qty_have >= qty_wanted:
-                            available_display = f"✅ {qty_have}"
+                        # Display format: exact + similar (if similar parts exist)
+                        if qty_similar > 0:
+                            total_available = qty_have + qty_similar
+                            if qty_have == 0:
+                                # Only similar parts available
+                                if total_available >= qty_wanted:
+                                    available_display = f"✅ 0 + {qty_similar}"
+                                else:
+                                    available_display = f"⚠️ 0 + {qty_similar}"
+                            else:
+                                # Both exact and similar parts available
+                                if total_available >= qty_wanted:
+                                    available_display = f"✅ {qty_have} + {qty_similar}"
+                                else:
+                                    available_display = f"⚠️ {qty_have} + {qty_similar}"
                         else:
-                            available_display = f"⚠️ {qty_have}"
+                            # No similar parts, show only exact match quantity
+                            if not row["Available"] or qty_have == 0:
+                                available_display = "0 ❌"
+                            elif qty_have >= qty_wanted:
+                                available_display = f"✅ {qty_have}"
+                            else:
+                                available_display = f"⚠️ {qty_have}"
                         cols[2].markdown(available_display)
 
                         widget_key = short_key("found_input", row["Part"], row["Color"], row["Location"], row_idx)

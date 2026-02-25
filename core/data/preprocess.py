@@ -79,6 +79,14 @@ def merge_wanted_collection(wanted, collection, rb_to_similar_mapping=None):
     Returns:
         DataFrame with merged data including replacement part suggestions
     """
+    # Normalize part numbers and colors to strings for consistent matching
+    wanted = wanted.copy()
+    collection = collection.copy()
+    wanted["Part"] = wanted["Part"].astype(str).str.strip()
+    wanted["Color"] = wanted["Color"].astype(str).str.strip()
+    collection["Part"] = collection["Part"].astype(str).str.strip()
+    collection["Color"] = collection["Color"].astype(str).str.strip()
+    
     # First merge: exact Part+Color match
     merged = pd.merge(
         wanted,
@@ -95,9 +103,7 @@ def merge_wanted_collection(wanted, collection, rb_to_similar_mapping=None):
     merged["Available"] = merged["Location"].notna()
     merged["Quantity_have"] = merged.get("Quantity", 0).fillna(0).astype(int)
     merged["Replacement_parts"] = ""  # Initialize replacement parts column
-
-    # Identify parts that were not found in the exact color
-    not_found_exact = merged[merged["Location"].isna()].copy()
+    merged["Quantity_similar"] = 0  # Initialize similar parts quantity column
 
     # Create a mapping of Part -> set of Locations where the part exists (any color)
     part_to_locations = collection.groupby("Part")["Location"].apply(set).to_dict()
@@ -108,14 +114,14 @@ def merge_wanted_collection(wanted, collection, rb_to_similar_mapping=None):
         key = (str(row["Part"]), str(row["Color"]), str(row["Location"]))
         collection_inventory[key] = int(row["Quantity"])
 
-    # For wanted parts not found in exact color, check for similar parts
+    # Process ALL wanted parts to check for similar parts (not just unfound ones)
     additional_rows = []
-    truly_not_found_rows = []
-
-    for _, row in not_found_exact.iterrows():
-        wanted_part = str(row["Part"])
-        wanted_color = str(row["Color"])
-
+    
+    # Group merged by (Part, Color) to handle multiple locations
+    for (wanted_part, wanted_color), group in merged.groupby(["Part", "Color"], dropna=False):
+        wanted_part = str(wanted_part)
+        wanted_color = str(wanted_color)
+        
         # Check if similar parts exist in collection
         similar_parts_found = {}  # {location: [list of similar part numbers]}
 
@@ -124,58 +130,79 @@ def merge_wanted_collection(wanted, collection, rb_to_similar_mapping=None):
 
             # Check each similar part in the collection
             for similar_part in similar_parts:
-                # Check if this similar part exists in the wanted color
-                key = (similar_part, wanted_color, None)
                 for (part, color, location), qty in collection_inventory.items():
                     if part == similar_part and color == wanted_color and qty > 0:
                         if location not in similar_parts_found:
                             similar_parts_found[location] = []
                         similar_parts_found[location].append(similar_part)
 
-        # If similar parts found, create entries for each location
+        # If similar parts found, add quantity info to existing rows or create new rows
         if similar_parts_found:
+            # Get all locations where exact match was found (non-null Location with Quantity_have > 0)
+            exact_match_locations = {}
+            for idx, row in group.iterrows():
+                if pd.notna(row["Location"]) and row["Quantity_have"] > 0:
+                    loc = str(row["Location"])
+                    exact_match_locations[loc] = idx
+            
             for location, similar_list in similar_parts_found.items():
-                new_row = row.copy()
-                new_row["Location"] = location
-                new_row["Available"] = True  # Similar part available
-
                 # Calculate total quantity of similar parts in this location
                 total_similar_qty = 0
                 for similar_part in similar_list:
                     key = (similar_part, wanted_color, location)
                     total_similar_qty += collection_inventory.get(key, 0)
+                
+                # If this location already has an exact match, update that specific row by index
+                if location in exact_match_locations:
+                    idx = exact_match_locations[location]
+                    merged.at[idx, "Replacement_parts"] = ", ".join(sorted(set(similar_list)))
+                    merged.at[idx, "Quantity_similar"] = total_similar_qty
+                else:
+                    # Create a new row for this location with similar parts
+                    # Use the first row from the group as template
+                    new_row = group.iloc[0].copy()
+                    new_row["Location"] = location
+                    new_row["Available"] = True  # Similar part available
+                    new_row["Quantity_have"] = 0  # No exact match
+                    new_row["Quantity_similar"] = total_similar_qty
+                    new_row["Replacement_parts"] = ", ".join(sorted(set(similar_list)))
+                    additional_rows.append(new_row)
 
-                new_row["Quantity_have"] = total_similar_qty
-                new_row["Replacement_parts"] = ", ".join(sorted(set(similar_list)))
-                additional_rows.append(new_row)
-
-        # Also check if part exists in collection in different color(s)
-        elif wanted_part in part_to_locations:
+    # Handle parts not found at all
+    not_found_rows = []
+    for _, row in merged[merged["Location"].isna()].iterrows():
+        wanted_part = str(row["Part"])
+        wanted_color = str(row["Color"])
+        
+        # Check if part exists in collection in different color(s)
+        if wanted_part in part_to_locations:
             # Part exists in collection in different color(s)
             for location in part_to_locations[wanted_part]:
                 new_row = row.copy()
                 new_row["Location"] = location
                 new_row["Available"] = False  # Not in exact color
                 new_row["Quantity_have"] = 0
+                new_row["Quantity_similar"] = 0
                 new_row["Replacement_parts"] = ""
-                additional_rows.append(new_row)
+                not_found_rows.append(new_row)
         else:
             # Part doesn't exist in collection in any form
             new_row = row.copy()
             new_row["Location"] = "❌ Not Found"
             new_row["Available"] = False
             new_row["Quantity_have"] = 0
+            new_row["Quantity_similar"] = 0
             new_row["Replacement_parts"] = ""
-            truly_not_found_rows.append(new_row)
+            not_found_rows.append(new_row)
 
-    # Combine all rows: found (exact match), similar parts, found in different colors, and truly not found
+    # Combine all rows: found (exact match with similar info), additional similar parts, and not found
     found_rows = merged[merged["Location"].notna()].copy()
     all_rows = [found_rows]
 
     if additional_rows:
         all_rows.append(pd.DataFrame(additional_rows))
-    if truly_not_found_rows:
-        all_rows.append(pd.DataFrame(truly_not_found_rows))
+    if not_found_rows:
+        all_rows.append(pd.DataFrame(not_found_rows))
 
     merged = pd.concat(all_rows, ignore_index=True)
     merged = merged.sort_values(by=["Location", "Part"])

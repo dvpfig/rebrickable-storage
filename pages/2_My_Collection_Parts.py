@@ -650,7 +650,7 @@ with st.expander("🧩 Custom RB-> BA Mapping Rules", expanded=False):
             st.rerun()
     
     st.markdown("---")
-    st.info("💡 **Mapping Priority**: 1) Strip pr/pat suffixes → 2) Excel file → 3) Custom mappings (exact then wildcard) → 4) Check Excel with original (if had pr/pat)")
+    st.info("💡 **Mapping Priority**: 1) Base mapping file (Excel from BA site) → 2) Custom mappings (CSV file, with wildcards) → 3) Retrieve original RB part number")
 
 
 st.markdown("---")
