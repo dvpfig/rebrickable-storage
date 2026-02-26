@@ -246,3 +246,129 @@ def find_alternative_colors_for_parts(
             alternatives[(part, original_color, location)] = part_alternatives
     
     return alternatives
+
+def render_color_similarity_slider(location: str, loc_parts_df, collection_df, color_similarity_matrix) -> dict:
+    """
+    Render the color similarity slider for a location and return alternative colors.
+
+    Only shown when there are insufficient parts in the location.
+
+    Args:
+        location: Location name (used for unique widget keys)
+        loc_parts_df: DataFrame of parts in this location
+        collection_df: Full collection DataFrame from session state
+        color_similarity_matrix: Pre-computed color similarity matrix
+
+    Returns:
+        dict: Alternative colors mapping {(part, color, location): [(alt_color_id, name, qty, distance), ...]}
+    """
+    import streamlit as st
+
+    alternative_colors = {}
+
+    # Check for insufficient parts
+    has_insufficient_parts = False
+    for _, row in loc_parts_df.iterrows():
+        qty_wanted = int(row["Quantity_wanted"])
+        qty_have = int(row.get("Quantity_have", 0))
+        qty_similar = int(row.get("Quantity_similar", 0))
+        available = row.get("Available", False)
+        total_available = qty_have + qty_similar
+        if not available or total_available < qty_wanted:
+            has_insufficient_parts = True
+            break
+
+    if not has_insufficient_parts:
+        return alternative_colors
+
+    st.markdown("**🎨 Color Similarity Settings**")
+    color_distance_key = f"color_distance_{location}"
+    if color_distance_key not in st.session_state:
+        st.session_state[color_distance_key] = 30.0
+
+    color_distance = st.slider(
+        "Adjust color similarity threshold (lower = closer colors only)",
+        min_value=0.0,
+        max_value=100.0,
+        value=st.session_state[color_distance_key],
+        step=5.0,
+        key=f"slider_{color_distance_key}",
+        help="0 = exact match only, 30 = similar colors, 60 = broader range"
+    )
+    st.session_state[color_distance_key] = color_distance
+
+    if color_distance > 0:
+        alternative_colors = find_alternative_colors_for_parts(
+            loc_parts_df,
+            collection_df,
+            color_similarity_matrix,
+            max_distance=color_distance
+        )
+
+    st.markdown("---")
+
+    return alternative_colors
+
+
+
+def render_color_similarity_slider(location: str, loc_parts_df, collection_df, color_similarity_matrix) -> dict:
+    """
+    Render the color similarity slider for a location and return alternative colors.
+    
+    Only shown when there are insufficient parts in the location.
+    
+    Args:
+        location: Location name (used for unique widget keys)
+        loc_parts_df: DataFrame of parts in this location
+        collection_df: Full collection DataFrame from session state
+        color_similarity_matrix: Pre-computed color similarity matrix
+        
+    Returns:
+        dict: Alternative colors mapping {(part, color, location): [(alt_color_id, name, qty, distance), ...]}
+    """
+    import streamlit as st
+    
+    alternative_colors = {}
+    
+    # Check for insufficient parts
+    has_insufficient_parts = False
+    for _, row in loc_parts_df.iterrows():
+        qty_wanted = int(row["Quantity_wanted"])
+        qty_have = int(row.get("Quantity_have", 0))
+        qty_similar = int(row.get("Quantity_similar", 0))
+        available = row.get("Available", False)
+        total_available = qty_have + qty_similar
+        if not available or total_available < qty_wanted:
+            has_insufficient_parts = True
+            break
+    
+    if not has_insufficient_parts:
+        return alternative_colors
+    
+    st.markdown("**🎨 Color Similarity Settings**")
+    color_distance_key = f"color_distance_{location}"
+    if color_distance_key not in st.session_state:
+        st.session_state[color_distance_key] = 30.0
+    
+    color_distance = st.slider(
+        "Adjust color similarity threshold (lower = closer colors only)",
+        min_value=0.0,
+        max_value=100.0,
+        value=st.session_state[color_distance_key],
+        step=5.0,
+        key=f"slider_{color_distance_key}",
+        help="0 = exact match only, 30 = similar colors, 60 = broader range"
+    )
+    st.session_state[color_distance_key] = color_distance
+    
+    if color_distance > 0:
+        alternative_colors = find_alternative_colors_for_parts(
+            loc_parts_df,
+            collection_df,
+            color_similarity_matrix,
+            max_distance=color_distance
+        )
+    
+    st.markdown("---")
+    
+    return alternative_colors

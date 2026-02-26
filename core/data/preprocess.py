@@ -63,6 +63,15 @@ def load_collection_files(files):
             df = pd.read_csv(file)
             label = str(file)
         df = sanitize_and_validate(df, ["Part", "Color", "Quantity", "Location"], label)
+        keep_cols = ["Part", "Color", "Quantity", "Location"]
+        if "Notes" in df.columns:
+            keep_cols.append("Notes")
+        df = df[["Part", "Color", "Quantity", "Location", "Notes"]].copy()
+        if "Notes" in df.columns:
+            df = df.rename(columns={"Notes": "Second_location"})
+        else:
+            df["Second_location"] = ""
+        df["Second_location"] = df["Second_location"].fillna("").astype(str).str.strip()
         dfs.append(df)
     return pd.concat(dfs, ignore_index=True)
 
@@ -91,7 +100,7 @@ def merge_wanted_collection(wanted, collection, rb_to_similar_mapping=None):
     # First merge: exact Part+Color match
     merged = pd.merge(
         wanted,
-        collection[["Part", "Color", "Location", "Quantity"]],
+        collection[["Part", "Color", "Location", "Quantity", "Second_location"]],
         on=["Part", "Color"],
         how="left",
         suffixes=("_wanted", "_have")
@@ -100,6 +109,9 @@ def merge_wanted_collection(wanted, collection, rb_to_similar_mapping=None):
     # Ensure Location column exists (in case collection is empty or no matches)
     if "Location" not in merged.columns:
         merged["Location"] = None
+    if "Second_location" not in merged.columns:
+        merged["Second_location"] = ""
+    merged["Second_location"] = merged["Second_location"].fillna("").astype(str).str.strip()
     
     merged["Available"] = merged["Location"].notna()
     merged["Quantity_have"] = merged.get("Quantity", 0).fillna(0).astype(int)
@@ -167,6 +179,7 @@ def merge_wanted_collection(wanted, collection, rb_to_similar_mapping=None):
                     new_row["Quantity_have"] = 0  # No exact match
                     new_row["Quantity_similar"] = total_similar_qty
                     new_row["Replacement_parts"] = ", ".join(sorted(set(similar_list)))
+                    new_row["Second_location"] = ""
                     additional_rows.append(new_row)
 
     # Handle parts not found at all
@@ -185,6 +198,7 @@ def merge_wanted_collection(wanted, collection, rb_to_similar_mapping=None):
                 new_row["Quantity_have"] = 0
                 new_row["Quantity_similar"] = 0
                 new_row["Replacement_parts"] = ""
+                new_row["Second_location"] = ""
                 not_found_rows.append(new_row)
         else:
             # Part doesn't exist in collection in any form
@@ -194,6 +208,7 @@ def merge_wanted_collection(wanted, collection, rb_to_similar_mapping=None):
             new_row["Quantity_have"] = 0
             new_row["Quantity_similar"] = 0
             new_row["Replacement_parts"] = ""
+            new_row["Second_location"] = ""
             not_found_rows.append(new_row)
 
     # Combine all rows: found (exact match with similar info), additional similar parts, and not found

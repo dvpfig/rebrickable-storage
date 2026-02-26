@@ -3,20 +3,21 @@ import pandas as pd
 from pathlib import Path
 import hashlib
 
-from core.infrastructure.session import short_key
 from core.state.progress import render_summary_table
 from core.infrastructure.paths import init_paths
 from core.parts.mapping import load_ba_mapping, build_rb_to_similar_parts_mapping, load_ba_part_names
 from core.data.preprocess import load_wanted_files, load_collection_files, merge_wanted_collection
-from core.parts.images import precompute_location_images, fetch_wanted_part_images, save_user_uploaded_image
-from core.data.colors import load_colors, build_color_lookup, render_color_cell
-from core.data.color_similarity import build_color_similarity_matrix, find_alternative_colors_for_parts
+from core.parts.images import precompute_location_images, fetch_wanted_part_images
+from core.data.colors import load_colors, build_color_lookup
+from core.data.color_similarity import build_color_similarity_matrix, render_color_similarity_slider
 from core.auth.security import validate_csv_file
 import os
 from dotenv import load_dotenv
-from typing import List, Tuple, Dict
 from core.data.sets import SetsManager
-from core.state.find_wanted_parts import get_unfound_parts, merge_set_results, render_missing_parts_by_set, render_set_search_section
+from core.state.find_wanted_parts import (
+    render_missing_parts_by_set, render_set_search_section,
+    render_second_location_parts, render_part_detail, render_location_actions, render_missing_parts_export
+)
 
 # Page configuration
 st.title("🔍 Find Wanted Parts")
@@ -350,7 +351,23 @@ if st.session_state.get("start_processing"):
     
     st.markdown("### 🧩 Parts Grouped by Location")
 
+    # Build second-location lookup: parts whose Second_location matches a location group
+    second_loc_parts = merged[merged["Second_location"].astype(str).str.strip() != ""].copy()
+    second_loc_by_location = {}
+    for _, row in second_loc_parts.iterrows():
+        sl = str(row["Second_location"]).strip()
+        if sl:
+            second_loc_by_location.setdefault(sl, []).append(row)
+
     loc_summary = merged.groupby("Location").agg(parts_count=("Part", "count"), total_wanted=("Quantity_wanted", "sum")).reset_index()
+
+    # Add location groups for second locations that don't exist as primary locations
+    existing_locations = set(loc_summary["Location"].values)
+    for sl_location in second_loc_by_location:
+        if sl_location not in existing_locations:
+            new_row = pd.DataFrame([{"Location": sl_location, "parts_count": 0, "total_wanted": 0}])
+            loc_summary = pd.concat([loc_summary, new_row], ignore_index=True)
+
     loc_summary = loc_summary.sort_values("Location")
 
     # Display Parts By Location
@@ -380,7 +397,13 @@ if st.session_state.get("start_processing"):
         imgs = st.session_state.get("locations_index", {}).get(location, [])
         
         # Build expander label with status indicator
-        status_indicator = "✅ All parts found" if all_found else f"{parts_count} part(s), {int(total_wanted)} total wanted"
+        second_loc_count = len(second_loc_by_location.get(location, []))
+        if parts_count == 0 and second_loc_count > 0:
+            status_indicator = f"📌 {second_loc_count} part(s) from other locations"
+        elif all_found:
+            status_indicator = "✅ All parts found"
+        else:
+            status_indicator = f"{parts_count} part(s), {int(total_wanted)} total wanted"
         
         # Check if this location is currently expanded
         is_expanded = location in st.session_state["expanded_locations"]
@@ -404,181 +427,28 @@ if st.session_state.get("start_processing"):
                 st.image(imgs[:50], width=60)
                 st.markdown("---")
             
-            # Check for insufficient parts
+            # Color similarity slider (renders only when there are insufficient parts)
             loc_parts_df = merged.loc[merged["Location"] == location].copy()
-            has_insufficient_parts = False
-            for _, row in loc_parts_df.iterrows():
-                qty_wanted = int(row["Quantity_wanted"])
-                qty_have = int(row.get("Quantity_have", 0))
-                qty_similar = int(row.get("Quantity_similar", 0))
-                available = row.get("Available", False)
-                total_available = qty_have + qty_similar
-                if not available or total_available < qty_wanted:
-                    has_insufficient_parts = True
-                    break
-            
-            # Color similarity slider
-            alternative_colors = {}
-            if has_insufficient_parts:
-                st.markdown("**🎨 Color Similarity Settings**")
-                color_distance_key = f"color_distance_{location}"
-                if color_distance_key not in st.session_state:
-                    st.session_state[color_distance_key] = 30.0
-                
-                color_distance = st.slider(
-                    "Adjust color similarity threshold (lower = closer colors only)",
-                    min_value=0.0,
-                    max_value=100.0,
-                    value=st.session_state[color_distance_key],
-                    step=5.0,
-                    key=f"slider_{color_distance_key}",
-                    help="0 = exact match only, 30 = similar colors, 60 = broader range"
-                )
-                st.session_state[color_distance_key] = color_distance
-                
-                if color_distance > 0:
-                    alternative_colors = find_alternative_colors_for_parts(
-                        loc_parts_df,
-                        st.session_state.get("collection_df"),
-                        color_similarity_matrix,
-                        max_distance=color_distance
-                    )
-                
-                st.markdown("---")
+            alternative_colors = render_color_similarity_slider(
+                location, loc_parts_df,
+                st.session_state.get("collection_df"),
+                color_similarity_matrix
+            )
 
             # List parts in this location
             loc_group = merged.loc[merged["Location"] == location]
             for part_num, part_group in loc_group.groupby("Part"):
-                img_url = st.session_state.get("part_images_map", {}).get(str(part_num), "")
-                ba_name = part_group["BA_part_name"].iloc[0] if "BA_part_name" in part_group.columns else ""
-                
-                left, right = st.columns([1, 4])
-                with left:
-                    st.markdown(f"##### **{part_num}**")
-                    st.markdown(f"{ba_name}")
-                    replacement_parts = part_group["Replacement_parts"].iloc[0] if "Replacement_parts" in part_group.columns else ""
-                    if replacement_parts:
-                        st.markdown(f"(replace with {replacement_parts})")
+                render_part_detail(
+                    part_num, part_group, location, alternative_colors,
+                    color_lookup, user_uploaded_images_dir
+                )
 
-                    if img_url:
-                        st.image(img_url, width=100)
-                    else:
-                        st.text("🚫 No image")
-                        upload_key = f"upload_{part_num}_{location}"
-                        uploaded_file = st.file_uploader(
-                            "Upload image",
-                            type=["png", "jpg", "jpeg"],
-                            key=upload_key,
-                            label_visibility="collapsed",
-                            help=f"Upload a custom image for part {part_num}"
-                        )
-                        if uploaded_file is not None:
-                            if save_user_uploaded_image(uploaded_file, str(part_num), user_uploaded_images_dir):
-                                st.success("✅ Image saved!")
-                                precompute_location_images.clear()
-                                fetch_wanted_part_images.clear()
-                                st.rerun()
-                            else:
-                                st.error("❌ Failed to save image")
-                
-                with right:
-                    header = st.columns([2.5, 1, 1, 2])
-                    header[0].markdown("**Color**")
-                    header[1].markdown("**Wanted**")
-                    header[2].markdown("**Available**")
-                    header[3].markdown("**Found**")
-
-                    for row_idx, row in part_group.iterrows():
-                        color_html = render_color_cell(row["Color"], color_lookup)
-                        qty_wanted = int(row["Quantity_wanted"])
-                        qty_have = int(row["Quantity_have"])
-                        qty_similar = int(row.get("Quantity_similar", 0))
-                        key = (str(row["Part"]), str(row["Color"]), str(row["Location"]))
-                        found = st.session_state.get("found_counts", {}).get(key, 0)
-
-                        cols = st.columns([2.5, 1, 1, 2])
-                        cols[0].markdown(color_html, unsafe_allow_html=True)
-                        cols[1].markdown(f"{qty_wanted}")
-                        
-                        # Display format: exact + similar (if similar parts exist)
-                        if qty_similar > 0:
-                            total_available = qty_have + qty_similar
-                            if qty_have == 0:
-                                # Only similar parts available
-                                if total_available >= qty_wanted:
-                                    available_display = f"✅ 0 + {qty_similar}"
-                                else:
-                                    available_display = f"⚠️ 0 + {qty_similar}"
-                            else:
-                                # Both exact and similar parts available
-                                if total_available >= qty_wanted:
-                                    available_display = f"✅ {qty_have} + {qty_similar}"
-                                else:
-                                    available_display = f"⚠️ {qty_have} + {qty_similar}"
-                        else:
-                            # No similar parts, show only exact match quantity
-                            if not row["Available"] or qty_have == 0:
-                                available_display = "0 ❌"
-                            elif qty_have >= qty_wanted:
-                                available_display = f"✅ {qty_have}"
-                            else:
-                                available_display = f"⚠️ {qty_have}"
-                        cols[2].markdown(available_display)
-
-                        widget_key = short_key("found_input", row["Part"], row["Color"], row["Location"], row_idx)
-                        new_found = cols[3].number_input(
-                            " ", min_value=0, max_value=qty_wanted, value=int(found), step=1,
-                            key=widget_key, label_visibility="collapsed"
-                        )
-                        if int(new_found) != int(found):
-                            if "found_counts" not in st.session_state:
-                                st.session_state["found_counts"] = {}
-                            st.session_state["found_counts"][key] = int(new_found)
-
-                        complete = st.session_state.get("found_counts", {}).get(key, 0) >= qty_wanted
-                        cols[3].markdown(
-                            f"✅ Found all ({st.session_state.get('found_counts', {}).get(key, 0)}/{qty_wanted})"
-                            if complete 
-                            else f"**Found:** {st.session_state.get('found_counts', {}).get(key, 0)}/{qty_wanted}"
-                        )
-                        
-                        # Show alternative colors
-                        alt_key = (str(row["Part"]), int(row["Color"]), str(row["Location"]))
-                        if alt_key in alternative_colors and (not row["Available"] or qty_have < qty_wanted):
-                            alternatives = alternative_colors[alt_key]
-                            if alternatives:
-                                with st.expander(f"🎨 {len(alternatives)} alternative color(s) available", expanded=False):
-                                    st.markdown("**Alternative colors in this location:**")
-                                    for alt_color_id, alt_color_name, alt_qty, distance in alternatives[:5]:
-                                        alt_color_html = render_color_cell(alt_color_id, color_lookup)
-                                        alt_cols = st.columns([2.5, 1, 1])
-                                        alt_cols[0].markdown(alt_color_html, unsafe_allow_html=True)
-                                        alt_cols[1].markdown(f"Qty: **{alt_qty}**")
-                                        if distance < 15:
-                                            similarity = "Very similar"
-                                        elif distance < 30:
-                                            similarity = "Similar"
-                                        elif distance < 50:
-                                            similarity = "Somewhat similar"
-                                        else:
-                                            similarity = "Different"
-                                        alt_cols[2].markdown(f"*{similarity}*")
+            # Render parts available here as second location
+            second_loc_rows = second_loc_by_location.get(location, [])
+            render_second_location_parts(location, second_loc_rows, color_lookup)
 
             # Mark all / Clear all buttons
-            st.markdown("---")
-            colM, colC = st.columns([1, 1])
-            with colM:
-                if st.button("Mark all found ✔", key=short_key("markall", location), help="Fill all items for this location", width='stretch'):
-                    if "found_counts" not in st.session_state:
-                        st.session_state["found_counts"] = {}
-                    for _, r in loc_group.iterrows():
-                        k = (str(r["Part"]), str(r["Color"]), str(r["Location"]))
-                        st.session_state["found_counts"][k] = int(r["Quantity_wanted"])
-            with colC:
-                if st.button("Clear found ✖", key=short_key("clearall", location), help="Clear found counts for this location", width='stretch'):
-                    for _, r in loc_group.iterrows():
-                        k = (str(r["Part"]), str(r["Color"]), str(r["Location"]))
-                        st.session_state.get("found_counts", {}).pop(k, None)
+            render_location_actions(location, loc_group)
         
         st.markdown('<hr class="location-separator">', unsafe_allow_html=True)
 
@@ -595,20 +465,8 @@ if st.session_state.get("start_processing"):
     csv = merged.to_csv(index=False).encode("utf-8")
     st.download_button("💾 Download merged CSV", csv, "lego_wanted_with_location.csv", type="primary")
     
-    # Export missing parts button
-    not_found_parts = merged[merged["Location"] == "❌ Not Found"].copy()
-    if not not_found_parts.empty:
-        st.markdown("---")
-        st.markdown("### ❌ Not Available")
-        st.markdown(f"**{len(not_found_parts)} part(s)** not found in your collection.")
-        
-        # Create Rebrickable format CSV (Part, Color, Quantity)
-        export_df = not_found_parts[["Part", "Color", "Quantity_wanted"]].copy()
-        export_df.columns = ["Part", "Color", "Quantity"]
-        export_csv = export_df.to_csv(index=False).encode("utf-8")
-        
-        st.download_button("📥 Export Missing Parts (Rebrickable Format)",
-            export_csv, "missing_parts_rebrickable.csv", type="primary")
+    # Export missing parts
+    render_missing_parts_export(merged)
 
     # ---------------------------------------------------------------------
     # --- Set Search Section

@@ -193,7 +193,7 @@ def render_missing_parts_by_set(set_results: Dict, merged_df: pd.DataFrame,
             if color_id is not None:
                 matching_rows = merged_df[
                     (merged_df["Part"].astype(str) == str(part_num)) & 
-                    (merged_df["Color"] == color_id)
+                    (merged_df["Color"].astype(str) == str(color_id))
                 ]
                 
                 if not matching_rows.empty:
@@ -426,3 +426,235 @@ def render_set_search_section(merged_df: pd.DataFrame, sets_manager, color_looku
             st.session_state["show_set_selection"] = False
             st.session_state["selected_sets_for_search"] = set()
             st.rerun()
+
+
+def render_second_location_parts(location: str, second_loc_rows: list, color_lookup: Dict) -> None:
+    """
+    Render parts that are available at a location as their second location.
+    
+    Args:
+        location: The current location being rendered
+        second_loc_rows: List of row dicts for parts whose Second_location matches this location
+        color_lookup: Dictionary mapping color IDs to color info
+    """
+    import streamlit as st
+    from core.data.colors import render_color_cell
+    
+    if not second_loc_rows:
+        return
+    
+    st.markdown("---")
+    st.markdown("**📌 Also available here (second location):**")
+    sl_df = pd.DataFrame(second_loc_rows)
+    for sl_part_num, sl_part_group in sl_df.groupby("Part"):
+        img_url = st.session_state.get("part_images_map", {}).get(str(sl_part_num), "")
+        ba_name = sl_part_group["BA_part_name"].iloc[0] if "BA_part_name" in sl_part_group.columns else ""
+
+        left, right = st.columns([1, 4])
+        with left:
+            st.markdown(f"##### **{sl_part_num}**")
+            if ba_name:
+                st.markdown(f"{ba_name}")
+            if img_url:
+                st.image(img_url, width=100)
+            else:
+                st.text("🚫 No image")
+        with right:
+            header = st.columns([2.5, 1, 2.5])
+            header[0].markdown("**Color**")
+            header[1].markdown("**Wanted**")
+            header[2].markdown("**Primary location**")
+
+            for _, sl_row in sl_part_group.iterrows():
+                color_html = render_color_cell(sl_row["Color"], color_lookup)
+                sl_qty_wanted = int(sl_row["Quantity_wanted"])
+                sl_primary = str(sl_row["Location"])
+                cols = st.columns([2.5, 1, 2.5])
+                cols[0].markdown(color_html, unsafe_allow_html=True)
+                cols[1].markdown(f"{sl_qty_wanted}")
+                cols[2].markdown(f"📍 {sl_primary}")
+
+
+def render_part_detail(part_num, part_group, location: str, alternative_colors: dict,
+                       color_lookup: Dict, user_uploaded_images_dir) -> None:
+    """
+    Render the detail view for a single part within a location card.
+    
+    Shows part image, color rows with wanted/available/found counts,
+    found input widgets, and alternative color suggestions.
+    
+    Args:
+        part_num: The part number being rendered
+        part_group: DataFrame group for this part at this location
+        location: Current location name
+        alternative_colors: Dict of alternative colors from similarity search
+        color_lookup: Dictionary mapping color IDs to color info
+        user_uploaded_images_dir: Path to user's uploaded images directory
+    """
+    import streamlit as st
+    from core.infrastructure.session import short_key
+    from core.data.colors import render_color_cell
+    from core.parts.images import save_user_uploaded_image, precompute_location_images, fetch_wanted_part_images
+    
+    img_url = st.session_state.get("part_images_map", {}).get(str(part_num), "")
+    ba_name = part_group["BA_part_name"].iloc[0] if "BA_part_name" in part_group.columns else ""
+    
+    left, right = st.columns([1, 4])
+    with left:
+        st.markdown(f"##### **{part_num}**")
+        st.markdown(f"{ba_name}")
+        replacement_parts = part_group["Replacement_parts"].iloc[0] if "Replacement_parts" in part_group.columns else ""
+        if replacement_parts:
+            st.markdown(f"(replace with {replacement_parts})")
+
+        if img_url:
+            st.image(img_url, width=100)
+        else:
+            st.text("🚫 No image")
+            upload_key = f"upload_{part_num}_{location}"
+            uploaded_file = st.file_uploader(
+                "Upload image",
+                type=["png", "jpg", "jpeg"],
+                key=upload_key,
+                label_visibility="collapsed",
+                help=f"Upload a custom image for part {part_num}"
+            )
+            if uploaded_file is not None:
+                if save_user_uploaded_image(uploaded_file, str(part_num), user_uploaded_images_dir):
+                    st.success("✅ Image saved!")
+                    precompute_location_images.clear()
+                    fetch_wanted_part_images.clear()
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to save image")
+    
+    with right:
+        header = st.columns([2.5, 1, 1, 2])
+        header[0].markdown("**Color**")
+        header[1].markdown("**Wanted**")
+        header[2].markdown("**Available**")
+        header[3].markdown("**Found**")
+
+        for row_idx, row in part_group.iterrows():
+            color_html = render_color_cell(row["Color"], color_lookup)
+            qty_wanted = int(row["Quantity_wanted"])
+            qty_have = int(row["Quantity_have"])
+            qty_similar = int(row.get("Quantity_similar", 0))
+            key = (str(row["Part"]), str(row["Color"]), str(row["Location"]))
+            found = st.session_state.get("found_counts", {}).get(key, 0)
+
+            cols = st.columns([2.5, 1, 1, 2])
+            cols[0].markdown(color_html, unsafe_allow_html=True)
+            cols[1].markdown(f"{qty_wanted}")
+            
+            # Display format: exact + similar (if similar parts exist)
+            if qty_similar > 0:
+                total_available = qty_have + qty_similar
+                if qty_have == 0:
+                    if total_available >= qty_wanted:
+                        available_display = f"✅ 0 + {qty_similar}"
+                    else:
+                        available_display = f"⚠️ 0 + {qty_similar}"
+                else:
+                    if total_available >= qty_wanted:
+                        available_display = f"✅ {qty_have} + {qty_similar}"
+                    else:
+                        available_display = f"⚠️ {qty_have} + {qty_similar}"
+            else:
+                if not row["Available"] or qty_have == 0:
+                    available_display = "0 ❌"
+                elif qty_have >= qty_wanted:
+                    available_display = f"✅ {qty_have}"
+                else:
+                    available_display = f"⚠️ {qty_have}"
+            cols[2].markdown(available_display)
+
+            widget_key = short_key("found_input", row["Part"], row["Color"], row["Location"], row_idx)
+            new_found = cols[3].number_input(
+                " ", min_value=0, max_value=qty_wanted, value=int(found), step=1,
+                key=widget_key, label_visibility="collapsed"
+            )
+            if int(new_found) != int(found):
+                if "found_counts" not in st.session_state:
+                    st.session_state["found_counts"] = {}
+                st.session_state["found_counts"][key] = int(new_found)
+
+            complete = st.session_state.get("found_counts", {}).get(key, 0) >= qty_wanted
+            cols[3].markdown(
+                f"✅ Found all ({st.session_state.get('found_counts', {}).get(key, 0)}/{qty_wanted})"
+                if complete 
+                else f"**Found:** {st.session_state.get('found_counts', {}).get(key, 0)}/{qty_wanted}"
+            )
+            
+            # Show alternative colors
+            alt_key = (str(row["Part"]), int(row["Color"]), str(row["Location"]))
+            if alt_key in alternative_colors and (not row["Available"] or qty_have < qty_wanted):
+                alternatives = alternative_colors[alt_key]
+                if alternatives:
+                    with st.expander(f"🎨 {len(alternatives)} alternative color(s) available", expanded=False):
+                        st.markdown("**Alternative colors in this location:**")
+                        for alt_color_id, alt_color_name, alt_qty, distance in alternatives[:5]:
+                            alt_color_html = render_color_cell(alt_color_id, color_lookup)
+                            alt_cols = st.columns([2.5, 1, 1])
+                            alt_cols[0].markdown(alt_color_html, unsafe_allow_html=True)
+                            alt_cols[1].markdown(f"Qty: **{alt_qty}**")
+                            if distance < 15:
+                                similarity = "Very similar"
+                            elif distance < 30:
+                                similarity = "Similar"
+                            elif distance < 50:
+                                similarity = "Somewhat similar"
+                            else:
+                                similarity = "Different"
+                            alt_cols[2].markdown(f"*{similarity}*")
+
+
+def render_location_actions(location: str, loc_group) -> None:
+    """
+    Render Mark all / Clear all buttons for a location.
+    
+    Args:
+        location: Location name
+        loc_group: DataFrame group for this location
+    """
+    import streamlit as st
+    from core.infrastructure.session import short_key
+    
+    st.markdown("---")
+    colM, colC = st.columns([1, 1])
+    with colM:
+        if st.button("Mark all found ✔", key=short_key("markall", location), help="Fill all items for this location", width='stretch'):
+            if "found_counts" not in st.session_state:
+                st.session_state["found_counts"] = {}
+            for _, r in loc_group.iterrows():
+                k = (str(r["Part"]), str(r["Color"]), str(r["Location"]))
+                st.session_state["found_counts"][k] = int(r["Quantity_wanted"])
+    with colC:
+        if st.button("Clear found ✖", key=short_key("clearall", location), help="Clear found counts for this location", width='stretch'):
+            for _, r in loc_group.iterrows():
+                k = (str(r["Part"]), str(r["Color"]), str(r["Location"]))
+                st.session_state.get("found_counts", {}).pop(k, None)
+
+
+def render_missing_parts_export(merged: pd.DataFrame) -> None:
+    """
+    Render the export section for parts not found in the collection.
+    
+    Args:
+        merged: Merged DataFrame with all parts data
+    """
+    import streamlit as st
+    
+    not_found_parts = merged[merged["Location"] == "❌ Not Found"].copy()
+    if not not_found_parts.empty:
+        st.markdown("---")
+        st.markdown("### ❌ Not Available")
+        st.markdown(f"**{len(not_found_parts)} part(s)** not found in your collection.")
+        
+        # Create Rebrickable format CSV (Part, Color, Quantity)
+        export_df = not_found_parts[["Part", "Color", "Quantity_wanted"]].copy()
+        export_df.columns = ["Part", "Color", "Quantity"]
+        export_csv = export_df.to_csv(index=False).encode("utf-8")
+        
+        st.download_button("📥 Export Missing Parts (Rebrickable Format)",
+            export_csv, "missing_parts_rebrickable.csv", type="primary")

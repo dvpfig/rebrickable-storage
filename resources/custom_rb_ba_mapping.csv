@@ -7,4 +7,10 @@ BA partnum,Part description,RB pattern 1,RB pattern 2,RB pattern 3,RB pattern 4
 37364,Minifig Legs Medium,37364c**,37364c**pr**,37364c**pat**,
 93552,Paint brush,93552pr**,93552pat**,,
 90463,Equipment Magnifying Glass,30152pat**,38648pat**,10830pat**,
-22385,"2×3 Tile, Pentagonal",22385pr**,None,None,
+22385,"2×3 Tile, Pentagonal",22385pr**,,,
+73152,"Minidoll torso, woman","
+92816c**pr**",92456c**pr**,None,None
+73441,"Minidoll torso, man","
+92815c**pr**",None,None,None
+11407,Minidoll skirt,11407c**pr**,92818c**pr**,,None
+92198,Minidoll head,92198pr**,None,None,None
