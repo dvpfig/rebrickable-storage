@@ -9,12 +9,12 @@ def create_default_custom_mapping_csv(csv_path: Path):
     """
     Create a default custom mapping CSV file with all mapping rules.
     Includes the previously hardcoded generalized rules.
-    
+
     Wildcard patterns:
     - * matches any single digit
     - ** matches any sequence of digits
     - ? matches any single letter
-    
+
     Args:
         csv_path: Path where the CSV file should be created
     """
@@ -26,38 +26,46 @@ def create_default_custom_mapping_csv(csv_path: Path):
             "73161",
             "3626pb"
         ],
-        "RB part_1": [
+        "Part description": [
+            "Minifig torso with color codes",
+            "Minifig legs with color codes - any 970c{number} maps to 970c{number}",
+            "Minidoll torso, girl",
+            "Minidoll torso, boy",
+            "Minifig face printed"
+        ],
+        "RB pattern 1": [
             "973c**h**pr**",
             "970?**pr**",
             "92816c**pr**",
             "92815c**pr**",
             "3626?pr**"
         ],
-        "RB part_2": [
+        "RB pattern 2": [
             "973g**c**h**pr**",
             "970l**r**pr**",
             "",
             "",
             "28621pr**"
         ],
-        "RB part_3": [
+        "RB pattern 3": [
             "973?**pr**",
             "970?**",
             "",
             "",
             ""
         ],
-        "Description": [
-            "Minifig torso with color codes",
-            "Minifig legs with color codes - any 970c{number} maps to 970c{number}",
-            "Minidoll torso, girl",
-            "Minidoll torso, boy",
-            "Minifig face printed"
+        "RB pattern 4": [
+            "",
+            "",
+            "",
+            "",
+            ""
         ]
     }
-    
+
     df = pd.DataFrame(default_data)
     df.to_csv(csv_path, index=False)
+
 
 
 def load_custom_mapping_csv(csv_path: Path) -> pd.DataFrame:
@@ -83,19 +91,21 @@ def load_custom_mapping_csv(csv_path: Path) -> pd.DataFrame:
         # Ensure required columns exist
         if "BA partnum" not in df.columns:
             df["BA partnum"] = ""
-        if "RB part_1" not in df.columns:
-            df["RB part_1"] = ""
-        if "RB part_2" not in df.columns:
-            df["RB part_2"] = ""
-        if "RB part_3" not in df.columns:
-            df["RB part_3"] = ""
-        if "Description" not in df.columns:
-            df["Description"] = ""
+        if "Part description" not in df.columns:
+            df["Part description"] = ""
+        if "RB pattern 1" not in df.columns:
+            df["RB pattern 1"] = ""
+        if "RB pattern 2" not in df.columns:
+            df["RB pattern 2"] = ""
+        if "RB pattern 3" not in df.columns:
+            df["RB pattern 3"] = ""
+        if "RB pattern 4" not in df.columns:
+            df["RB pattern 4"] = ""
         
         return df
     except Exception as e:
         st.error(f"Error loading custom mapping CSV: {e}")
-        return pd.DataFrame(columns=["BA partnum", "RB part_1", "RB part_2", "RB part_3", "Description"])
+        return pd.DataFrame(columns=["BA partnum", "Part description", "RB pattern 1", "RB pattern 2", "RB pattern 3", "RB pattern 4"])
 
 
 def save_custom_mapping_csv(df: pd.DataFrame, csv_path: Path):
@@ -166,7 +176,7 @@ def build_custom_mapping_dict(df: pd.DataFrame) -> dict:
     """
     Build a mapping dictionary from custom mapping DataFrame.
     Handles both exact matches and wildcard patterns.
-    Supports multiple RB part columns (RB part_1, RB part_2, RB part_3).
+    Supports multiple RB pattern columns (RB pattern 1 through RB pattern 4).
     
     Wildcard patterns:
     - * matches any single digit
@@ -192,8 +202,8 @@ def build_custom_mapping_dict(df: pd.DataFrame) -> dict:
         if not ba_part or ba_part.lower() in ["nan", "none"]:
             continue
         
-        # Process all RB part columns
-        for col_name in ["RB part_1", "RB part_2", "RB part_3"]:
+        # Process all RB pattern columns
+        for col_name in ["RB pattern 1", "RB pattern 2", "RB pattern 3", "RB pattern 4"]:
             rb_part = str(row.get(col_name, "")).strip()
             
             # Skip empty RB parts

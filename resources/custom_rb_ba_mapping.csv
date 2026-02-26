@@ -1,10 +1,10 @@
-BA partnum,RB part_1,RB part_2,RB part_3,Description
-973,973c**h**pr**,973g**c**h**pr**,973?**pr**,Minifig Torso
-73200,970?**pr**,970l**r**pr**,970?**,Minifig Legs
-73141,92816c**pr**,,,"Minidoll torso, girl"
-73161,92815c**pr**,,,"Minidoll torso, boy"
-3626pb,3626?pr**,28621pr**,,Minifig face printed
-37364,37364c**,37364c**pr**,37364c**pat**,Minifig Legs Medium
-93552,93552pr**,93552pat**,,Paint brush
-90463,30152pat**,38648pat**,10830pat**,Equipment Magnifying Glass
-22385,22385pr**,None,None,"2×3 Tile, Pentagonal"
+BA partnum,Part description,RB pattern 1,RB pattern 2,RB pattern 3,RB pattern 4
+973,Minifig Torso,973c**h**pr**,973g**c**h**pr**,973?**pr**,
+73200,Minifig Legs,970?**pr**,970l**r**pr**,970?**,
+73141,"Minidoll torso, girl",92816c**pr**,,,
+73161,"Minidoll torso, boy",92815c**pr**,,,
+3626pb,Minifig face printed,3626?pr**,28621pr**,,
+37364,Minifig Legs Medium,37364c**,37364c**pr**,37364c**pat**,
+93552,Paint brush,93552pr**,93552pat**,,
+90463,Equipment Magnifying Glass,30152pat**,38648pat**,10830pat**,
+22385,"2×3 Tile, Pentagonal",22385pr**,None,None,

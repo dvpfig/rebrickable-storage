@@ -42,7 +42,7 @@ class Paths:
             )
             st.info(
                 "💡 The mapping file should be named in the format: "
-                "`part number - BA vs RB - YYYY-MM-DD.xlsx`"
+                "`base_part_mapping_YYYY-MM-DD.xlsx`"
             )
             st.stop()
 

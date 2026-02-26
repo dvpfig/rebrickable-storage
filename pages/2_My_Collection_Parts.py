@@ -221,7 +221,7 @@ with col_collection1:
     """)
     
     uploaded_files_list = st.file_uploader(
-        "Upload Collection CSVs",
+        "Upload CSV file(s) with Collection of Parts",
         type=["csv"],
         accept_multiple_files=True,
         key="main_collection_uploader"
@@ -478,7 +478,7 @@ with col_sync2:
                 from datetime import datetime
                 
                 timestamp = datetime.now().strftime("%Y-%m-%d")
-                output_file = paths.resources_dir / f"part number - BA vs RB - {timestamp}.xlsx"
+                output_file = paths.resources_dir / f"base_part_mapping_{timestamp}.xlsx"
                 
                 with st.spinner("Fetching BA parts..."):
                     stats = fetch_all_ba_parts(
@@ -564,7 +564,7 @@ with st.expander("🧩 Custom RB-> BA Mapping Rules", expanded=False):
     st.markdown("""
     The application uses a two-tier mapping system to convert Rebrickable (RB) part numbers to BrickArchitect (BA) part numbers:
     
-    1. **Excel File Mapping** (Primary): Explicit mappings from `part number - BA vs RB - {date}.xlsx`
+    1. **Excel File Mapping** (Primary): Explicit mappings from `base_part_mapping_{date}.xlsx`
     2. **Custom Mapping CSV** (Secondary): User-defined mappings with wildcard support
     
     All mapping rules are now managed in the custom CSV file below, including previously hardcoded patterns.
@@ -583,7 +583,7 @@ with st.expander("🧩 Custom RB-> BA Mapping Rules", expanded=False):
     - `3626?pr**` matches `3626apr01`, `3626bpr9999`, etc. (3626 + letter + pr + digits)
     - `970?**` matches `970c01`, `970a123`, etc. (970 + letter + digits)
     
-    **Multiple RB Patterns:** Use RB part_1, RB part_2, and RB part_3 columns to define alternative patterns that map to the same BA part.
+    **Multiple RB Patterns:** Use RB pattern 1 through RB pattern 4 columns to define alternative patterns that map to the same BA part.
     """)
     
     from core.parts.custom_mapping import load_custom_mapping_csv, save_custom_mapping_csv
@@ -606,24 +606,29 @@ with st.expander("🧩 Custom RB-> BA Mapping Rules", expanded=False):
                 required=True,
                 width="small"
             ),
-            "RB part_1": st.column_config.TextColumn(
+            "RB pattern 1": st.column_config.TextColumn(
                 "RB Pattern 1",
                 help="Rebrickable part pattern (can include wildcards: * for single digit, ** for multiple digits)",
                 required=True,
                 width="small"
             ),
-            "RB part_2": st.column_config.TextColumn(
+            "RB pattern 2": st.column_config.TextColumn(
                 "RB Pattern 2",
                 help="Alternative Rebrickable part pattern (optional)",
                 width="small"
             ),
-            "RB part_3": st.column_config.TextColumn(
+            "RB pattern 3": st.column_config.TextColumn(
                 "RB Pattern 3",
                 help="Alternative Rebrickable part pattern (optional)",
                 width="small"
             ),
-            "Description": st.column_config.TextColumn(
-                "Description",
+            "RB pattern 4": st.column_config.TextColumn(
+                "RB Pattern 4",
+                help="Alternative Rebrickable part pattern (optional)",
+                width="small"
+            ),
+            "Part description": st.column_config.TextColumn(
+                "Part Description",
                 help="Optional description of this mapping rule",
                 width="medium"
             )

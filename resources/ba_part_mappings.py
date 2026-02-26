@@ -56,11 +56,11 @@ def find_latest_mapping_file(resources_dir: Path):
     """
     import re
     
-    # Pattern to match files like "part number - BA vs RB - 2026-01-18.xlsx"
-    pattern = re.compile(r"part number - BA vs RB - (\d{4}-\d{2}-\d{2})\.xlsx")
+    # Pattern to match files like "base_part_mapping_2026-01-18.xlsx"
+    pattern = re.compile(r"base_part_mapping_(\d{4}-\d{2}-\d{2})\.xlsx")
     
     mapping_files = []
-    for file in resources_dir.glob("part number - BA vs RB - *.xlsx"):
+    for file in resources_dir.glob("base_part_mapping_*.xlsx"):
         match = pattern.match(file.name)
         if match:
             date_str = match.group(1)
@@ -93,11 +93,11 @@ def display_mapping_files_info(resources_dir: Path, count_parts_callback=None):
     
     try:
         # Pattern to match mapping files
-        pattern = re.compile(r"part number - BA vs RB - (\d{4}-\d{2}-\d{2})\.xlsx")
+        pattern = re.compile(r"base_part_mapping_(\d{4}-\d{2}-\d{2})\.xlsx")
         
         # Find all mapping files
         mapping_files = []
-        for file in resources_dir.glob("part number - BA vs RB - *.xlsx"):
+        for file in resources_dir.glob("base_part_mapping_*.xlsx"):
             match = pattern.match(file.name)
             if match:
                 date_str = match.group(1)
@@ -534,7 +534,7 @@ if __name__ == "__main__":
     
     SCRIPT_DIR = Path(__file__).parent
     timestamp = datetime.now().strftime("%Y-%m-%d")
-    OUTPUT_FILE = SCRIPT_DIR / f"part number - BA vs RB - {timestamp}.xlsx"
+    OUTPUT_FILE = SCRIPT_DIR / f"base_part_mapping_{timestamp}.xlsx"
     
     # Check command line arguments
     if len(sys.argv) > 1:

@@ -51,7 +51,7 @@ def render_csv_upload_section(sets_manager: SetsManager) -> None:
     
     # File uploader
     uploaded_file = st.file_uploader(
-        "Choose a CSV file",
+        "Upload CSV file(s) with Collection of Sets",
         type=['csv'],
         key="sets_csv_uploader",
         help="Upload a CSV file with your LEGO sets collection"

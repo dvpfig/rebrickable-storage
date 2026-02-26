@@ -90,8 +90,14 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.markdown("### 🗂️ Wanted parts: Upload")
+    st.markdown("""
+    Upload CSV files with the parts you need. Expected format (Rebrickable CSV export):
+    - **Part**: Part number (e.g., "3001")
+    - **Color**: Color ID (e.g., "4" for Red)
+    - **Quantity**: Number of parts needed
+    """)
     wanted_files_raw = st.file_uploader(
-        "Upload Wanted CSVs", 
+        "Upload CSV file(s) with Wanted Parts", 
         type=["csv"], 
         accept_multiple_files=True, 
         key="wanted_uploader"

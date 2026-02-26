@@ -38,6 +38,7 @@ def load_wanted_files(files):
     for file in files:
         df = pd.read_csv(file)
         df = sanitize_and_validate(df, ["Part", "Color", "Quantity"], getattr(file, "name", "uploaded_wanted"))
+        df = df[["Part", "Color", "Quantity"]].copy()
         df = df.rename(columns={"Quantity": "Quantity_wanted"})
         dfs.append(df)
     return pd.concat(dfs, ignore_index=True)
