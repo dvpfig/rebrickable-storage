@@ -66,7 +66,7 @@ def load_collection_files(files):
         keep_cols = ["Part", "Color", "Quantity", "Location"]
         if "Notes" in df.columns:
             keep_cols.append("Notes")
-        df = df[["Part", "Color", "Quantity", "Location", "Notes"]].copy()
+        df = df[keep_cols].copy()
         if "Notes" in df.columns:
             df = df.rename(columns={"Notes": "Second_location"})
         else:

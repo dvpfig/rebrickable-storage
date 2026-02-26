@@ -5,70 +5,99 @@ APPLICATION EXECUTION FLOW
 ┌─ app.py (Main Entry Point)
 │
 ├─┬─ CORE MODULES
-│ ├─ core/auth.py
-│     └─ __init__(self, config_path, audit_log_dir)
-│     └─ _create_default_config(self)
-│     └─ check_session_timeout(self, username)
-│ ├─ core/color_similarity.py
-│     └─ rgb_to_lab(rgb_hex)
-│     └─ calculate_color_distance(color1_rgb, color2_rgb, is_trans1, ...)
-│     └─ build_color_similarity_matrix(colors_df)
-│ ├─ core/colors.py
-│     └─ load_colors(colors_path)
-│     └─ build_color_lookup(colors_df)
-│     └─ render_color_cell(color_id, color_lookup)
-│ ├─ core/download_helpers.py
-│     └─ create_download_callbacks(stop_flag_key, show_stats, stats_formatter)
-│     └─ __init__(self, stop_flag_key, show_stats, ...)
-│     └─ progress_callback(self, message, status)
-│ ├─ core/images.py
-│     └─ precompute_location_images(collection_df_serialized, ba_mapping, cache_images_dir, ...)
-│     └─ fetch_image_bytes(url, _session)
-│     └─ _fetch_single_image(identifier, cache_dir, session)
-│ ├─ core/labels.py
-│     └─ organize_labels_by_location(collection_df, ba_mapping, labels_source_dir, ...)
-│     └─ generate_collection_labels_zip(collection_files_stream, ba_mapping, labels_source_dir, ...)
-│ ├─ core/lbx_merger.py
-│     └─ main()
-│     └─ __init__(self, max_length_mm, spacing_mm)
-│     └─ parse_label_xml(self, xml)
-│ ├─ core/mapping.py
-│     └─ read_ba_mapping_from_excel_bytes(excel_bytes)
-│     └─ load_ba_part_names(mapping_path)
-│     └─ load_ba_mapping(mapping_path)
-│ ├─ core/paths.py
-│     └─ init_paths()
-│     └─ save_uploadedfiles(uploadedfiles_list, user_collection_dir)
-│     └─ manage_default_collection(user_collection_dir)
-│ ├─ core/preprocess.py
-│     └─ sanitize_and_validate(df, required, label)
-│     └─ load_wanted_files(files)
-│     └─ load_collection_files(files)
-│ └─ core/security.py
-      └─ _detect_image_type(file_bytes)
-      └─ setup_audit_logger(log_dir)
-      └─ sanitize_html(text)
+│ ├─ core/auth/
+│     ├─ api_keys.py
+│    │    └─ save_api_key(user_data_dir, api_key)
+│    │    └─ load_api_key(user_data_dir)
+│    │    └─ delete_api_key(user_data_dir)
+│     ├─ auth.py
+│    │    └─ __init__(self, config_path, audit_log_dir)
+│    │    └─ _create_default_config(self)
+│    │    └─ check_session_timeout(self, username)
+│     └─ security.py
+│         └─ _detect_image_type(file_bytes)
+│         └─ setup_audit_logger(log_dir)
+│         └─ sanitize_html(text)
+│ ├─ core/data/
+│     ├─ color_similarity.py
+│    │    └─ rgb_to_lab(rgb_hex)
+│    │    └─ calculate_color_distance(color1_rgb, color2_rgb, is_trans1, ...)
+│    │    └─ build_color_similarity_matrix(colors_df)
+│     ├─ colors.py
+│    │    └─ load_colors(colors_path)
+│    │    └─ build_color_lookup(colors_df)
+│    │    └─ render_color_cell(color_id, color_lookup)
+│     ├─ preprocess.py
+│    │    └─ sanitize_and_validate(df, required, label)
+│    │    └─ load_wanted_files(files)
+│    │    └─ load_collection_files(files)
+│     └─ sets.py
+│         └─ __init__(self, user_data_dir, global_cache_dir, ...)
+│         └─ load_sets_from_csv(self, csv_file, source_name)
+│         └─ _parse_bool(self, value)
+│ ├─ core/external/
+│     ├─ download_helpers.py
+│    │    └─ create_download_callbacks(stop_flag_key, show_stats, stats_formatter)
+│    │    └─ __init__(self, stop_flag_key, show_stats, ...)
+│    │    └─ progress_callback(self, message, status)
+│     └─ rebrickable_api.py
+│         └─ __init__(self, api_key, timeout)
+│         └─ validate_key(self)
+│         └─ get_set_parts(self, set_number, include_spares)
+│ ├─ core/infrastructure/
+│     ├─ paths.py
+│    │    └─ init_paths()
+│    │    └─ save_uploadedfiles(uploadedfiles_list, user_collection_dir)
+│    │    └─ manage_default_collection(user_collection_dir)
+│     └─ session.py
+│         └─ ensure_session_state_keys()
+│         └─ short_key()
+│ ├─ core/labels/
+│     ├─ labels.py
+│    │    └─ organize_labels_by_location(collection_df, ba_mapping, labels_source_dir, ...)
+│    │    └─ generate_collection_labels_zip(collection_files_stream, ba_mapping, labels_source_dir, ...)
+│     └─ lbx_merger.py
+│         └─ main()
+│         └─ __init__(self, max_length_mm, spacing_mm)
+│         └─ parse_label_xml(self, xml)
+│ ├─ core/parts/
+│     ├─ custom_mapping.py
+│    │    └─ create_default_custom_mapping_csv(csv_path)
+│    │    └─ load_custom_mapping_csv(csv_path)
+│    │    └─ save_custom_mapping_csv(df, csv_path)
+│     ├─ images.py
+│    │    └─ _get_unavailable_images_file(user_data_dir)
+│    │    └─ _load_unavailable_images(user_data_dir)
+│    │    └─ _save_unavailable_images(unavailable_images, user_data_dir)
+│     └─ mapping.py
+│         └─ read_ba_mapping_from_excel_bytes(excel_bytes)
+│         └─ load_ba_part_names(mapping_path)
+│         └─ load_ba_mapping(mapping_path, custom_mapping_path)
+│ └─ core/state/
+      ├─ find_wanted_parts.py
+     │    └─ get_unfound_parts(merged_df, color_lookup)
+     │    └─ merge_set_results(original_df, set_results)
+     │    └─ render_missing_parts_by_set(set_results, merged_df, part_images_map, ...)
+      └─ progress.py
+          └─ render_summary_table(merged_df, set_search_results, set_found_counts, ...)
 │
 ├─┬─ UI MODULES
-│ ├─ ui/layout.py
-│     └─ ensure_session_state_keys()
-│     └─ short_key()
 │ ├─ ui/shared_content.py
 │     └─ render_about_info_content()
 │     └─ render_app_features_content()
 │     └─ render_new_user_content()
-│ ├─ ui/summary.py
-│     └─ render_summary_table(merged_df)
 │ └─ ui/theme.py
       └─ apply_custom_styles()
 │
 ├─┬─ PAGES
 │ ├─ pages/1_Rebrickable_Storage.py
-│     └─ 47 lines of code
-│ ├─ pages/2_My_Collection.py
-│     └─ 164 lines of code
-│ └─ pages/3_Find_Wanted_Parts.py
-      └─ 389 lines of code
+│     └─ 90 lines of code
+│ ├─ pages/2_My_Collection_Parts.py
+│     └─ 697 lines of code
+│ ├─ pages/3_My_Collection_Sets.py
+│     └─ 403 lines of code
+│ └─ pages/4_Find_Wanted_Parts.py
+      └─ 351 lines of code
 │
 └─┬─ RESOURCES
   ├─ auth_config.yaml (User credentials)
@@ -155,19 +184,24 @@ MULTI-PAGE NAVIGATION STRUCTURE
   │
   ├─ 1_Rebrickable_Storage
   │    └─ 1_Rebrickable_Storage
-  │       ├─ 47 lines of code
+  │       ├─ 90 lines of code
   │       ├─ 1 core module imports
-  │       └─ 4 UI elements
-  ├─ 2_My_Collection
-  │    └─ 🏷️ My Collection
-  │       ├─ 164 lines of code
-  │       ├─ 6 core module imports
-  │       └─ 12 UI elements
-  └─ 3_Find_Wanted_Parts
+  │       └─ 5 UI elements
+  ├─ 2_My_Collection_Parts
+  │    └─ 🏷️ My Collection - Parts
+  │       ├─ 697 lines of code
+  │       ├─ 15 core module imports
+  │       └─ 46 UI elements
+  ├─ 3_My_Collection_Sets
+  │    └─ 📦 My Collection - Sets
+  │       ├─ 403 lines of code
+  │       ├─ 4 core module imports
+  │       └─ 30 UI elements
+  └─ 4_Find_Wanted_Parts
        └─ 🔍 Find Wanted Parts
-          ├─ 389 lines of code
-          ├─ 9 core module imports
-          └─ 22 UI elements
+          ├─ 351 lines of code
+          ├─ 12 core module imports
+          └─ 12 UI elements
 
 ================================================================================
 PAGE NAVIGATION FLOW
@@ -176,35 +210,45 @@ PAGE NAVIGATION FLOW
 ┌─ 1. Landing Page (app.py)
 │  ├─ User logs in or registers
 │  ├─ Sees welcome screen with navigation options
-│  └─ Can access sidebar features (labels, images, mappings)
+│  └─ Session state initialized, sets data loaded
 │
 ▼
 │
 ┌─ 2. Rebrickable Storage (1_Rebrickable_Storage.py)
 │  ├─ Main dashboard and getting started page
 │  ├─ Overview of available functions
-│  ├─ Navigation to other pages
-│  └─ Change password functionality
+│  └─ Navigation to other pages
 │
 ▼
 │
-┌─ 3. My Collection (2_My_Collection.py)
+┌─ 3. My Collection - Parts (2_My_Collection_Parts.py)
 │  ├─ Manage collection files (upload, select, delete)
-│  ├─ Generate printable labels by location
-│  ├─ Manage custom part images
+│  ├─ Generate printable labels by location (LBX + merged)
+│  ├─ Manage custom part images (upload, export, delete)
+│  ├─ Sync BrickArchitect labels and images
 │  └─ View collection statistics
 │
 ▼
 │
-┌─ 4. Find Wanted Parts (3_Find_Wanted_Parts.py)
+┌─ 4. My Collection - Sets (3_My_Collection_Sets.py)
+│  ├─ Upload sets CSV or add manually
+│  ├─ Configure Rebrickable API key
+│  ├─ Retrieve part inventories (single or batch)
+│  ├─ Delete sets or source groups
+│  └─ View sets grouped by source
+│
+▼
+│
+┌─ 5. Find Wanted Parts (4_Find_Wanted_Parts.py)
 │  ├─ Upload wanted parts lists
 │  ├─ Select collection files to search
-│  ├─ Precompute collection images
 │  ├─ Generate pickup list by location
-│  ├─ Mark parts as found
+│  ├─ Search owned sets for missing parts
+│  ├─ Mark parts as found (per-location mark all/clear)
 │  ├─ View color alternatives
+│  ├─ View progress summary table
 │  ├─ Save/load progress
-│  └─ Download merged results
+│  └─ Download merged results or missing parts export
 │
 
 ================================================================================
@@ -221,17 +265,21 @@ FUNCTION DISTRIBUTION ANALYSIS
 ├─ PAGE COMPLEXITY METRICS
 │
 │  ├─ 1_Rebrickable_Storage
-│  │     ├─ 47 lines of code
+│  │     ├─ 90 lines of code
 │  │     ├─ 1 core module imports
-│  │     └─ 4 UI elements
-│  ├─ 2_My_Collection
-│  │     ├─ 164 lines of code
-│  │     ├─ 6 core module imports
-│  │     └─ 12 UI elements
-│  └─ 3_Find_Wanted_Parts
-│        ├─ 389 lines of code
-│        ├─ 9 core module imports
-│        └─ 22 UI elements
+│  │     └─ 5 UI elements
+│  ├─ 2_My_Collection_Parts
+│  │     ├─ 697 lines of code
+│  │     ├─ 15 core module imports
+│  │     └─ 46 UI elements
+│  ├─ 3_My_Collection_Sets
+│  │     ├─ 403 lines of code
+│  │     ├─ 4 core module imports
+│  │     └─ 30 UI elements
+│  └─ 4_Find_Wanted_Parts
+│        ├─ 351 lines of code
+│        ├─ 12 core module imports
+│        └─ 12 UI elements
 │
 └─ ARCHITECTURE PATTERN
 
@@ -318,22 +366,23 @@ MODULE DEPENDENCIES
 
 app.py
 │
-├─ core.auth
-│    └─ → core.paths
-├─ core.preprocess
-│    ├─ → core.mapping
-│    └─ → core.paths
-├─ core.images
-│    └─ → core.paths
-├─ core.labels
-│    ├─ → core.paths
-│    └─ → core.images
-├─ core.lbx_merger
-│    └─ → core.paths
-├─ ui.layout
-├─ ui.summary
-│    └─ → core.colors
-└─ ui.theme
+├─ auth
+│    └─ → core.auth.security
+├─ find_wanted_parts
+│    ├─ → core.data.colors
+│    ├─ → core.infrastructure.session
+│    └─ → core.parts.images
+├─ images
+│    ├─ → core.auth.security
+│    ├─ → core.external.rebrickable_api
+│    └─ → core.security.validate_image_file
+├─ labels
+│    ├─ → core.data.preprocess
+│    └─ → core.labels.lbx_merger
+├─ mapping
+│    └─ → core.parts.custom_mapping
+└─ sets
+     └─ → core.external.rebrickable_api
 
 ================================================================================
 ARCHITECTURE OVERVIEW
@@ -370,7 +419,11 @@ ARCHITECTURE OVERVIEW
 │  ├─ collection_df - User's collection
 │  ├─ found_counts - Parts marked as found
 │  ├─ locations_index - Location grouping
-│  └─ merged_df - Matched parts
+│  ├─ merged_df - Matched parts
+│  ├─ sets_metadata - Sets collection data
+│  ├─ sets_inventories_cache - Cached inventories
+│  ├─ set_search_results - Set search results
+│  └─ set_found_counts - Set-based found counts
 │
 ├─ EXTERNAL INTEGRATIONS
 │
@@ -404,27 +457,48 @@ RUNTIME METRICS & DATA DIMENSIONS
 │  ├─ Rows: 273
 │  └─ Columns: 8
 │
-│  Part Mappings (BA ↔ RB):
-│  ├─ Rows: 4342
-│  └─ Columns: 14
+│  Part Mappings (BA ↔ RB): base_part_mapping_2026-02-13.xlsx
+│  ├─ Rows: 4446
+│  └─ Columns: 84
+│
+│  Custom Mappings: 13 rules
+│
+├─ CACHE DATA
+│
+│  ├─ BrickArchitect images: 1716
+│  ├─ Rebrickable images: 937
+│  ├─ Label files: 4113
+│  └─ Set inventories: 19
+│
+├─ CORE MODULE DISTRIBUTION
+│
+│  ├─ core/auth/: 3 module(s)
+│  ├─ core/data/: 4 module(s)
+│  ├─ core/external/: 2 module(s)
+│  ├─ core/infrastructure/: 2 module(s)
+│  ├─ core/labels/: 2 module(s)
+│  ├─ core/parts/: 3 module(s)
+│  ├─ core/state/: 2 module(s)
 │
 └─ DATA STRUCTURE DIMENSIONS
 
    DataFrame Schemas:
-   ├─ wanted_df: ~4-5 columns (Part, Color, Quantity, Location)
-   ├─ collection_df: ~4 columns (Part, Color, Quantity, Location)
-   └─ merged_df: ~8-10 columns (includes Image URL, Color data)
+   ├─ wanted_df: ~3 columns (Part, Color, Quantity_wanted)
+   ├─ collection_df: ~5 columns (Part, Color, Quantity, Location, Second_location)
+   └─ merged_df: ~10 columns (includes Available, Quantity_have, Quantity_similar, Replacement_parts)
 
    Dictionary Structures:
    ├─ found_counts: {(part, color, location): count}
+   ├─ set_found_counts: {(part, color, set_key): count}
    ├─ locations_index: {location: [image_urls]}
-   ├─ ba_mapping: {ba_part_number: rb_part_number}
-   └─ color_lookup: {color_id: {name, rgb, ...}}
+   ├─ ba_mapping: {rb_part_number: ba_part_number}
+   ├─ color_lookup: {color_id: {name, rgb, is_trans}}
+   └─ sets_inventories_cache: {set_number: {set_number, set_name, parts, total_parts}}
 
 ================================================================================
 STATISTICS SUMMARY
 ================================================================================
-Total Functions: 112
-Total Classes: 6
-Session State Keys: 10
-Modules Analyzed: 18
+Total Functions: 164
+Total Classes: 11
+Session State Keys: 18
+Modules Analyzed: 23
