@@ -136,73 +136,62 @@ def merge_set_results(original_df: pd.DataFrame, set_results: Dict) -> pd.DataFr
     return result_df
 
 
-def render_missing_parts_by_set(set_results: Dict, merged_df: pd.DataFrame, 
+def render_missing_parts_by_set(set_results: Dict, merged_df: pd.DataFrame,
                                 part_images_map: Dict, ba_part_names: Dict,
                                 color_lookup: Dict) -> None:
     """
-    Render missing parts grouped by set in a separate section.
-    
-    This function displays set search results in a dedicated section,
-    showing which parts from the wanted list can be found in owned sets.
-    Parts are grouped by set for easy identification.
-    
-    Args:
-        set_results: Dictionary mapping (part_num, color_name) to list of set locations
-        merged_df: Original merged dataframe (for part details)
-        part_images_map: Dictionary mapping part numbers to image URLs
-        ba_part_names: Dictionary mapping part numbers to BrickArchitect names
-        color_lookup: Dictionary for color rendering (maps color_id to color info dict)
-        
-    Requirements: 7.2, 7.8, 8.3
+    Render missing parts grouped by set, with color/missing/available/found columns
+    matching the location-based layout.
     """
     import streamlit as st
     from core.data.colors import render_color_cell
-    
+    from core.infrastructure.session import short_key
+
     if not set_results:
         return
-    
+
     st.markdown("---")
-    st.markdown("### 📦 Missing Parts Grouped by Set")
+    st.markdown("### 📦 Missing Parts Found in Owned Sets")
     st.markdown("Parts from your wanted list that can be found in your owned sets:")
-    
+
     # Build reverse color lookup: color_name -> color_id
     color_name_to_id = {}
     for color_id, color_info in color_lookup.items():
         color_name = color_info.get("name", "")
         if color_name:
             color_name_to_id[color_name] = color_id
-    
-    # Reorganize results by set instead of by part
+
+    # Initialize set_found_counts in session state
+    if "set_found_counts" not in st.session_state:
+        st.session_state["set_found_counts"] = {}
+
+    # Reorganize results by set
     sets_dict = {}
     for (part_num, color_name), locations in set_results.items():
         for location_info in locations:
             set_number = location_info["set_number"]
             set_name = location_info["set_name"]
             set_key = f"{set_number} - {set_name}"
-            
+
             if set_key not in sets_dict:
                 sets_dict[set_key] = []
-            
-            # Convert color name back to color ID for matching with merged_df
+
             color_id = color_name_to_id.get(color_name)
-            
-            # Find the wanted and have quantities from merged_df
+
+            # Find wanted and have quantities from merged_df
             qty_wanted = 0
             qty_have = 0
-            
             if color_id is not None:
                 matching_rows = merged_df[
-                    (merged_df["Part"].astype(str) == str(part_num)) & 
+                    (merged_df["Part"].astype(str) == str(part_num)) &
                     (merged_df["Color"].astype(str) == str(color_id))
                 ]
-                
                 if not matching_rows.empty:
                     qty_wanted = int(matching_rows.iloc[0].get("Quantity_wanted", 0))
                     qty_have = int(matching_rows.iloc[0].get("Quantity_have", 0))
-            
-            # Calculate missing quantity (wanted - have in collection)
+
             qty_missing = max(0, qty_wanted - qty_have)
-            
+
             sets_dict[set_key].append({
                 "part_num": part_num,
                 "color_name": color_name,
@@ -211,8 +200,8 @@ def render_missing_parts_by_set(set_results: Dict, merged_df: pd.DataFrame,
                 "qty_missing": qty_missing,
                 "is_spare": location_info.get("is_spare", False)
             })
-    
-    # Display each set with its parts
+
+    # Display each set with its parts (layout matching location cards)
     for set_key, parts_list in sorted(sets_dict.items()):
         with st.expander(f"📦 {set_key} ({len(parts_list)} part type(s))", expanded=True):
             for part_info in parts_list:
@@ -222,44 +211,74 @@ def render_missing_parts_by_set(set_results: Dict, merged_df: pd.DataFrame,
                 quantity = part_info["quantity"]
                 qty_missing = part_info["qty_missing"]
                 is_spare = part_info["is_spare"]
-                
-                # Get part image and name
+
                 img_url = part_images_map.get(str(part_num), "")
                 ba_name = ba_part_names.get(str(part_num), "")
-                
-                # Display part
+
                 left, right = st.columns([1, 4])
-                
+
                 with left:
-                    st.markdown(f"**{part_num}**")
+                    st.markdown(f"##### **{part_num}**")
                     if ba_name:
                         st.markdown(f"{ba_name}")
-                    
                     if img_url:
                         st.image(img_url, width=100)
                     else:
                         st.text("🚫 No image")
-                
+
                 with right:
-                    # Render color
+                    # Header row matching location card style
+                    header = st.columns([2.5, 1, 1, 2])
+                    header[0].markdown("**Color**")
+                    header[1].markdown("**Missing**")
+                    header[2].markdown("**Available**")
+                    header[3].markdown("**Found**")
+
+                    # Color cell
                     if color_id is not None:
                         color_html = render_color_cell(color_id, color_lookup)
                     else:
                         color_html = f"<span>{color_name}</span>"
-                    
-                    st.markdown(f"**Color:** {color_html}", unsafe_allow_html=True)
-                    st.markdown(f"**Missing:** {qty_missing}")
-                    st.markdown(f"**Available in set:** {quantity}")
-                    
-                    if is_spare:
-                        st.markdown("**(Spare part)**")
-                    
-                    if quantity >= qty_missing:
-                        st.markdown(f"✅ **Sufficient quantity available**")
+
+                    # Available display with status indicator
+                    available_in_set = min(quantity, qty_missing)
+                    if available_in_set >= qty_missing:
+                        available_display = f"✅ {available_in_set}"
                     else:
-                        st.markdown(f"⚠️ **Partial match** ({quantity}/{qty_missing})")
-                
+                        available_display = f"⚠️ {available_in_set}"
+
+                    if is_spare:
+                        available_display += " *(spare)*"
+
+                    # Found input
+                    found_key = (part_num, color_name, set_key)
+                    current_found = st.session_state.get("set_found_counts", {}).get(found_key, 0)
+                    max_found = min(quantity, qty_missing)
+
+                    cols = st.columns([2.5, 1, 1, 2])
+                    cols[0].markdown(color_html, unsafe_allow_html=True)
+                    cols[1].markdown(f"{qty_missing}")
+                    cols[2].markdown(available_display)
+
+                    widget_key = short_key("set_found", part_num, color_name, set_key)
+                    new_found = cols[3].number_input(
+                        " ", min_value=0, max_value=max(max_found, 1), value=int(current_found), step=1,
+                        key=widget_key, label_visibility="collapsed"
+                    )
+                    if int(new_found) != int(current_found):
+                        if "set_found_counts" not in st.session_state:
+                            st.session_state["set_found_counts"] = {}
+                        st.session_state["set_found_counts"][found_key] = int(new_found)
+
+                    complete = new_found >= qty_missing
+                    cols[3].markdown(
+                        f"✅ Found all ({new_found}/{qty_missing})"
+                        if complete
+                        else f"**Found:** {new_found}/{qty_missing}"
+                    )
+
                 st.markdown("---")
+
 
 
 def render_set_search_section(merged_df: pd.DataFrame, sets_manager, color_lookup: Dict) -> None:
@@ -352,15 +371,19 @@ def render_set_search_section(merged_df: pd.DataFrame, sets_manager, color_looku
             col1, col2 = st.columns([1, 1])
             with col1:
                 if st.button(f"Select All", key=f"select_all_{source_name}"):
-                    # Add all sets from this source to selected sets
                     for set_data in fetched_sets:
-                        st.session_state["selected_sets_for_search"].add(set_data["set_number"])
+                        set_num = set_data["set_number"]
+                        st.session_state["selected_sets_for_search"].add(set_num)
+                        # Sync the checkbox widget state so it doesn't override on rerun
+                        st.session_state[f"set_checkbox_{set_num}"] = True
                     st.rerun()
             with col2:
                 if st.button(f"Deselect All", key=f"deselect_all_{source_name}"):
-                    # Remove all sets from this source from selected sets
                     for set_data in fetched_sets:
-                        st.session_state["selected_sets_for_search"].discard(set_data["set_number"])
+                        set_num = set_data["set_number"]
+                        st.session_state["selected_sets_for_search"].discard(set_num)
+                        # Sync the checkbox widget state so it doesn't override on rerun
+                        st.session_state[f"set_checkbox_{set_num}"] = False
                     st.rerun()
             
             # Display checkboxes for each set
@@ -369,22 +392,22 @@ def render_set_search_section(merged_df: pd.DataFrame, sets_manager, color_looku
                 set_name = set_data.get("set_name", set_number)
                 part_count = set_data.get("part_count", 0)
                 
-                # Check if this set is selected (read from session state)
-                is_selected = set_number in st.session_state["selected_sets_for_search"]
                 checkbox_label = f"{set_number} - {set_name} ({part_count} parts)"
                 
-                # Use on_change callback to update session state
-                def toggle_set(set_num=set_number):
-                    if set_num in st.session_state["selected_sets_for_search"]:
-                        st.session_state["selected_sets_for_search"].discard(set_num)
-                    else:
+                # Use on_change callback to sync checkbox state back to selected_sets_for_search
+                def sync_checkbox_to_set(set_num=set_number):
+                    cb_key = f"set_checkbox_{set_num}"
+                    if st.session_state.get(cb_key, False):
                         st.session_state["selected_sets_for_search"].add(set_num)
+                    else:
+                        st.session_state["selected_sets_for_search"].discard(set_num)
                 
+                is_selected = set_number in st.session_state["selected_sets_for_search"]
                 st.checkbox(
                     checkbox_label, 
                     value=is_selected, 
                     key=f"set_checkbox_{set_number}",
-                    on_change=toggle_set,
+                    on_change=sync_checkbox_to_set,
                     args=(set_number,)
                 )
     

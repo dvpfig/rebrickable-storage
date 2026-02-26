@@ -48,7 +48,8 @@ with st.sidebar:
     if st.button("💾 Save Progress", width='stretch', type="primary"):
         session_data = {
             "found_counts": st.session_state.get("found_counts", {}),
-            "locations_index": st.session_state.get("locations_index", {})
+            "locations_index": st.session_state.get("locations_index", {}),
+            "set_found_counts": st.session_state.get("set_found_counts", {})
         }
         if st.session_state.get("auth_manager"):
             st.session_state.auth_manager.save_user_session(username, session_data, paths.user_data_dir)
@@ -63,6 +64,7 @@ with st.sidebar:
             if saved_data:
                 st.session_state["found_counts"] = saved_data.get("found_counts", {})
                 st.session_state["locations_index"] = saved_data.get("locations_index", {})
+                st.session_state["set_found_counts"] = saved_data.get("set_found_counts", {})
                 st.success("Progress loaded!")
                 st.rerun()
             else:
@@ -458,9 +460,6 @@ if st.session_state.get("start_processing"):
     merged["Found"] = [found_map.get(k, 0) for k in keys_tuples]
     merged["Complete"] = merged["Found"] >= merged["Quantity_wanted"]
 
-    # Render summary table
-    render_summary_table(merged)
-
     # Download button
     csv = merged.to_csv(index=False).encode("utf-8")
     st.download_button("💾 Download merged CSV", csv, "lego_wanted_with_location.csv", type="primary")
@@ -472,6 +471,7 @@ if st.session_state.get("start_processing"):
     # --- Set Search Section
     # ---------------------------------------------------------------------
     # Initialize SetsManager for set search functionality
+    set_search_results = {}
     try:
         sets_manager = SetsManager(paths.user_data_dir / username, paths.cache_set_inventories)
         render_set_search_section(merged, sets_manager, color_lookup)
@@ -490,3 +490,9 @@ if st.session_state.get("start_processing"):
         # If there's an error initializing sets manager, just skip this section
         # This ensures the main functionality continues to work
         pass
+
+    # ---------------------------------------------------------------------
+    # --- Summary & Progress (at the end, includes set-found counts)
+    # ---------------------------------------------------------------------
+    set_found_counts = st.session_state.get("set_found_counts", {})
+    render_summary_table(merged, set_search_results, set_found_counts, color_lookup)
