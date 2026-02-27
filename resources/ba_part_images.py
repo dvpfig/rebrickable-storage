@@ -122,7 +122,7 @@ def download_ba_images(mapping_path: Path, cache_images_dir: Path, timeout: int 
         update_stats()
         
         # Construct image URL (BrickArchitect uses PNG format)
-        image_url = f"https://brickarchitect.com/content/parts/{partnum}.png"
+        image_url = f"https://brickarchitect.com/content/cache/parts/normal/50/{partnum}.png"
         filename = f"{partnum}.png"
         save_path = os.path.join(cache_images_dir, filename)
         

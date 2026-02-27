@@ -5,6 +5,7 @@ from pathlib import Path
 import streamlit as st
 
 
+
 def create_default_custom_mapping_csv(csv_path: Path):
     """
     Create a default custom mapping CSV file with all mapping rules.
@@ -20,51 +21,107 @@ def create_default_custom_mapping_csv(csv_path: Path):
     """
     default_data = {
         "BA partnum": [
+            "3626pb",
             "973",
             "73200",
+            "37364",
+            "92198",
+            "73152",
+            "73441",
             "73141",
             "73161",
-            "3626pb"
+            "11407",
+            "93552",
+            "90463",
+            "22385",
+            "98382",
         ],
         "Part description": [
-            "Minifig torso with color codes",
-            "Minifig legs with color codes - any 970c{number} maps to 970c{number}",
+            "Minifig face printed",
+            "Minifig Torso",
+            "Minifig Legs",
+            "Minifig Legs Medium",
+            "Minidoll head",
+            "Minidoll torso, woman",
+            "Minidoll torso, man",
             "Minidoll torso, girl",
             "Minidoll torso, boy",
-            "Minifig face printed"
+            "Minidoll skirt",
+            "Paint brush",
+            "Equipment Magnifying Glass",
+            "2×3 Tile, Pentagonal",
+            "Teddy Bear",
         ],
         "RB pattern 1": [
+            "3626?pr**",
             "973c**h**pr**",
             "970?**pr**",
+            "37364c**",
+            "92198pr**",
             "92816c**pr**",
             "92815c**pr**",
-            "3626?pr**"
+            "92816c**pr**",
+            "92815c**pr**",
+            "11407c**pr**",
+            "93552pr**",
+            "30152pat**",
+            "22385pr**",
+            "98382pr**",
         ],
         "RB pattern 2": [
+            "28621pr**",
             "973g**c**h**pr**",
             "970l**r**pr**",
+            "37364c**pr**",
+            "",
+            "92456c**pr**",
             "",
             "",
-            "28621pr**"
+            "",
+            "92818c**pr**",
+            "93552pat**",
+            "38648pat**",
+            "",
+            "",
         ],
         "RB pattern 3": [
+            "",
             "973?**pr**",
             "970?**",
+            "37364c**pat**",
             "",
             "",
-            ""
+            "",
+            "",
+            "",
+            "",
+            "",
+            "10830pat**",
+            "",
+            "",
         ],
         "RB pattern 4": [
             "",
             "",
             "",
             "",
-            ""
-        ]
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+        ],
     }
 
     df = pd.DataFrame(default_data)
     df.to_csv(csv_path, index=False)
+
+
 
 
 

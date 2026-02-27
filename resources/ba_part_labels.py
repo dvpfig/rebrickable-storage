@@ -9,7 +9,6 @@ import os
 import requests
 from pathlib import Path
 import openpyxl
-from urllib.parse import urlparse
 
 
 def download_ba_labels(mapping_path: Path, cache_labels_dir: Path, timeout: int = 10, progress_callback=None, stop_flag_callback=None, stats_callback=None, filter_mode: str = "all", collection_parts: set = None):
@@ -70,10 +69,9 @@ def download_ba_labels(mapping_path: Path, cache_labels_dir: Path, timeout: int 
     header_row = [cell.value for cell in ws[1]]
     try:
         partnum_col = header_row.index("BA partnum") + 1
-        labelurl_col = header_row.index("BA label URL") + 1
     except ValueError as e:
-        log("❌ Could not find required columns 'BA partnum' or 'BA label URL'", "error")
-        raise ValueError("Could not find required columns 'BA partnum' or 'BA label URL'") from e
+        log("❌ Could not find required column 'BA partnum'", "error")
+        raise ValueError("Could not find required column 'BA partnum'") from e
     
     # Find all RB part columns (RB part_1, RB part_2, etc.)
     rb_part_cols = []
@@ -100,7 +98,11 @@ def download_ba_labels(mapping_path: Path, cache_labels_dir: Path, timeout: int 
             break
         
         partnum = row[partnum_col - 1].value
-        label_url = row[labelurl_col - 1].value
+        
+        if not partnum:
+            continue
+        
+        partnum = str(partnum).strip()
         
         # Filter by collection if requested
         if filter_mode == "collection" and rb_part_cols:
@@ -117,18 +119,12 @@ def download_ba_labels(mapping_path: Path, cache_labels_dir: Path, timeout: int 
                 update_stats()
                 continue
         
-        if not label_url or "No label available" in str(label_url):
-            continue
+        # Construct label URL from part number (fixed pattern)
+        label_url = f"https://brickarchitect.com/label/{partnum}.lbx"
+        filename = f"{partnum}.lbx"
         
         stats["total"] += 1
         update_stats()
-        
-        # Extract filename from URL
-        parsed = urlparse(label_url)
-        filename = os.path.basename(parsed.path)
-        
-        if not filename.lower().endswith(".lbx"):
-            continue
         
         save_path = os.path.join(cache_labels_dir, filename)
         

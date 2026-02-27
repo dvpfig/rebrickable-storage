@@ -240,10 +240,9 @@ def count_parts_in_mapping(mapping_path_str: str, collection_parts: tuple = None
     header_row = [cell.value for cell in ws[1]]
     
     # Find relevant columns
-    if count_type == "labels":
-        target_col = header_row.index("BA label URL") + 1 if "BA label URL" in header_row else None
-    else:  # images
-        target_col = header_row.index("BA partnum") + 1 if "BA partnum" in header_row else None
+    # Both labels and images count are based on BA partnum presence
+    # (label/image URLs are derived from BA partnum at runtime)
+    target_col = header_row.index("BA partnum") + 1 if "BA partnum" in header_row else None
     
     # Find all RB part columns
     rb_part_cols = []
@@ -259,11 +258,8 @@ def count_parts_in_mapping(mapping_path_str: str, collection_parts: tuple = None
         for row in ws.iter_rows(min_row=2):
             target_val = row[target_col - 1].value
             
-            # Check if row is valid
-            if count_type == "labels":
-                is_valid = target_val and "No label available" not in str(target_val)
-            else:  # images
-                is_valid = target_val is not None
+            # Check if row is valid (has a BA part number)
+            is_valid = target_val is not None and str(target_val).strip().lower() not in ['none', 'nan', 'n/a', '']
             
             if is_valid:
                 total_count += 1

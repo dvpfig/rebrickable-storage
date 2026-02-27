@@ -5,8 +5,11 @@ Creates an Excel file with mapping between each Brickarchitect part number
 and corresponding one or several Rebrickable part numbers associated.
 
 Step 1: Create list of BA parts
- Scrape List of most common lego parts (All Years), i.e. go through
- all the webpages and save in a list only the parts that have a part image. 
+ a) Scrape List of most common lego parts (All Years), i.e. go through
+    all the webpages and save in a list only the parts that have a part image.
+ b) Scrape all BA category pages and add parts that are NOT in the most
+    common list (i.e. parts with no "Overall Rank" value). This captures
+    retired and niche parts that don't appear in the most-common pages.
 
 Step 2: Create mapping of RB part nrs for each BA part
  Open the page for a BA part, fetch the RB part nrs associated (up to 8), 
@@ -27,6 +30,8 @@ from datetime import datetime
 # Configuration
 # ---------------------------------------------------------------------
 MOST_COMMON_URL = "https://brickarchitect.com/parts/most-common-allyears?page={}"
+CATEGORIES_URL = "https://brickarchitect.com/parts/"
+CATEGORY_SUFFIX = "?retired=1&partstyle=1"
 BASE_URL = "https://brickarchitect.com/parts/"
 USER_AGENT = "Mozilla/5.0 (compatible; LEGO-mapper/1.0; +https://brickarchitect.com)"
 HEADERS = {"User-Agent": USER_AGENT}
@@ -37,7 +42,7 @@ CHECKPOINT_INTERVAL = 50   # save after this many parts processed in phase 2
 DELAY_MIN = 0
 DELAY_MAX = 0.1
 
-FIRST_RB_COLUMN = 5
+FIRST_RB_COLUMN = 3
 NR_RB_COLUMNS = 80
 LAST_RB_COLUMN = FIRST_RB_COLUMN + NR_RB_COLUMNS - 1
 
@@ -209,13 +214,14 @@ def get_rebrickable_parts(ba_part_number: str, log_callback=None):
 # ---------------------------------------------------------------------
 # Helper function: Fetch all BA parts from BrickArchitect listings
 # ---------------------------------------------------------------------
-def fetch_ba_parts_from_page(page: int, output_file: Path, log_callback=None, stop_flag_callback=None):
+def fetch_ba_parts_from_page(page: int, output_file: Path, existing_parts: set, log_callback=None, stop_flag_callback=None):
     """
     Fetch BA parts from a single page and add to worksheet.
     
     Args:
         page: Page number to fetch
         output_file: Path to save the workbook
+        existing_parts: Set of part numbers already in the workbook (updated in-place)
         log_callback: Optional callback function(message, status) for logging
         stop_flag_callback: Optional callback function() that returns True if should stop
     
@@ -273,9 +279,14 @@ def fetch_ba_parts_from_page(page: int, output_file: Path, log_callback=None, st
             
             if num_tag and name_tag:
                 partnum = num_tag.get_text(strip=True)
+                
+                # Skip if already in workbook
+                if partnum in existing_parts:
+                    continue
+                
                 partname = name_tag.get_text(strip=True)
-                label_url = f"https://brickarchitect.com/label/{partnum}.lbx"
-                ws.append([partnum, partname, img_url, label_url])
+                ws.append([partnum, partname])
+                existing_parts.add(partnum)
                 log(f"   ➕ Added {partnum} - {partname}", "success")
                 parts_added += 1
 
@@ -293,15 +304,179 @@ def fetch_ba_parts_from_page(page: int, output_file: Path, log_callback=None, st
 
 
 # ---------------------------------------------------------------------
+# Helper function: Fetch all category links from BrickArchitect
+# ---------------------------------------------------------------------
+def fetch_category_links(log_callback=None):
+    """
+    Fetch all category page URLs from the BrickArchitect parts index.
+    
+    Args:
+        log_callback: Optional callback function(message, status) for logging
+    
+    Returns:
+        list: List of tuples (category_name, category_url) for each category
+    """
+    def log(message, status="info"):
+        if log_callback:
+            log_callback(message, status)
+        else:
+            print(message)
+    
+    log("🌐 Fetching category list from BrickArchitect...", "info")
+    try:
+        response = requests.get(CATEGORIES_URL, headers=HEADERS, timeout=15)
+        if response.status_code != 200:
+            log(f"⚠️ Failed to load categories page (HTTP {response.status_code})", "warning")
+            return []
+        
+        soup = BeautifulSoup(response.text, "html.parser")
+        links = soup.find_all("a", href=True)
+        categories = []
+        for link in links:
+            href = link["href"]
+            if "category-" in href:
+                name = link.get_text(strip=True)
+                categories.append((name, href))
+        
+        log(f"📂 Found {len(categories)} categories", "info")
+        return categories
+    except Exception as e:
+        log(f"❌ Error fetching categories: {e}", "error")
+        return []
+
+
+# ---------------------------------------------------------------------
+# Helper function: Fetch unranked BA parts from a single category page
+# ---------------------------------------------------------------------
+def fetch_ba_parts_from_category(category_name, category_url, existing_parts, output_file, log_callback=None, stop_flag_callback=None):
+    """
+    Fetch parts from a category page that have no "Overall Rank" value
+    and are not already in the workbook.
+    
+    Parts with no Overall Rank are those not appearing in the most-common
+    pages (typically retired or niche parts).
+    
+    Args:
+        category_name: Display name of the category
+        category_url: Base URL of the category page
+        existing_parts: Set of part numbers already in the workbook
+        output_file: Path to the output Excel file
+        log_callback: Optional callback function(message, status) for logging
+        stop_flag_callback: Optional callback function() that returns True if should stop
+    
+    Returns:
+        int: Number of new parts added from this category
+    """
+    def log(message, status="info"):
+        if log_callback:
+            log_callback(message, status)
+        else:
+            print(message)
+    
+    def should_stop():
+        if stop_flag_callback and stop_flag_callback():
+            return True
+        return False
+    
+    if should_stop():
+        return 0
+    
+    # Append suffix to show all parts (retired + current) in table view
+    url = category_url + CATEGORY_SUFFIX
+    log(f"🌐 Fetching category '{category_name}': {url}", "info")
+    
+    try:
+        response = requests.get(url, headers=HEADERS, timeout=15)
+        if response.status_code != 200:
+            log(f"⚠️ Failed to load category '{category_name}' (HTTP {response.status_code})", "warning")
+            return 0
+        
+        soup = BeautifulSoup(response.text, "html.parser")
+        rows = soup.find_all("div", class_="tr")
+        
+        if len(rows) <= 1:
+            log(f"   → No part rows found in category '{category_name}'", "info")
+            return 0
+        
+        # Load workbook to append new parts
+        wb = openpyxl.load_workbook(output_file)
+        ws = wb.active
+        
+        parts_added = 0
+        for row in rows[1:]:  # skip header row
+            if should_stop():
+                break
+            
+            # Check if "Overall Rank" column is empty
+            rank_span = row.find("span", class_="weighted_rank")
+            rank_text = rank_span.get_text(strip=True) if rank_span else ""
+            if rank_text:
+                # Part has a rank → already in most-common pages, skip
+                continue
+            
+            # Extract part details
+            num_tag = row.find("span", class_="partnum")
+            name_tag = row.find("span", class_="partname")
+            img_tag = row.find("span", class_="td part_image")
+            
+            if not num_tag:
+                continue
+            
+            partnum = num_tag.get_text(strip=True)
+            
+            # Skip if already in workbook
+            if partnum in existing_parts:
+                continue
+            
+            # Must have an actual image (not noimg.svg)
+            img_url = None
+            if img_tag and img_tag.find("img"):
+                img_url = img_tag.find("img")["src"]
+                if img_url.endswith("noimg.svg"):
+                    continue
+            else:
+                continue
+            
+            partname = name_tag.get_text(strip=True) if name_tag else ""
+            
+            ws.append([partnum, partname])
+            existing_parts.add(partnum)
+            parts_added += 1
+            log(f"   ➕ Added {partnum} - {partname} (from {category_name})", "success")
+        
+        wb.save(output_file)
+        wb.close()
+        
+        if parts_added > 0:
+            log(f"💾 Saved {parts_added} new parts from category '{category_name}'", "info")
+        else:
+            log(f"   → No new unranked parts in category '{category_name}'", "info")
+        
+        time.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
+        return parts_added
+        
+    except Exception as e:
+        log(f"❌ Error fetching category '{category_name}': {e}", "error")
+        return 0
+
+
+# ---------------------------------------------------------------------
 # Phase 1: Fetch all BA parts (resumable)
 # ---------------------------------------------------------------------
 def fetch_all_ba_parts(output_file: Path, start_page=1, log_callback=None, stop_flag_callback=None, stats_callback=None):
     """
     Fetch all BA parts from BrickArchitect listings (Phase 1).
     
+    First scrapes the most-common pages (page 1 to TOTAL_PAGES), then
+    scrapes all category pages to pick up unranked parts (retired/niche)
+    that don't appear in the most-common list.
+    
+    Progress is tracked in a JSON file alongside the Excel file so that
+    the process can resume correctly even if interrupted by Streamlit reruns.
+    
     Args:
         output_file: Path to the output Excel file
-        start_page: Page to start from (for resuming)
+        start_page: Page to start from (for resuming, used only on first run)
         log_callback: Optional callback function(message, status) for logging
         stop_flag_callback: Optional callback function() that returns True if should stop
         stats_callback: Optional callback function(stats) to update stats in real-time
@@ -309,7 +484,9 @@ def fetch_all_ba_parts(output_file: Path, start_page=1, log_callback=None, stop_
     Returns:
         dict: Statistics about the fetch process
     """
-    stats = {"phase": 1, "pages_processed": 0, "parts_added": 0, "stopped": False}
+    import json
+    
+    stats = {"phase": 1, "pages_processed": 0, "last_page_completed": 0, "parts_added": 0, "categories_processed": 0, "category_parts_added": 0, "stopped": False}
     
     def log(message, status="info"):
         if log_callback:
@@ -321,6 +498,35 @@ def fetch_all_ba_parts(output_file: Path, start_page=1, log_callback=None, stop_
         if stats_callback:
             stats_callback(stats.copy())
     
+    # Progress file for resumable tracking
+    progress_file = output_file.with_suffix(".progress.json")
+    
+    def load_progress():
+        """Load progress from file, returns dict with last_page and categories_done."""
+        if progress_file.exists():
+            try:
+                with open(progress_file, "r") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return {"last_page_completed": 0, "categories_done": False}
+    
+    def save_progress(last_page, categories_done=False):
+        """Save progress to file."""
+        try:
+            with open(progress_file, "w") as f:
+                json.dump({"last_page_completed": last_page, "categories_done": categories_done}, f)
+        except Exception:
+            pass
+    
+    def clear_progress():
+        """Remove progress file when Phase 1 is fully complete."""
+        try:
+            if progress_file.exists():
+                progress_file.unlink()
+        except Exception:
+            pass
+    
     # Create or open workbook
     if output_file.exists():
         log(f"🔄 Resuming from existing workbook: {output_file.name}", "info")
@@ -328,7 +534,7 @@ def fetch_all_ba_parts(output_file: Path, start_page=1, log_callback=None, stop_
         wb = openpyxl.Workbook()
         ws = wb.active
         # Create header row with all columns
-        header_row = ["BA partnum", "BA partname", "BA image URL", "BA label URL"]
+        header_row = ["BA partnum", "BA partname"]
         # Add RB part columns dynamically based on NR_RB_COLUMNS
         header_row.extend([f"RB part_{i+1}" for i in range(NR_RB_COLUMNS)])
         ws.append(header_row)
@@ -336,21 +542,94 @@ def fetch_all_ba_parts(output_file: Path, start_page=1, log_callback=None, stop_
         wb.close()
         log(f"🆕 Created new workbook: {output_file.name}", "info")
     
-    # Fetch pages
-    for page in range(start_page, TOTAL_PAGES + 1):
-        parts_added = fetch_ba_parts_from_page(page, output_file, log_callback, stop_flag_callback)
-        stats["pages_processed"] += 1
-        stats["parts_added"] += parts_added
-        update_stats()
-        
-        if stop_flag_callback and stop_flag_callback():
-            log("⏹️ Phase 1 stopped by user", "warning")
-            stats["stopped"] = True
+    # Build set of existing part numbers to avoid duplicates on resume
+    existing_parts = set()
+    try:
+        wb = openpyxl.load_workbook(output_file, read_only=True)
+        ws = wb.active
+        for row in ws.iter_rows(min_row=2, max_col=1, values_only=True):
+            if row[0]:
+                existing_parts.add(str(row[0]).strip())
+        wb.close()
+    except Exception as e:
+        log(f"⚠️ Could not read existing parts: {e}", "warning")
+    
+    if existing_parts:
+        log(f"📊 {len(existing_parts)} parts already in workbook", "info")
+    
+    # Determine resume point from progress file
+    progress = load_progress()
+    resume_page = progress["last_page_completed"] + 1
+    categories_already_done = progress["categories_done"]
+    log(f"📄 Progress file: last_page_completed={progress['last_page_completed']}, categories_done={categories_already_done}", "info")
+    
+    # If progress file says we're past start_page, use the progress file
+    if resume_page > start_page:
+        start_page = resume_page
+        log(f"📌 Resuming most-common pages from page {start_page}", "info")
+    
+    # --- Step 1a: Fetch most-common pages ---
+    if start_page <= TOTAL_PAGES:
+        log("📋 Phase 1a: Fetching most-common parts pages...", "info")
+        for page in range(start_page, TOTAL_PAGES + 1):
+            parts_added = fetch_ba_parts_from_page(page, output_file, existing_parts, log_callback, stop_flag_callback)
+            stats["pages_processed"] += 1
+            stats["last_page_completed"] = page
+            stats["parts_added"] += parts_added
+            save_progress(page, categories_done=False)
             update_stats()
-            break
+            
+            if stop_flag_callback and stop_flag_callback():
+                log(f"⏹️ Phase 1 stopped by user after page {page}", "warning")
+                stats["stopped"] = True
+                update_stats()
+                break
+            
+            log(f"✅ Page {page} done, continuing to next page...", "info")
+        
+        if stats["stopped"]:
+            return stats
+    else:
+        log("📋 Phase 1a: Most-common pages already completed, skipping.", "info")
+    
+    # --- Step 1b: Fetch unranked parts from category pages ---
+    if not categories_already_done:
+        log("📋 Phase 1b: Fetching unranked parts from category pages...", "info")
+        log(f"📊 {len(existing_parts)} parts in workbook before category scan", "info")
+        
+        # Fetch category links
+        categories = fetch_category_links(log_callback)
+        
+        for cat_name, cat_url in categories:
+            if stop_flag_callback and stop_flag_callback():
+                log("⏹️ Phase 1 stopped by user during category scraping", "warning")
+                stats["stopped"] = True
+                update_stats()
+                break
+            
+            cat_parts = fetch_ba_parts_from_category(
+                cat_name, cat_url, existing_parts, output_file,
+                log_callback, stop_flag_callback
+            )
+            stats["categories_processed"] += 1
+            stats["category_parts_added"] += cat_parts
+            stats["parts_added"] += cat_parts
+            update_stats()
+        
+        if not stats["stopped"]:
+            save_progress(TOTAL_PAGES, categories_done=True)
+    else:
+        log("📋 Phase 1b: Category pages already completed, skipping.", "info")
     
     if not stats["stopped"]:
-        log(f"✅ Phase 1 completed! Processed {stats['pages_processed']} pages, added {stats['parts_added']} parts", "success")
+        # All done — clean up progress file
+        clear_progress()
+        log(
+            f"✅ Phase 1 completed! "
+            f"Processed {stats['pages_processed']} most-common pages + {stats['categories_processed']} categories, "
+            f"added {stats['parts_added']} parts total ({stats['category_parts_added']} from categories)",
+            "success"
+        )
     
     return stats
 

@@ -474,8 +474,12 @@ with col_sync2:
         # Perform fetch if flag is set
         if st.session_state.get("ba_parts_fetching", False):
             # Create download callbacks with custom stats formatter
-            format_parts_stats = lambda stats: (f"📋 Pages processed: {stats.get('pages_processed', 0)}, "
-                        f"Parts added: {stats.get('parts_added', 0)}")
+            format_parts_stats = lambda stats: (
+                f"📋 Pages: {stats.get('pages_processed', 0)}, "
+                f"Categories: {stats.get('categories_processed', 0)}, "
+                f"Parts added: {stats.get('parts_added', 0)} "
+                f"({stats.get('category_parts_added', 0)} from categories)"
+            )
             
             progress_callback_parts, stop_flag_callback_parts, stats_callback_parts = create_download_callbacks(
                 stop_flag_key="ba_parts_stop_flag",
