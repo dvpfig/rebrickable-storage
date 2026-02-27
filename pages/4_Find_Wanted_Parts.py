@@ -285,26 +285,26 @@ st.markdown("---")
 if st.session_state.get("start_processing"):
 
     # Processing Wanted files and merging with precomputed collection
-    with st.spinner("Processing wanted parts and generating pickup list..."):       
-        try:
-            # Load wanted files
-            wanted = load_wanted_files(wanted_files)
-            
-            # Get precomputed collection data from session state
-            collection = st.session_state.get("collection_df")
-            if collection is None:
-                st.error("❌ Collection data not found. Please precompute collection images first.")
-                st.stop()            
-        except Exception as e:
-            st.error(f"Error parsing uploaded files: {e}")
-            st.stop()
-
-        def _df_bytes(df):
-            return df.to_csv(index=False).encode('utf-8')
+    try:
+        # Load wanted files (cached by Streamlit)
+        wanted = load_wanted_files(wanted_files)
         
-        # Merge wanted and collection data
-        merged_source_hash = hashlib.md5(_df_bytes(collection) + _df_bytes(wanted)).hexdigest()
-        if st.session_state.get("merged_df") is None or st.session_state.get("merged_source_hash") != merged_source_hash:
+        # Get precomputed collection data from session state
+        collection = st.session_state.get("collection_df")
+        if collection is None:
+            st.error("❌ Collection data not found. Please precompute collection images first.")
+            st.stop()            
+    except Exception as e:
+        st.error(f"Error parsing uploaded files: {e}")
+        st.stop()
+
+    # Merge wanted and collection data (use lightweight hash instead of full CSV serialization)
+    _wanted_hash = hashlib.md5(pd.util.hash_pandas_object(wanted).values.tobytes()).hexdigest()
+    _collection_hash = hashlib.md5(pd.util.hash_pandas_object(collection).values.tobytes()).hexdigest()
+    merged_source_hash = hashlib.md5((_collection_hash + _wanted_hash).encode()).hexdigest()
+    
+    if st.session_state.get("merged_df") is None or st.session_state.get("merged_source_hash") != merged_source_hash:
+        with st.spinner("Processing wanted parts and generating pickup list..."):
             merged = merge_wanted_collection(wanted, collection, rb_to_similar)
             
             # Add BA part names to merged dataframe
@@ -313,43 +313,49 @@ if st.session_state.get("start_processing"):
             st.session_state["merged_df"] = merged
             st.session_state["merged_source_hash"] = merged_source_hash
 
-        merged = st.session_state["merged_df"]
-        
-        # Load API key for Rebrickable fallback
-        from core.auth.api_keys import load_api_key
-        user_data_dir = paths.user_data_dir / username
-        api_key = load_api_key(user_data_dir)
-        
-        # Fetch images for all wanted parts (including "Not Found" parts)
-        merged_bytes = _df_bytes(merged)
-        wanted_images_map, wanted_stats = fetch_wanted_part_images(
-            merged_bytes, 
-            ba_mapping, 
-            paths.cache_images,
-            user_uploaded_dir=user_uploaded_images_dir,
-            cache_rb_dir=paths.cache_images_rb,
-            api_key=api_key
-        )
-        
-        # Show download statistics for wanted parts
-        if wanted_stats["ba_downloaded"] > 0 or wanted_stats["rb_downloaded"] > 0 or wanted_stats["rb_rate_limit_errors"] > 0 or wanted_stats["rb_other_errors"] > 0:
-            if wanted_stats["ba_downloaded"] > 0:
-                st.info(f"📥 Downloaded {wanted_stats['ba_downloaded']} wanted part image(s) from BrickArchitect")
-            if wanted_stats["rb_downloaded"] > 0:
-                st.success(f"🎉 Downloaded {wanted_stats['rb_downloaded']} wanted part image(s) from Rebrickable API")
-            if wanted_stats["rb_rate_limit_errors"] > 0:
-                st.warning(
-                    f"⚠️ {wanted_stats['rb_rate_limit_errors']} Rebrickable API rate limit error(s) (HTTP 429) for wanted parts. "
-                    f"Refresh the page to retry."
-                )
-            if wanted_stats["rb_other_errors"] > 0:
-                st.info(f"ℹ️ {wanted_stats['rb_other_errors']} temporary API error(s) for wanted parts")
-        
-        # Merge with precomputed collection images
-        precomputed_images = st.session_state.get("part_images_map", {})
-        combined_images_map = {**precomputed_images, **wanted_images_map}
-        st.session_state["part_images_map"] = combined_images_map
-        st.write("Status: Generated pickup list with part locations and images.")
+    merged = st.session_state["merged_df"]
+    
+    # Fetch images for all wanted parts (cached by Streamlit)
+    # Only serialize merged_df if not already cached in session state
+    if "merged_bytes" not in st.session_state or st.session_state.get("merged_bytes_hash") != merged_source_hash:
+        st.session_state["merged_bytes"] = merged.to_csv(index=False).encode('utf-8')
+        st.session_state["merged_bytes_hash"] = merged_source_hash
+    
+    merged_bytes = st.session_state["merged_bytes"]
+    
+    # Load API key once (reuse across the page)
+    user_data_dir = paths.user_data_dir / username
+    from core.auth.api_keys import load_api_key
+    api_key = load_api_key(user_data_dir)
+    
+    wanted_images_map, wanted_stats = fetch_wanted_part_images(
+        merged_bytes, 
+        ba_mapping, 
+        paths.cache_images,
+        user_uploaded_dir=user_uploaded_images_dir,
+        cache_rb_dir=paths.cache_images_rb,
+        api_key=api_key
+    )
+    
+    # Show download statistics for wanted parts
+    if wanted_stats["ba_downloaded"] > 0 or wanted_stats["rb_downloaded"] > 0 or wanted_stats["rb_rate_limit_errors"] > 0 or wanted_stats["rb_other_errors"] > 0:
+        if wanted_stats["ba_downloaded"] > 0:
+            st.info(f"📥 Downloaded {wanted_stats['ba_downloaded']} wanted part image(s) from BrickArchitect")
+        if wanted_stats["rb_downloaded"] > 0:
+            st.success(f"🎉 Downloaded {wanted_stats['rb_downloaded']} wanted part image(s) from Rebrickable API")
+        if wanted_stats["rb_rate_limit_errors"] > 0:
+            st.warning(
+                f"⚠️ {wanted_stats['rb_rate_limit_errors']} Rebrickable API rate limit error(s) (HTTP 429) for wanted parts. "
+                f"Refresh the page to retry."
+            )
+        if wanted_stats["rb_other_errors"] > 0:
+            st.info(f"ℹ️ {wanted_stats['rb_other_errors']} temporary API error(s) for wanted parts")
+    
+    # Merge with precomputed collection images
+    precomputed_images = st.session_state.get("part_images_map", {})
+    combined_images_map = {**precomputed_images, **wanted_images_map}
+    st.session_state["part_images_map"] = combined_images_map
+    st.write("Status: Generated pickup list with part locations and images.")
     
     st.markdown("### 🧩 Parts Grouped by Location")
 

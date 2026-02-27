@@ -505,7 +505,7 @@ def render_api_key_section(user_data_dir: Path, current_api_key: str = None, in_
                 else:
                     st.warning("⚠️ Please enter an API key")
     
-    return load_api_key(user_data_dir)
+    return current_api_key
 
 
 # Sidebar - API Key Management Section
@@ -518,11 +518,13 @@ with st.sidebar:
 # Initialize SetsManager
 sets_manager = SetsManager(user_data_dir, paths.cache_set_inventories)
 
-# Load API key if available
-if not api_key:
-    api_key = load_api_key(user_data_dir)
+# Reuse the api_key already loaded above (no need to call load_api_key again)
 if api_key:
     sets_manager.api_key = api_key
+
+# Ensure sets data is loaded into session state once (avoids duplicate disk reads)
+if not st.session_state.get("sets_data_loaded", False):
+    sets_manager.load_into_session_state(st.session_state)
 
 # Main page layout
 st.markdown("""

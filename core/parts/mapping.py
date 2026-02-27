@@ -3,7 +3,6 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 from pathlib import Path
-from streamlit import cache_data
 
 from core.parts.custom_mapping import (
     load_custom_mapping_csv,
@@ -162,6 +161,36 @@ def load_ba_part_names(mapping_path):
         return {}
 
 @st.cache_data(show_spinner=False)
+def _load_ba_mapping_data(mapping_path_str, custom_mapping_path_str=None):
+    """
+    Load raw mapping data (cached). Returns plain dicts for serialization.
+    
+    Args:
+        mapping_path_str: String path to the Excel mapping file (for cache key hashability)
+        custom_mapping_path_str: String path to the custom mapping CSV file (optional)
+    
+    Returns:
+        tuple: (excel_mapping dict, custom_mapping dict)
+    """
+    mapping_path = Path(mapping_path_str)
+    excel_mapping = {}
+    if mapping_path.exists():
+        with open(mapping_path, "rb") as f:
+            excel_mapping = read_ba_mapping_from_excel_bytes(f.read())
+
+    custom_mapping = {'exact': {}, 'patterns': []}
+    if custom_mapping_path_str:
+        custom_mapping_path = Path(custom_mapping_path_str)
+        if custom_mapping_path.exists():
+            try:
+                custom_df = load_custom_mapping_csv(custom_mapping_path)
+                custom_mapping = build_custom_mapping_dict(custom_df)
+            except Exception as e:
+                pass  # Will fall back to empty custom mapping
+
+    return excel_mapping, custom_mapping
+
+
 def load_ba_mapping(mapping_path, custom_mapping_path=None):
     """
     Load BA mapping from Excel file and apply custom rules.
@@ -181,22 +210,11 @@ def load_ba_mapping(mapping_path, custom_mapping_path=None):
     Returns:
         EnhancedMapping: Mapping from RB part numbers to BA part numbers
     """
-    # Load explicit mappings from Excel
-    excel_mapping = {}
-    if mapping_path.exists():
-        with open(mapping_path, "rb") as f:
-            excel_mapping = read_ba_mapping_from_excel_bytes(f.read())
-
-    # Load custom mappings from CSV
-    custom_mapping = {'exact': {}, 'patterns': []}
-    if custom_mapping_path and custom_mapping_path.exists():
-        try:
-            custom_df = load_custom_mapping_csv(custom_mapping_path)
-            custom_mapping = build_custom_mapping_dict(custom_df)
-        except Exception as e:
-            st.warning(f"Could not load custom mapping: {e}")
-
-    # Return enhanced mapping that includes custom rules
+    # Cache the expensive I/O; construct EnhancedMapping (unhashable) outside cache
+    excel_mapping, custom_mapping = _load_ba_mapping_data(
+        str(mapping_path),
+        str(custom_mapping_path) if custom_mapping_path else None
+    )
     return EnhancedMapping(excel_mapping, custom_mapping)
 
 
@@ -217,7 +235,7 @@ def count_parts_in_mapping(mapping_path_str: str, collection_parts: tuple = None
     import openpyxl
     
     mapping_path = Path(mapping_path_str)
-    wb = openpyxl.load_workbook(mapping_path)
+    wb = openpyxl.load_workbook(mapping_path, read_only=True)
     ws = wb.active
     header_row = [cell.value for cell in ws[1]]
     

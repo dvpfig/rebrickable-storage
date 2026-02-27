@@ -97,11 +97,20 @@ class Paths:
 def init_paths() -> Paths:
     """
     Initialize and return the Paths object.
+    Caches the instance in session state to avoid redundant directory scanning
+    and mkdir calls across reruns and pages.
     
     Returns:
         Paths: Configured Paths instance
     """
-    return Paths()
+    try:
+        # Cache in session state to avoid re-creating on every rerun
+        if "_paths_instance" not in st.session_state:
+            st.session_state["_paths_instance"] = Paths()
+        return st.session_state["_paths_instance"]
+    except Exception:
+        # Fallback if session state is unavailable (e.g., during testing)
+        return Paths()
 
 
 def save_uploadedfiles(uploadedfiles_list, user_collection_dir: Path):

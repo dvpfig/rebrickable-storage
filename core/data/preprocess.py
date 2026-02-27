@@ -1,6 +1,7 @@
 # core/preprocess.py
 import pandas as pd
-from streamlit import cache_data
+import streamlit as st
+import hashlib
 
 def sanitize_and_validate(df, required, label):
     """
@@ -23,7 +24,7 @@ def sanitize_and_validate(df, required, label):
         raise ValueError(f"File {label} missing required columns: {', '.join(missing)}")
     return df
 
-@cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False)
 def load_wanted_files(files):
     """
     Load and concatenate wanted parts CSV files.
@@ -43,7 +44,7 @@ def load_wanted_files(files):
         dfs.append(df)
     return pd.concat(dfs, ignore_index=True)
 
-@cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False)
 def load_collection_files(files):
     """
     Load and concatenate collection CSV files.
@@ -76,7 +77,7 @@ def load_collection_files(files):
     return pd.concat(dfs, ignore_index=True)
 
 
-@cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False)
 def merge_wanted_collection(wanted, collection, rb_to_similar_mapping=None):
     """
     Merge wanted and collection dataframes, identifying exact matches and similar parts.
@@ -226,9 +227,44 @@ def merge_wanted_collection(wanted, collection, rb_to_similar_mapping=None):
 
 
 
+def _collection_dir_fingerprint(collection_dir):
+    """
+    Compute a fingerprint of CSV files in a directory based on names and modification times.
+    Used as a cache key to detect when collection files change.
+    """
+    from pathlib import Path
+    collection_dir = Path(collection_dir)
+    csv_files = sorted(collection_dir.glob("*.csv"))
+    if not csv_files:
+        return ""
+    parts = []
+    for f in csv_files:
+        stat = f.stat()
+        parts.append(f"{f.name}:{stat.st_size}:{stat.st_mtime_ns}")
+    return hashlib.md5("|".join(parts).encode()).hexdigest()
+
+
+@st.cache_data(show_spinner=False)
+def _get_collection_parts_tuple_cached(_dir_str, _fingerprint):
+    """Cached inner function for get_collection_parts_tuple."""
+    from pathlib import Path
+    collection_dir = Path(_dir_str)
+    collection_files = sorted(collection_dir.glob("*.csv"))
+    if not collection_files:
+        return None
+    collection_file_handles = [open(f, "rb") for f in collection_files]
+    try:
+        collection_df = load_collection_files(collection_file_handles)
+        return tuple(collection_df["Part"].astype(str).unique())
+    finally:
+        for fh in collection_file_handles:
+            fh.close()
+
+
 def get_collection_parts_tuple(collection_dir):
     """
     Load collection files from a directory and return unique part numbers as a tuple.
+    Results are cached based on directory content fingerprint.
     
     Args:
         collection_dir: Path object pointing to directory containing collection CSV files
@@ -236,20 +272,25 @@ def get_collection_parts_tuple(collection_dir):
     Returns:
         tuple: Tuple of unique RB part numbers (as strings), or None if no files found
     """
+    fingerprint = _collection_dir_fingerprint(collection_dir)
+    if not fingerprint:
+        return None
+    return _get_collection_parts_tuple_cached(str(collection_dir), fingerprint)
+
+
+@st.cache_data(show_spinner=False)
+def _get_collection_parts_set_cached(_dir_str, _fingerprint):
+    """Cached inner function for get_collection_parts_set."""
     from pathlib import Path
-    
-    collection_dir = Path(collection_dir)
+    collection_dir = Path(_dir_str)
     collection_files = sorted(collection_dir.glob("*.csv"))
-    
     if not collection_files:
         return None
-    
     collection_file_handles = [open(f, "rb") for f in collection_files]
     try:
         collection_df = load_collection_files(collection_file_handles)
-        return tuple(collection_df["Part"].astype(str).unique())
+        return set(collection_df["Part"].astype(str).unique())
     finally:
-        # Always close file handles
         for fh in collection_file_handles:
             fh.close()
 
@@ -257,6 +298,7 @@ def get_collection_parts_tuple(collection_dir):
 def get_collection_parts_set(collection_dir):
     """
     Load collection files from a directory and return unique part numbers as a set.
+    Results are cached based on directory content fingerprint.
     
     Args:
         collection_dir: Path object pointing to directory containing collection CSV files
@@ -264,19 +306,7 @@ def get_collection_parts_set(collection_dir):
     Returns:
         set: Set of unique RB part numbers (as strings), or None if no files found
     """
-    from pathlib import Path
-    
-    collection_dir = Path(collection_dir)
-    collection_files = sorted(collection_dir.glob("*.csv"))
-    
-    if not collection_files:
+    fingerprint = _collection_dir_fingerprint(collection_dir)
+    if not fingerprint:
         return None
-    
-    collection_file_handles = [open(f, "rb") for f in collection_files]
-    try:
-        collection_df = load_collection_files(collection_file_handles)
-        return set(collection_df["Part"].astype(str).unique())
-    finally:
-        # Always close file handles
-        for fh in collection_file_handles:
-            fh.close()
+    return _get_collection_parts_set_cached(str(collection_dir), fingerprint)

@@ -21,6 +21,14 @@ st.title("🏷️ My Collection - Parts")
 st.markdown("Manage your loose LEGO parts collection. Upload CSV files, download labels and images from BrickArchitect, and organize your parts inventory.")
 st.sidebar.header("🏷️ My Collection - Parts")
 
+
+@st.cache_data(show_spinner=False, ttl=60)
+def _count_cache_files(cache_dir_str, extension):
+    """Count files with given extension in a cache directory. Cached for 60s."""
+    from pathlib import Path
+    return len(list(Path(cache_dir_str).glob(f"*.{extension}")))
+
+
 # Load environment variables
 load_dotenv()
 
@@ -270,6 +278,9 @@ st.markdown("---")
 # ---------------------------------------------------------------------
 st.markdown("### 🔄 BrickArchitect Sync")
 
+# Pre-compute collection parts tuple once for reuse in labels and images sections
+_cached_collection_parts_tuple = get_collection_parts_tuple(user_collection_dir)
+
 col_sync1, col_sync2 = st.columns(2)
 
 # Column 1: Get latest Labels/Images
@@ -279,8 +290,8 @@ with col_sync1:
         
         # Display cache statistics
         try:
-            labels_count = len(list(paths.cache_labels.glob("*.lbx")))
-            images_count = len(list(paths.cache_images.glob("*.png")))
+            labels_count = _count_cache_files(str(paths.cache_labels), "lbx")
+            images_count = _count_cache_files(str(paths.cache_images), "png")
             st.info(f"📊 Cache: **{labels_count}** labels, **{images_count}** images")
         except Exception as e:
             st.warning(f"⚠️ Could not count cache files: {e}")
@@ -290,8 +301,7 @@ with col_sync1:
         
         # Calculate part counts for labels
         try:
-            collection_parts_tuple = get_collection_parts_tuple(user_collection_dir)
-            total_parts_with_labels, collection_parts_with_labels = count_parts_in_mapping(str(paths.mapping_path), collection_parts_tuple, "labels")
+            total_parts_with_labels, collection_parts_with_labels = count_parts_in_mapping(str(paths.mapping_path), _cached_collection_parts_tuple, "labels")
             
             labels_filter_mode = st.radio(
                 "Download mode:",
@@ -361,8 +371,7 @@ with col_sync1:
         
         # Calculate part counts for images
         try:
-            collection_parts_tuple = get_collection_parts_tuple(user_collection_dir)
-            total_parts_with_images, collection_parts_with_images = count_parts_in_mapping(str(paths.mapping_path), collection_parts_tuple, "images")
+            total_parts_with_images, collection_parts_with_images = count_parts_in_mapping(str(paths.mapping_path), _cached_collection_parts_tuple, "images")
             
             images_filter_mode = st.radio(
                 "Download mode:",
