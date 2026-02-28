@@ -579,9 +579,8 @@ with st.expander("🧩 Custom RB-> BA Mapping Rules", expanded=False):
     
     1. **Excel File Mapping** (Primary): Explicit mappings from `base_part_mapping_{date}.xlsx`
     2. **Custom Mapping CSV** (Secondary): User-defined mappings with wildcard support
-    
-    All mapping rules are now managed in the custom CSV file below, including previously hardcoded patterns.
     """)
+    st.info("💡 **Mapping Priority**: 1) Base mapping file (Excel file, mappings from BA site) → 2) Custom mappings (CSV file, with wildcards) → 3) Leading digits match in base mapping → 4) Retrieve original RB part number")
     
     st.markdown("---")
     st.markdown("**Custom Mapping Editor:**")
@@ -592,7 +591,6 @@ with st.expander("🧩 Custom RB-> BA Mapping Rules", expanded=False):
     - `?` matches any single letter (a-z, A-Z)
     
     **Examples:**
-    - `973?****` matches `973c1234`, `973a5678`, etc. (973 + letter + 4+ digits)
     - `3626?pr**` matches `3626apr01`, `3626bpr9999`, etc. (3626 + letter + pr + digits)
     - `970?**` matches `970c01`, `970a123`, etc. (970 + letter + digits)
     
@@ -666,10 +664,6 @@ with st.expander("🧩 Custom RB-> BA Mapping Rules", expanded=False):
             st.success("✅ Reset to default mappings!")
             st.cache_data.clear()
             st.rerun()
-    
-    st.markdown("---")
-    st.info("💡 **Mapping Priority**: 1) Base mapping file (Excel from BA site) → 2) Custom mappings (CSV file, with wildcards) → 3) Retrieve original RB part number")
-
 
 st.markdown("---")
 

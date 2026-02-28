@@ -1,4 +1,5 @@
 # core/mapping.py
+import re
 import streamlit as st
 import pandas as pd
 from io import BytesIO
@@ -18,15 +19,30 @@ class EnhancedMapping(dict):
     Priority:
     1. Check explicit Excel mappings (base_mapping) for original RB part
     2. Check custom mapping (exact and wildcard patterns)
-    3. Return original key if no mapping found
+    3. Check if the leading digits of the RB part match a BA part in base_mapping
+    4. Return original key if no mapping found
     
-    Note: Parts not found in either Excel or custom mapping will return the original
+    Note: Parts not found in any mapping will return the original
     RB part number, allowing the application to attempt retrieval from Rebrickable API.
     """
     def __init__(self, base_mapping, custom_mapping=None):
         super().__init__(base_mapping)
         self.base_mapping = base_mapping
         self.custom_mapping = custom_mapping or {'exact': {}, 'patterns': []}
+        # Pre-build set of known BA part numbers (values) for prefix matching
+        self._ba_parts = set(base_mapping.values())
+        # Pre-build prefix lookup: leading digits of RB keys -> BA part value
+        # For RB keys that start with digits, map those digits to the BA value
+        self._prefix_to_ba: dict[str, str] = {}
+        for rb_key, ba_val in base_mapping.items():
+            m = re.match(r'^(\d+)', rb_key)
+            if m:
+                prefix = m.group(1)
+                # Only store if prefix is shorter than the key (avoid identity matches)
+                if prefix != rb_key:
+                    # First match wins (shortest RB key is typically the most generic)
+                    if prefix not in self._prefix_to_ba:
+                        self._prefix_to_ba[prefix] = ba_val
 
     def get(self, key, default=None):
         """
@@ -48,7 +64,19 @@ class EnhancedMapping(dict):
         if custom_result != key:
             return custom_result
         
-        # Step 3: Return original key if no mapping found
+        # Step 3: Check if leading digits of RB part match a BA part in base_mapping
+        match = re.match(r'^(\d+)', str(key))
+        if match:
+            prefix = match.group(1)
+            if prefix != key:
+                # 3a: Check if prefix is itself a known BA part number
+                if prefix in self._ba_parts:
+                    return prefix
+                # 3b: Check if prefix matches the leading digits of an RB key
+                if prefix in self._prefix_to_ba:
+                    return self._prefix_to_ba[prefix]
+        
+        # Step 4: Return original key if no mapping found
         return default if default is not None else key
 
     def __getitem__(self, key):
@@ -198,9 +226,10 @@ def load_ba_mapping(mapping_path, custom_mapping_path=None):
     The mapping process follows this priority:
     1. Check Excel file for explicit mappings (with original RB part)
     2. Check custom mapping CSV (exact and wildcard patterns)
-    3. Return original part number if no mapping found
+    3. Check if leading digits of RB part match a BA part in base mapping
+    4. Return original part number if no mapping found
 
-    Parts not found in either Excel or custom mapping will return the original
+    Parts not found in any mapping will return the original
     RB part number, allowing the application to attempt retrieval from Rebrickable API.
 
     Args:

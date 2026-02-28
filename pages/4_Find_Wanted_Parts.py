@@ -337,7 +337,8 @@ if search_alternative.startswith("***A"):
         wanted_images_map, wanted_stats = fetch_wanted_part_images(
             merged_bytes, ba_mapping, paths.cache_images,
             user_uploaded_dir=user_uploaded_images_dir,
-            cache_rb_dir=paths.cache_images_rb, api_key=api_key
+            cache_rb_dir=paths.cache_images_rb, api_key=api_key,
+            user_data_dir=user_data_dir
         )
         
         # Show download statistics for wanted parts
@@ -542,7 +543,8 @@ elif search_alternative.startswith("***B"):
                 wanted_images_map, _ = fetch_wanted_part_images(
                     wanted_bytes, ba_mapping, paths.cache_images,
                     user_uploaded_dir=user_uploaded_images_dir,
-                    cache_rb_dir=paths.cache_images_rb, api_key=api_key
+                    cache_rb_dir=paths.cache_images_rb, api_key=api_key,
+                    user_data_dir=user_data_dir
                 )
                 st.session_state["part_images_map"] = wanted_images_map
 

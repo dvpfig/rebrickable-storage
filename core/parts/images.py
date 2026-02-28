@@ -19,32 +19,24 @@ TIMEOUT = 4  # HTTP request timeout in seconds
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-def _get_unavailable_images_file(user_data_dir: Optional[Path] = None) -> Path:
+def _get_unavailable_images_file(user_data_dir: Path) -> Path:
     """
-    Get the path to the unavailable images file.
-    If user_data_dir is provided, use user-specific file, otherwise use global cache.
+    Get the path to the user-specific unavailable images file.
     
     Args:
-        user_data_dir: Optional user-specific data directory
+        user_data_dir: User-specific data directory
         
     Returns:
         Path to the unavailable images JSON file
     """
-    if user_data_dir:
-        return user_data_dir / "unavailable_images.json"
-    else:
-        # Fallback to cache directory for global unavailable images
-        from pathlib import Path
-        cache_dir = Path("cache")
-        cache_dir.mkdir(exist_ok=True)
-        return cache_dir / "unavailable_images.json"
+    return user_data_dir / "unavailable_images.json"
 
-def _load_unavailable_images(user_data_dir: Optional[Path] = None) -> Set[str]:
+def _load_unavailable_images(user_data_dir: Path) -> Set[str]:
     """
     Load the set of unavailable images from file.
     
     Args:
-        user_data_dir: Optional user-specific data directory
+        user_data_dir: User-specific data directory
         
     Returns:
         Set of part numbers marked as unavailable
@@ -64,13 +56,13 @@ def _load_unavailable_images(user_data_dir: Optional[Path] = None) -> Set[str]:
     
     return set()
 
-def _save_unavailable_images(unavailable_images: Set[str], user_data_dir: Optional[Path] = None):
+def _save_unavailable_images(unavailable_images: Set[str], user_data_dir: Path):
     """
     Save the set of unavailable images to file.
     
     Args:
         unavailable_images: Set of part numbers marked as unavailable
-        user_data_dir: Optional user-specific data directory
+        user_data_dir: User-specific data directory
     """
     import json
     
@@ -457,14 +449,54 @@ def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: i
     return results, stats
 
 @cache_data(show_spinner=False)
-def fetch_wanted_part_images(merged_df_serialized: bytes, ba_mapping: dict, cache_images_dir, user_uploaded_dir=None, cache_rb_dir=None, api_key=None, user_data_dir=None):
+def _fetch_images_for_parts(part_mapping_items: tuple, cache_images_dir, user_uploaded_dir=None, cache_rb_dir=None, api_key=None, user_data_dir=None):
+    """
+    Cached inner function that fetches images for pre-resolved part mappings.
+    
+    Args:
+        part_mapping_items: Tuple of (original_part, mapped_part) pairs (hashable for caching)
+        cache_images_dir: Path to image cache directory
+        user_uploaded_dir: Optional path to user-uploaded images directory
+        cache_rb_dir: Optional path to Rebrickable image cache directory
+        api_key: Optional Rebrickable API key for fallback
+        user_data_dir: Optional user-specific data directory for unavailable images tracking
+    
+    Returns:
+        Tuple of (image_dict, stats_dict)
+    """
+    part_mapping = dict(part_mapping_items)
+    
+    # Batch fetch all images (including user-uploaded and Rebrickable fallback)
+    unique_mapped_parts = list(set(part_mapping.values()))
+    image_cache, stats = get_cached_images_batch(
+        unique_mapped_parts, 
+        cache_images_dir, 
+        user_uploaded_dir=user_uploaded_dir,
+        cache_rb_dir=cache_rb_dir,
+        api_key=api_key,
+        user_data_dir=user_data_dir
+    )
+
+    # Build final mapping from original part numbers to image paths
+    result = {}
+    for original_part, mapped_part in part_mapping.items():
+        if mapped_part in image_cache:
+            result[original_part] = image_cache[mapped_part]
+
+    return result, stats
+
+
+def fetch_wanted_part_images(merged_df_serialized: bytes, ba_mapping, cache_images_dir, user_uploaded_dir=None, cache_rb_dir=None, api_key=None, user_data_dir=None):
     """
     Fetch images for all wanted parts (including those not in collection).
     This complements precompute_location_images by handling "Not Found" parts.
+    
+    Part mapping is resolved here (uncached) to preserve EnhancedMapping logic,
+    then delegates to a cached function for the expensive image fetching.
 
     Args:
         merged_df_serialized: Serialized merged dataframe with wanted parts
-        ba_mapping: Dictionary mapping RB part numbers to BA part numbers
+        ba_mapping: EnhancedMapping or dict mapping RB part numbers to BA part numbers
         cache_images_dir: Path to image cache directory
         user_uploaded_dir: Optional path to user-uploaded images directory
         cache_rb_dir: Optional path to Rebrickable image cache directory
@@ -485,31 +517,22 @@ def fetch_wanted_part_images(merged_df_serialized: bytes, ba_mapping: dict, cach
     wanted_parts = df["Part"].dropna().unique()
 
     # Clean and map part numbers (generalized rules applied via ba_mapping)
+    # This runs uncached to preserve EnhancedMapping priority logic
     part_mapping = {}
     for part in wanted_parts:
         part_str = str(part).strip()
-        # Map to BA part number (includes generalized rules)
         part_mapped = ba_mapping.get(part_str, part_str)
         part_mapping[part_str] = part_mapped
 
-    # Batch fetch all images (including user-uploaded and Rebrickable fallback)
-    unique_mapped_parts = list(set(part_mapping.values()))
-    image_cache, stats = get_cached_images_batch(
-        unique_mapped_parts, 
-        cache_images_dir, 
+    # Delegate to cached function with pre-resolved mappings
+    return _fetch_images_for_parts(
+        tuple(sorted(part_mapping.items())),
+        cache_images_dir,
         user_uploaded_dir=user_uploaded_dir,
         cache_rb_dir=cache_rb_dir,
         api_key=api_key,
         user_data_dir=user_data_dir
     )
-
-    # Build final mapping from original part numbers to image paths
-    result = {}
-    for original_part, mapped_part in part_mapping.items():
-        if mapped_part in image_cache:
-            result[original_part] = image_cache[mapped_part]
-
-    return result, stats
 
 
 
@@ -685,13 +708,13 @@ def delete_all_custom_images(user_uploaded_dir: Path) -> int:
     return deleted_count
 
 
-def clear_unavailable_images_cache(user_data_dir: Optional[Path] = None) -> int:
+def clear_unavailable_images_cache(user_data_dir: Path) -> int:
     """
     Clear the cache of parts marked as having unavailable images.
     This allows the system to retry fetching images for these parts.
     
     Args:
-        user_data_dir: Optional user-specific data directory
+        user_data_dir: User-specific data directory
     
     Returns:
         Number of parts cleared from the unavailable cache
@@ -710,12 +733,12 @@ def clear_unavailable_images_cache(user_data_dir: Optional[Path] = None) -> int:
     return count
 
 
-def get_unavailable_images_count(user_data_dir: Optional[Path] = None) -> int:
+def get_unavailable_images_count(user_data_dir: Path) -> int:
     """
     Get the count of parts currently marked as having unavailable images.
     
     Args:
-        user_data_dir: Optional user-specific data directory
+        user_data_dir: User-specific data directory
     
     Returns:
         Number of parts in the unavailable cache
