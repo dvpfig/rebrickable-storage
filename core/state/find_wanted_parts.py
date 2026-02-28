@@ -564,7 +564,7 @@ def render_part_detail(part_num, part_group, location: str, alternative_colors: 
             qty_have = int(row["Quantity_have"])
             qty_similar = int(row.get("Quantity_similar", 0))
             key = (str(row["Part"]), str(row["Color"]), str(row["Location"]))
-            found = st.session_state.get("found_counts", {}).get(key, 0)
+            found = min(st.session_state.get("found_counts", {}).get(key, 0), qty_wanted)
 
             cols = st.columns([2.5, 1, 1, 2])
             cols[0].markdown(color_html, unsafe_allow_html=True)
@@ -593,6 +593,9 @@ def render_part_detail(part_num, part_group, location: str, alternative_colors: 
             cols[2].markdown(available_display)
 
             widget_key = short_key("found_input", row["Part"], row["Color"], row["Location"], row_idx)
+            # Clamp any pre-set widget value to max_value to avoid StreamlitValueAboveMaxError
+            if widget_key in st.session_state and st.session_state[widget_key] > qty_wanted:
+                st.session_state[widget_key] = qty_wanted
             new_found = cols[3].number_input(
                 " ", min_value=0, max_value=qty_wanted, value=int(found), step=1,
                 key=widget_key, label_visibility="collapsed"
@@ -632,31 +635,61 @@ def render_part_detail(part_num, part_group, location: str, alternative_colors: 
                             alt_cols[2].markdown(f"*{similarity}*")
 
 
+def _mark_all_found(loc_group, short_key_fn) -> None:
+    """Callback for Mark all found button. Runs before widgets render."""
+    import streamlit as st
+    if "found_counts" not in st.session_state:
+        st.session_state["found_counts"] = {}
+    for row_idx, r in loc_group.iterrows():
+        k = (str(r["Part"]), str(r["Color"]), str(r["Location"]))
+        qty = int(r["Quantity_wanted"])
+        st.session_state["found_counts"][k] = qty
+        wk = short_key_fn("found_input", r["Part"], r["Color"], r["Location"], row_idx)
+        st.session_state[wk] = qty
+
+
+def _clear_all_found(loc_group, short_key_fn) -> None:
+    """Callback for Clear found button. Runs before widgets render."""
+    import streamlit as st
+    for row_idx, r in loc_group.iterrows():
+        k = (str(r["Part"]), str(r["Color"]), str(r["Location"]))
+        st.session_state.get("found_counts", {}).pop(k, None)
+        wk = short_key_fn("found_input", r["Part"], r["Color"], r["Location"], row_idx)
+        st.session_state[wk] = 0
+
+
 def render_location_actions(location: str, loc_group) -> None:
     """
     Render Mark all / Clear all buttons for a location.
-    
+
     Args:
         location: Location name
         loc_group: DataFrame group for this location
     """
     import streamlit as st
     from core.infrastructure.session import short_key
-    
+
     st.markdown("---")
     colM, colC = st.columns([1, 1])
     with colM:
-        if st.button("Mark all found ✔", key=short_key("markall", location), help="Fill all items for this location", width='stretch'):
-            if "found_counts" not in st.session_state:
-                st.session_state["found_counts"] = {}
-            for _, r in loc_group.iterrows():
-                k = (str(r["Part"]), str(r["Color"]), str(r["Location"]))
-                st.session_state["found_counts"][k] = int(r["Quantity_wanted"])
+        st.button(
+            "Mark all found ✔",
+            key=short_key("markall", location),
+            help="Fill all items for this location",
+            width='stretch',
+            on_click=_mark_all_found,
+            args=(loc_group, short_key),
+        )
     with colC:
-        if st.button("Clear found ✖", key=short_key("clearall", location), help="Clear found counts for this location", width='stretch'):
-            for _, r in loc_group.iterrows():
-                k = (str(r["Part"]), str(r["Color"]), str(r["Location"]))
-                st.session_state.get("found_counts", {}).pop(k, None)
+        st.button(
+            "Clear found ✖",
+            key=short_key("clearall", location),
+            help="Clear found counts for this location",
+            width='stretch',
+            on_click=_clear_all_found,
+            args=(loc_group, short_key),
+        )
+
 
 
 def render_missing_parts_export(merged: pd.DataFrame) -> None:
