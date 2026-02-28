@@ -11,7 +11,8 @@ from .find_wanted_parts import (
     get_unfound_parts,
     merge_set_results,
     render_missing_parts_by_set,
-    render_set_search_section
+    render_set_search_section,
+    render_direct_set_search_section
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     'merge_set_results',
     'render_missing_parts_by_set',
     'render_set_search_section',
+    'render_direct_set_search_section',
 ]

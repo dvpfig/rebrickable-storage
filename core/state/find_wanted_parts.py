@@ -201,6 +201,17 @@ def render_missing_parts_by_set(set_results: Dict, merged_df: pd.DataFrame,
                 "is_spare": location_info.get("is_spare", False)
             })
 
+    # Deduplicate parts within each set (same part+color: sum quantities)
+    for set_key in sets_dict:
+        seen = {}
+        for entry in sets_dict[set_key]:
+            dedup_key = (entry["part_num"], entry["color_name"])
+            if dedup_key in seen:
+                seen[dedup_key]["quantity"] += entry["quantity"]
+            else:
+                seen[dedup_key] = entry.copy()
+        sets_dict[set_key] = list(seen.values())
+
     # Display each set with its parts (layout matching location cards)
     for set_key, parts_list in sorted(sets_dict.items()):
         with st.expander(f"📦 {set_key} ({len(parts_list)} part type(s))", expanded=True):
@@ -714,3 +725,131 @@ def render_missing_parts_export(merged: pd.DataFrame) -> None:
         
         st.download_button("📥 Export Missing Parts (Rebrickable Format)",
             export_csv, "missing_parts_rebrickable.csv", type="primary")
+
+
+def render_direct_set_search_section(wanted_parts: list, sets_manager) -> None:
+    """
+    Render set search interface for Alternative B (search in owned sets only).
+    
+    Unlike render_set_search_section, this does not depend on a merged_df.
+    It takes a pre-built list of (part_num, color_name) tuples and searches
+    directly in owned sets. Uses separate session state keys (*_b) to avoid
+    conflicts with Alternative A.
+    
+    Args:
+        wanted_parts: List of (part_number, color_name) tuples to search for
+        sets_manager: SetsManager instance for accessing set data
+    """
+    import streamlit as st
+
+    if not wanted_parts:
+        st.info("No wanted parts to search for.")
+        return
+
+    # Load sets metadata
+    if st.session_state.get("sets_data_loaded", False) and st.session_state.get("sets_metadata") is not None:
+        all_sets = st.session_state["sets_metadata"]
+        sets_by_source = {}
+        for set_data in all_sets:
+            source = set_data["source_csv"]
+            if source not in sets_by_source:
+                sets_by_source[source] = []
+            sets_by_source[source].append(set_data)
+    else:
+        sets_by_source = sets_manager.get_sets_by_source()
+
+    if not sets_by_source:
+        st.info("📭 No sets found. Add sets on the 'My Collection - Sets' page.")
+        return
+
+    total_fetched = sum(
+        1 for sets_list in sets_by_source.values()
+        for s in sets_list if s.get("inventory_fetched", False)
+    )
+    if total_fetched == 0:
+        st.info("📭 No set inventories available. Add sets and retrieve inventories on the 'My Collection - Sets' page.")
+        return
+
+    # Set selection interface
+    st.markdown("#### Select Sets to Search")
+    st.markdown("Choose which sets to search for the wanted parts:")
+
+    if "selected_sets_for_search_b" not in st.session_state:
+        st.session_state["selected_sets_for_search_b"] = set()
+
+    for source_name, sets_list in sorted(sets_by_source.items()):
+        fetched_sets = [s for s in sets_list if s.get("inventory_fetched", False)]
+        unfetched_sets = [s for s in sets_list if not s.get("inventory_fetched", False)]
+
+        with st.expander(f"📁 {source_name} ({len(fetched_sets)}/{len(sets_list)} set(s) with inventory)", expanded=True):
+            if fetched_sets:
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    if st.button("Select All", key=f"b_select_all_{source_name}"):
+                        for set_data in fetched_sets:
+                            set_num = set_data["set_number"]
+                            st.session_state["selected_sets_for_search_b"].add(set_num)
+                            st.session_state[f"b_set_checkbox_{set_num}"] = True
+                        st.rerun()
+                with col2:
+                    if st.button("Deselect All", key=f"b_deselect_all_{source_name}"):
+                        for set_data in fetched_sets:
+                            set_num = set_data["set_number"]
+                            st.session_state["selected_sets_for_search_b"].discard(set_num)
+                            st.session_state[f"b_set_checkbox_{set_num}"] = False
+                        st.rerun()
+
+                for set_data in fetched_sets:
+                    set_number = set_data["set_number"]
+                    set_name = set_data.get("set_name", set_number)
+                    part_count = set_data.get("part_count", 0)
+
+                    checkbox_label = f"{set_number} - {set_name} ({part_count} parts)"
+
+                    def sync_checkbox_b(set_num=set_number):
+                        cb_key = f"b_set_checkbox_{set_num}"
+                        if st.session_state.get(cb_key, False):
+                            st.session_state["selected_sets_for_search_b"].add(set_num)
+                        else:
+                            st.session_state["selected_sets_for_search_b"].discard(set_num)
+
+                    is_selected = set_number in st.session_state["selected_sets_for_search_b"]
+                    st.checkbox(
+                        checkbox_label, value=is_selected,
+                        key=f"b_set_checkbox_{set_number}",
+                        on_change=sync_checkbox_b, args=(set_number,)
+                    )
+
+            if unfetched_sets:
+                st.markdown(f"⚠️ {len(unfetched_sets)} set(s) without inventory — fetch on 'My Collection - Sets' page:")
+                for set_data in unfetched_sets:
+                    set_number = set_data["set_number"]
+                    set_name = set_data.get("set_name", set_number)
+                    st.checkbox(
+                        f"{set_number} - {set_name} (no inventory)",
+                        value=False, disabled=True,
+                        key=f"b_set_checkbox_disabled_{set_number}"
+                    )
+
+    # Search button
+    st.markdown("---")
+    selected_count = len(st.session_state["selected_sets_for_search_b"])
+    if selected_count == 0:
+        st.button("🔍 Search Selected Sets", key="b_search_sets_btn", disabled=True, type="primary")
+    else:
+        if st.button(f"🔍 Search Selected Sets ({selected_count})", key="b_search_sets_btn", type="primary"):
+            with st.spinner(f"Searching {selected_count} set(s)..."):
+                inventories_cache = st.session_state.get("sets_inventories_cache", {})
+                selected_sets_list = list(st.session_state["selected_sets_for_search_b"])
+                set_results = sets_manager.search_parts(
+                    wanted_parts,
+                    selected_sets=selected_sets_list,
+                    inventories_cache=inventories_cache
+                )
+                if set_results:
+                    st.session_state["set_search_results_b"] = set_results
+                    st.success(f"✅ Found parts in {len(set_results)} part/color combination(s)!")
+                    st.rerun()
+                else:
+                    st.session_state["set_search_results_b"] = {}
+                    st.warning("No matching parts found in selected sets.")
