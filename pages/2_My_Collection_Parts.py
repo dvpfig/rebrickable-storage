@@ -103,24 +103,23 @@ with st.sidebar:
                 help="Your Rebrickable API key will be validated before saving"
             )
             
-            col1, col2 = st.columns([1, 3])
-            with col1:
-                if st.button("💾 Save API Key", key="save_api_key_page2"):
-                    if api_key_input and api_key_input.strip():
-                        # Validate the key
-                        with st.spinner("Validating API key..."):
-                            try:
-                                api_client = RebrickableAPI(api_key_input.strip())
-                                if api_client.validate_key():
-                                    save_api_key(user_data_dir, api_key_input.strip())
-                                    st.success("✅ API key validated and saved successfully!")
-                                    st.rerun()
-                                else:
-                                    st.error("❌ Invalid API key. Please check your key and try again.")
-                            except Exception as e:
-                                st.error(f"❌ Error validating API key: {str(e)}")
-                    else:
-                        st.warning("⚠️ Please enter an API key")
+
+            if st.button("💾 Save API Key", key="save_api_key_page2", type="primary"):
+                if api_key_input and api_key_input.strip():
+                    # Validate the key
+                    with st.spinner("Validating API key..."):
+                        try:
+                            api_client = RebrickableAPI(api_key_input.strip())
+                            if api_client.validate_key():
+                                save_api_key(user_data_dir, api_key_input.strip())
+                                st.success("✅ API key validated and saved successfully!")
+                                st.rerun()
+                            else:
+                                st.error("❌ Invalid API key. Please check your key and try again.")
+                        except Exception as e:
+                            st.error(f"❌ Error validating API key: {str(e)}")
+                else:
+                    st.warning("⚠️ Please enter an API key")
     
     st.markdown("---")
     

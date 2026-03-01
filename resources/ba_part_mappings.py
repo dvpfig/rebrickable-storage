@@ -84,22 +84,22 @@ def find_latest_mapping_file(resources_dir: Path):
 # ---------------------------------------------------------------------
 def display_mapping_files_info(resources_dir: Path, count_parts_callback=None):
     """
-    Display available mapping files with part counts in Streamlit.
-    
+    Display available mapping files with part counts and download buttons in Streamlit.
+
     Args:
         resources_dir: Path to the resources directory
         count_parts_callback: Optional callback function(file_path_str) that returns (total_parts, collection_parts)
-    
+
     Returns:
         list: List of tuples (date_str, file_path, is_latest) for all mapping files found
     """
     import re
     import streamlit as st
-    
+
     try:
         # Pattern to match mapping files
         pattern = re.compile(r"base_part_mapping_(\d{4}-\d{2}-\d{2})\.xlsx")
-        
+
         # Find all mapping files
         mapping_files = []
         for file in resources_dir.glob("base_part_mapping_*.xlsx"):
@@ -107,44 +107,55 @@ def display_mapping_files_info(resources_dir: Path, count_parts_callback=None):
             if match:
                 date_str = match.group(1)
                 mapping_files.append((date_str, file))
-        
+
         # Sort by date (descending)
         mapping_files.sort(reverse=True, key=lambda x: x[0])
-        
+
         # Find the latest (currently used) file
         latest_mapping = find_latest_mapping_file(resources_dir)
         latest_name = latest_mapping.name if latest_mapping else None
-        
-        # Display each mapping file with part count
+
+        # Display each mapping file with part count and download button
         if mapping_files:
             result = []
             for date_str, file in mapping_files:
                 is_latest = (file.name == latest_name)
                 result.append((date_str, file, is_latest))
-                
+
+                # Build the label text
                 try:
-                    # Count parts in this mapping file if callback provided
                     if count_parts_callback:
                         total_parts, _ = count_parts_callback(str(file))
-                        
-                        # Highlight the currently used file
                         if is_latest:
-                            st.markdown(f"- **{file.name}** ({total_parts} parts) ✅ *In use*")
+                            label = f"**{file.name}** ({total_parts} parts) ✅ *In use*"
                         else:
-                            st.markdown(f"- {file.name} ({total_parts} parts)")
+                            label = f"{file.name} ({total_parts} parts)"
                     else:
-                        # No callback, just show filename
                         if is_latest:
-                            st.markdown(f"- **{file.name}** ✅ *In use*")
+                            label = f"**{file.name}** ✅ *In use*"
                         else:
-                            st.markdown(f"- {file.name}")
-                except Exception as e:
-                    # If counting fails, just show the filename
+                            label = f"{file.name}"
+                except Exception:
                     if is_latest:
-                        st.markdown(f"- **{file.name}** ✅ *In use*")
+                        label = f"**{file.name}** ✅ *In use*"
                     else:
-                        st.markdown(f"- {file.name}")
-            
+                        label = f"{file.name}"
+
+                # Display label with download button side by side
+                col_label, col_dl = st.columns([0.9, 0.1])
+                with col_label:
+                    st.markdown(f"- {label}")
+                with col_dl:
+                    with open(file, "rb") as f:
+                        file_bytes = f.read()
+                    st.download_button(
+                        label="⬇",
+                        data=file_bytes,
+                        file_name=file.name,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        key=f"dl_mapping_{date_str}",
+                    )
+
             return result
         else:
             st.markdown("*No mapping files found*")
@@ -152,6 +163,7 @@ def display_mapping_files_info(resources_dir: Path, count_parts_callback=None):
     except Exception as e:
         st.warning(f"⚠️ Could not load mapping files information: {e}")
         return []
+
 
 
 # ---------------------------------------------------------------------
@@ -383,7 +395,7 @@ def fetch_ba_parts_from_category(category_name, category_url, existing_parts, ou
     
     # Append suffix to show all parts (retired + current) in table view
     url = category_url + CATEGORY_SUFFIX
-    log(f"🌐 Fetching category '{category_name}': {url}", "info")
+    log(f"🌐 Fetching category '{category_name}'", "info")
     
     try:
         response = requests.get(url, headers=HEADERS, timeout=15)
