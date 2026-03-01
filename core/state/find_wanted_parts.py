@@ -5,8 +5,59 @@ This module contains reusable functions for set search integration
 that can be imported and tested independently.
 """
 
+import re
 import pandas as pd
 from typing import List, Tuple, Dict
+
+
+_PR_PAT_PATTERN = re.compile(r'(pr|pat)\d+', re.IGNORECASE)
+
+
+def has_pr_or_pat_suffix(part_num: str) -> bool:
+    """Check if a part number contains a pr{number} or pat{number} suffix."""
+    return bool(_PR_PAT_PATTERN.search(str(part_num)))
+
+
+def render_rb_image_button(part_num: str, context_key: str, cache_rb_dir, api_key: str = None) -> None:
+    """
+    Render a 'See RB image' button next to the BA image for parts with pr/pat suffixes.
+    
+    When clicked, fetches the RB image on demand and stores the state so it persists
+    across card collapse/expand. State is stored in session_state["rb_images_shown"].
+    
+    Args:
+        part_num: The RB part number
+        context_key: A unique context string to differentiate same part in different sections
+        cache_rb_dir: Path to Rebrickable image cache directory
+        api_key: Rebrickable API key
+    """
+    import streamlit as st
+    from core.parts.images import fetch_rb_image_on_demand
+    
+    if not has_pr_or_pat_suffix(part_num):
+        return
+    
+    # Initialize session state for tracking shown RB images
+    if "rb_images_shown" not in st.session_state:
+        st.session_state["rb_images_shown"] = {}
+    
+    state_key = f"rb_{part_num}_{context_key}"
+    
+    # Check if already shown (persists across collapse/expand)
+    if state_key in st.session_state["rb_images_shown"]:
+        rb_path = st.session_state["rb_images_shown"][state_key]
+        if rb_path:
+            st.image(rb_path, width=100, caption="RB image")
+        else:
+            st.caption("⚠️ RB image not available")
+        return
+    
+    # Show button - only fetch when clicked
+    btn_key = f"btn_rb_{part_num}_{context_key}"
+    if st.button("🔍 See RB image", key=btn_key, type="secondary"):
+        rb_path = fetch_rb_image_on_demand(str(part_num), cache_rb_dir, api_key)
+        st.session_state["rb_images_shown"][state_key] = rb_path
+        st.rerun()
 
 
 def get_unfound_parts(merged_df: pd.DataFrame, color_lookup: Dict = None) -> List[Tuple[str, str]]:
@@ -65,6 +116,60 @@ def get_unfound_parts(merged_df: pd.DataFrame, color_lookup: Dict = None) -> Lis
             unique_unfound.append(part)
     
     return unique_unfound
+
+import re
+
+_PR_PAT_PATTERN = re.compile(r'(pr|pat)\d+', re.IGNORECASE)
+
+
+def has_pr_or_pat_suffix(part_num: str) -> bool:
+    """Check if a part number contains a pr{number} or pat{number} suffix."""
+    return bool(_PR_PAT_PATTERN.search(str(part_num)))
+
+
+def render_rb_image_button(part_num: str, context_key: str, cache_rb_dir, api_key: str = None) -> None:
+    """
+    Render a 'See RB image' button next to the BA image for parts with pr/pat suffixes.
+
+    When clicked, fetches the RB image on demand and stores the state so it persists
+    across card collapse/expand. State is stored in session_state["rb_images_shown"].
+
+    Args:
+        part_num: The RB part number
+        context_key: A unique context string to differentiate same part in different sections
+        cache_rb_dir: Path to Rebrickable image cache directory
+        api_key: Rebrickable API key
+    """
+    import streamlit as st
+    from core.parts.images import fetch_rb_image_on_demand
+
+    if not has_pr_or_pat_suffix(part_num):
+        return
+
+    # Initialize session state for tracking shown RB images
+    if "rb_images_shown" not in st.session_state:
+        st.session_state["rb_images_shown"] = {}
+
+    state_key = f"rb_{part_num}_{context_key}"
+
+    # Check if already shown (persists across collapse/expand)
+    if state_key in st.session_state["rb_images_shown"]:
+        rb_path = st.session_state["rb_images_shown"][state_key]
+        if rb_path:
+            st.image(rb_path, width=100, caption="RB image")
+        else:
+            st.caption("⚠️ RB image not available")
+        return
+
+    # Show button - only fetch when clicked
+    btn_key = f"btn_rb_{part_num}_{context_key}"
+    if st.button("🔍 See RB image", key=btn_key, type="secondary"):
+        rb_path = fetch_rb_image_on_demand(str(part_num), cache_rb_dir, api_key)
+        st.session_state["rb_images_shown"][state_key] = rb_path
+        st.rerun()
+
+
+
 
 
 def merge_set_results(original_df: pd.DataFrame, set_results: Dict) -> pd.DataFrame:
@@ -226,16 +331,33 @@ def render_missing_parts_by_set(set_results: Dict, merged_df: pd.DataFrame,
                 img_url = part_images_map.get(str(part_num), "")
                 ba_name = ba_part_names.get(str(part_num), "")
 
+                _has_print = has_pr_or_pat_suffix(str(part_num))
+
                 left, right = st.columns([1, 4])
 
                 with left:
                     st.markdown(f"##### **{part_num}**")
                     if ba_name:
                         st.markdown(f"{ba_name}")
-                    if img_url:
-                        st.image(img_url, width=100)
+                    if _has_print:
+                        img_col_ba, img_col_rb = st.columns(2)
+                        with img_col_ba:
+                            if img_url:
+                                st.image(img_url, width=80)
+                            else:
+                                st.text("🚫 No image")
+                        with img_col_rb:
+                            from core.infrastructure.paths import init_paths
+                            from core.auth.api_keys import load_api_key
+                            _paths = init_paths()
+                            _username = st.session_state.get("username")
+                            _api_key = load_api_key(_paths.user_data_dir / _username) if _username else None
+                            render_rb_image_button(str(part_num), f"set_{set_key}", _paths.cache_images_rb, _api_key)
                     else:
-                        st.text("🚫 No image")
+                        if img_url:
+                            st.image(img_url, width=100)
+                        else:
+                            st.text("🚫 No image")
 
                 with right:
                     # Header row matching location card style
@@ -484,15 +606,32 @@ def render_second_location_parts(location: str, second_loc_rows: list, color_loo
         img_url = st.session_state.get("part_images_map", {}).get(str(sl_part_num), "")
         ba_name = sl_part_group["BA_part_name"].iloc[0] if "BA_part_name" in sl_part_group.columns else ""
 
+        _has_print = has_pr_or_pat_suffix(str(sl_part_num))
+
         left, right = st.columns([1, 4])
         with left:
             st.markdown(f"##### **{sl_part_num}**")
             if ba_name:
                 st.markdown(f"{ba_name}")
-            if img_url:
-                st.image(img_url, width=100)
+            if _has_print:
+                img_col_ba, img_col_rb = st.columns(2)
+                with img_col_ba:
+                    if img_url:
+                        st.image(img_url, width=80)
+                    else:
+                        st.text("🚫 No image")
+                with img_col_rb:
+                    from core.infrastructure.paths import init_paths
+                    from core.auth.api_keys import load_api_key
+                    _paths = init_paths()
+                    _username = st.session_state.get("username")
+                    _api_key = load_api_key(_paths.user_data_dir / _username) if _username else None
+                    render_rb_image_button(str(sl_part_num), f"sl_{location}", _paths.cache_images_rb, _api_key)
             else:
-                st.text("🚫 No image")
+                if img_url:
+                    st.image(img_url, width=100)
+                else:
+                    st.text("🚫 No image")
         with right:
             header = st.columns([2.5, 1, 2.5])
             header[0].markdown("**Color**")
@@ -533,6 +672,9 @@ def render_part_detail(part_num, part_group, location: str, alternative_colors: 
     img_url = st.session_state.get("part_images_map", {}).get(str(part_num), "")
     ba_name = part_group["BA_part_name"].iloc[0] if "BA_part_name" in part_group.columns else ""
     
+    # Determine if this part has a pr/pat suffix (needs RB image option)
+    _has_print = has_pr_or_pat_suffix(str(part_num))
+    
     left, right = st.columns([1, 4])
     with left:
         st.markdown(f"##### **{part_num}**")
@@ -541,26 +683,42 @@ def render_part_detail(part_num, part_group, location: str, alternative_colors: 
         if replacement_parts:
             st.markdown(f"(replace with {replacement_parts})")
 
-        if img_url:
-            st.image(img_url, width=100)
-        else:
-            st.text("🚫 No image")
-            upload_key = f"upload_{part_num}_{location}"
-            uploaded_file = st.file_uploader(
-                "Upload image",
-                type=["png", "jpg", "jpeg"],
-                key=upload_key,
-                label_visibility="collapsed",
-                help=f"Upload a custom image for part {part_num}"
-            )
-            if uploaded_file is not None:
-                if save_user_uploaded_image(uploaded_file, str(part_num), user_uploaded_images_dir):
-                    st.success("✅ Image saved!")
-                    precompute_location_images.clear()
-                    fetch_wanted_part_images.clear()
-                    st.rerun()
+        if _has_print:
+            # Show BA and RB images side by side
+            img_col_ba, img_col_rb = st.columns(2)
+            with img_col_ba:
+                if img_url:
+                    st.image(img_url, width=80)
                 else:
-                    st.error("❌ Failed to save image")
+                    st.text("🚫 No image")
+            with img_col_rb:
+                from core.infrastructure.paths import init_paths
+                from core.auth.api_keys import load_api_key
+                _paths = init_paths()
+                _username = st.session_state.get("username")
+                _api_key = load_api_key(_paths.user_data_dir / _username) if _username else None
+                render_rb_image_button(str(part_num), f"loc_{location}", _paths.cache_images_rb, _api_key)
+        else:
+            if img_url:
+                st.image(img_url, width=100)
+            else:
+                st.text("🚫 No image")
+                upload_key = f"upload_{part_num}_{location}"
+                uploaded_file = st.file_uploader(
+                    "Upload image",
+                    type=["png", "jpg", "jpeg"],
+                    key=upload_key,
+                    label_visibility="collapsed",
+                    help=f"Upload a custom image for part {part_num}"
+                )
+                if uploaded_file is not None:
+                    if save_user_uploaded_image(uploaded_file, str(part_num), user_uploaded_images_dir):
+                        st.success("✅ Image saved!")
+                        precompute_location_images.clear()
+                        fetch_wanted_part_images.clear()
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to save image")
     
     with right:
         header = st.columns([2.5, 1, 1, 2])
@@ -838,6 +996,7 @@ def render_direct_set_search_section(wanted_parts: list, sets_manager) -> None:
         st.button("🔍 Search Selected Sets", key="b_search_sets_btn", disabled=True, type="primary")
     else:
         if st.button(f"🔍 Search Selected Sets ({selected_count})", key="b_search_sets_btn", type="primary"):
+            st.session_state.pop("rb_images_shown", None)
             with st.spinner(f"Searching {selected_count} set(s)..."):
                 inventories_cache = st.session_state.get("sets_inventories_cache", {})
                 selected_sets_list = list(st.session_state["selected_sets_for_search_b"])

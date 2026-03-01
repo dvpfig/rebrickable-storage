@@ -291,6 +291,7 @@ if search_alternative.startswith("***A"):
         else:
             if st.button("🚀 Generate pickup list", key="generate_button", type="primary"):
                 st.session_state["start_processing"] = True
+                st.session_state.pop("rb_images_shown", None)
 
     st.markdown("---")
 
@@ -605,16 +606,31 @@ elif search_alternative.startswith("***B"):
                             img_url = wanted_images_map.get(str(part_num), "")
                             ba_name = ba_part_names.get(str(part_num), "")
 
+                            from core.state.find_wanted_parts import has_pr_or_pat_suffix, render_rb_image_button
+                            _has_print = has_pr_or_pat_suffix(str(part_num))
+
                             left, right = st.columns([1, 4])
 
                             with left:
                                 st.markdown(f"##### **{part_num}**")
                                 if ba_name:
                                     st.markdown(f"{ba_name}")
-                                if img_url:
-                                    st.image(img_url, width=100)
+                                if _has_print:
+                                    img_col_ba, img_col_rb = st.columns(2)
+                                    with img_col_ba:
+                                        if img_url:
+                                            st.image(img_url, width=80)
+                                        else:
+                                            st.text("🚫 No image")
+                                    with img_col_rb:
+                                        from core.auth.api_keys import load_api_key
+                                        _api_key_nf = load_api_key(paths.user_data_dir / username) if username else None
+                                        render_rb_image_button(str(part_num), "notfound_b", paths.cache_images_rb, _api_key_nf)
                                 else:
-                                    st.text("🚫 No image")
+                                    if img_url:
+                                        st.image(img_url, width=100)
+                                    else:
+                                        st.text("🚫 No image")
 
                             with right:
                                 header = st.columns([2.5, 1, 1, 1, 1])

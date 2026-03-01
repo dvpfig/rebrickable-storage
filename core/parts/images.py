@@ -746,3 +746,50 @@ def get_unavailable_images_count(user_data_dir: Path) -> int:
     unavailable_images = _load_unavailable_images(user_data_dir)
     return len(unavailable_images)
 
+def fetch_rb_image_on_demand(rb_part_num: str, cache_rb_dir: Path, api_key: Optional[str] = None) -> Optional[str]:
+    """
+    Fetch a Rebrickable image on demand for a specific part.
+
+    Priority:
+    1. Check cache/images_rb/ for cached image
+    2. Fetch from Rebrickable API
+
+    Args:
+        rb_part_num: The RB part number (e.g., "3001pr0001")
+        cache_rb_dir: Path to Rebrickable image cache directory
+        api_key: Rebrickable API key
+
+    Returns:
+        Path string to the cached image, or None if not available
+    """
+    # 1. Check cache first
+    cached_png = cache_rb_dir / f"{rb_part_num}.png"
+    if cached_png.exists():
+        return str(cached_png)
+
+    # 2. Fetch from Rebrickable API
+    if not api_key:
+        return None
+
+    try:
+        from core.external.rebrickable_api import RebrickableAPI, APIError, RateLimitError
+
+        api_client = RebrickableAPI(api_key)
+        part_info = api_client.get_part_info(rb_part_num)
+
+        if part_info is None or not part_info.get("part_img_url"):
+            return None
+
+        img_data = fetch_image_bytes(part_info["part_img_url"])
+        if img_data:
+            cache_rb_dir.mkdir(parents=True, exist_ok=True)
+            with open(cached_png, "wb") as f:
+                f.write(img_data)
+            return str(cached_png)
+    except Exception as e:
+        logger.warning(f"Failed to fetch RB image for {rb_part_num}: {e}")
+
+    return None
+
+
+
