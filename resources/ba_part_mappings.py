@@ -149,7 +149,7 @@ def display_mapping_files_info(resources_dir: Path, count_parts_callback=None):
                     with open(file, "rb") as f:
                         file_bytes = f.read()
                     st.download_button(
-                        label="⬇",
+                        label="📥",
                         data=file_bytes,
                         file_name=file.name,
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
