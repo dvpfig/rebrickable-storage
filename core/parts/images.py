@@ -216,7 +216,7 @@ def _fetch_single_image(identifier: str, cache_dir: Path, session: Optional[requ
     local_png = cache_dir / f"{identifier}.png"
     
     # Try to fetch PNG from BrickArchitect URL (using BA part number)
-    url = f"https://brickarchitect.com/content/parts/{identifier}.png"
+    url = f"https://brickarchitect.com/content/cache/parts/normal/50/{partnum}.png"
     logger.info(f"Attempting to fetch part {identifier} from BrickArchitect: {url}")
     data = fetch_image_bytes(url, session)
     if data:
