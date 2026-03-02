@@ -44,6 +44,14 @@ class EnhancedMapping(dict):
                     if prefix not in self._prefix_to_ba:
                         self._prefix_to_ba[prefix] = ba_val
 
+    # Regex to strip RB-specific suffixes that are never part of BA part numbers.
+    # Matches pr{digits} or pat{digits} at the end of a part number.
+    _RB_SUFFIX_RE = re.compile(r'(pr\d+|pat\d+)$', re.IGNORECASE)
+
+    def _strip_rb_suffix(self, key: str) -> str:
+        """Strip RB-specific suffixes (pr{digits}, pat{digits}) from a part number."""
+        return self._RB_SUFFIX_RE.sub('', key)
+
     def get(self, key, default=None):
         """
         Get mapped BA part number for an RB part number.
@@ -73,10 +81,22 @@ class EnhancedMapping(dict):
                 if prefix in self._ba_parts:
                     return prefix
                 # 3b: Check if prefix matches the leading digits of an RB key
+                # Return the corresponding BA part number (the value, not the prefix)
                 if prefix in self._prefix_to_ba:
                     return self._prefix_to_ba[prefix]
         
-        # Step 4: Return original key if no mapping found
+        # Step 4: Strip RB-specific suffixes (pr{digits}, pat{digits}) before returning.
+        # These suffixes denote print/pattern variants on Rebrickable and are never
+        # part of a BrickArchitect part number, so passing them through would cause
+        # failed image/label lookups on BrickArchitect.
+        stripped = self._strip_rb_suffix(str(key))
+        if stripped != key:
+            # Re-run lookup with the stripped key — it may now match a mapping.
+            # Use stripped as the default so we never fall back to the original
+            # suffixed key (pr/pat suffixes are never valid BA part numbers).
+            return self.get(stripped, default=stripped)
+        
+        # Step 5: Return original key if no mapping found
         return default if default is not None else key
 
     def __getitem__(self, key):

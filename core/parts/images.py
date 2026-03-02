@@ -119,14 +119,17 @@ def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict
     for part_ids in location_parts.values():
         all_unique_ids.update(part_ids)
 
-    # Batch fetch all images in parallel (including user-uploaded and Rebrickable fallback)
+    # Batch fetch all images in parallel (BA download + cache lookup only, no Rebrickable API)
+    # We intentionally do NOT pass api_key here to avoid hitting Rebrickable API limits
+    # during pre-fetch. RB images already in cache will still be used (cache_rb_dir is passed).
+    # Users can fetch individual RB images on-demand from the pickup list UI.
     image_cache, stats = get_cached_images_batch(
         list(all_unique_ids), 
         cache_images_dir, 
         user_uploaded_dir=user_uploaded_dir,
         progress_callback=progress_callback,
         cache_rb_dir=cache_rb_dir,
-        api_key=api_key,
+        api_key=None,
         user_data_dir=user_data_dir,
         ba_to_rb_map=ba_to_rb_map
     )
@@ -167,6 +170,7 @@ def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict
     
     return out, part_image_map, stats
     
+
 def fetch_image_bytes(url: str, _session: Optional[requests.Session] = None):
     """
     Fetch image bytes from URL, optionally using a session for connection reuse.
@@ -189,13 +193,15 @@ def fetch_image_bytes(url: str, _session: Optional[requests.Session] = None):
         return None
     return None
 
+
+
 def _fetch_single_image(identifier: str, cache_dir: Path, session: Optional[requests.Session] = None, cache_rb_dir: Optional[Path] = None, api_key: Optional[str] = None, unavailable_images: Optional[Set[str]] = None, rb_part_num: Optional[str] = None) -> tuple[str, str, str]:
     """
     Fetch a single image from URL and save to cache (thread-safe worker function).
     This function assumes the cache has already been checked.
     Returns (identifier, image_path, source) tuple.
     - source can be: "ba" (BrickArchitect), "rb" (Rebrickable), "rb_rate_limit", "rb_other_error", or "" (not found)
-    
+
     Args:
         identifier: Part number identifier (BA part number for cache/BrickArchitect)
         cache_dir: Path to BrickArchitect cache directory
@@ -208,56 +214,58 @@ def _fetch_single_image(identifier: str, cache_dir: Path, session: Optional[requ
     # Check if this part is already marked as unavailable
     if unavailable_images is None:
         unavailable_images = set()
-    
+
+    # Use rb_part_num for display; fall back to identifier if not provided
+    rb_display = rb_part_num if rb_part_num else identifier
+
     if identifier in unavailable_images:
-        logger.debug(f"Part {identifier} already marked as unavailable, skipping")
+        logger.debug(f"[BA:{identifier} RB:{rb_display}] Already marked as unavailable, skipping")
         return (identifier, "", "")
-    
+
     local_png = cache_dir / f"{identifier}.png"
-    
+
     # Try to fetch PNG from BrickArchitect URL (using BA part number)
-    url = f"https://brickarchitect.com/content/cache/parts/normal/50/{partnum}.png"
-    logger.info(f"Attempting to fetch part {identifier} from BrickArchitect: {url}")
+    url = f"https://brickarchitect.com/content/cache/parts/normal/50/{identifier}.png"
+    logger.info(f"[BA:{identifier} RB:{rb_display}] Attempting BrickArchitect: {url}")
     data = fetch_image_bytes(url, session)
     if data:
         try:
             with open(local_png, "wb") as f:
                 f.write(data)
-            logger.info(f"Successfully downloaded part {identifier} from BrickArchitect ({len(data)} bytes)")
+            logger.info(f"[BA:{identifier} RB:{rb_display}] Successfully downloaded from BrickArchitect ({len(data)} bytes)")
             return (identifier, str(local_png), "ba")
         except Exception as e:
-            logger.error(f"Failed to save BrickArchitect image for part {identifier}: {e}")
+            logger.error(f"[BA:{identifier} RB:{rb_display}] Failed to save BrickArchitect image: {e}")
             pass
     else:
-        logger.warning(f"Failed to fetch part {identifier} from BrickArchitect")
-    
+        logger.warning(f"[BA:{identifier} RB:{rb_display}] Failed to fetch from BrickArchitect")
+
     # Fallback to Rebrickable API if BrickArchitect failed
     if cache_rb_dir and api_key:
         try:
             from core.external.rebrickable_api import RebrickableAPI, APIError, RateLimitError
-            
+
             # Initialize API client
             api_client = RebrickableAPI(api_key)
-            
+
             # Use original RB part number for API call if provided, otherwise use BA part number
             api_part_num = rb_part_num if rb_part_num else identifier
-            
-            # Log attempt to fetch from Rebrickable
-            logger.info(f"Attempting to fetch part {api_part_num} from Rebrickable API (BA: {identifier})")
-            
+
+            logger.info(f"[BA:{identifier} RB:{rb_display}] Attempting Rebrickable API with part: {api_part_num}")
+
             # Get part info including image URL
             part_info = api_client.get_part_info(api_part_num)
-            
+
             # Part doesn't exist in Rebrickable (404) - mark as unavailable
             if part_info is None:
-                logger.info(f"Part {api_part_num} not found in Rebrickable (404) - marking as unavailable")
+                logger.info(f"[BA:{identifier} RB:{rb_display}] Not found in Rebrickable (404) - marking as unavailable")
                 unavailable_images.add(identifier)
                 return (identifier, "", "")
-            
+
             if part_info.get("part_img_url"):
                 img_url = part_info["part_img_url"]
-                logger.info(f"Part {api_part_num} found in Rebrickable, image URL: {img_url}")
-                
+                logger.info(f"[BA:{identifier} RB:{rb_display}] Found in Rebrickable, image URL: {img_url}")
+
                 # Fetch image from Rebrickable
                 rb_data = fetch_image_bytes(img_url, session)
                 if rb_data:
@@ -267,36 +275,37 @@ def _fetch_single_image(identifier: str, cache_dir: Path, session: Optional[requ
                         cache_rb_dir.mkdir(parents=True, exist_ok=True)
                         with open(rb_png, "wb") as f:
                             f.write(rb_data)
-                        logger.info(f"Successfully downloaded and cached part {api_part_num} from Rebrickable (saved as {identifier})")
+                        logger.info(f"[BA:{identifier} RB:{rb_display}] Successfully downloaded from Rebrickable (saved as {identifier}.png)")
                         return (identifier, str(rb_png), "rb")
                     except Exception as e:
-                        logger.error(f"Failed to save Rebrickable image for part {api_part_num}: {e}")
+                        logger.error(f"[BA:{identifier} RB:{rb_display}] Failed to save Rebrickable image: {e}")
                         pass
                 else:
-                    logger.warning(f"Failed to download image from Rebrickable URL for part {api_part_num}")
+                    logger.warning(f"[BA:{identifier} RB:{rb_display}] Failed to download from Rebrickable image URL")
             else:
                 # Part exists but has no image URL - mark as unavailable
-                logger.info(f"Part {api_part_num} exists in Rebrickable but has no image URL - marking as unavailable")
+                logger.info(f"[BA:{identifier} RB:{rb_display}] Exists in Rebrickable but has no image URL - marking as unavailable")
                 unavailable_images.add(identifier)
                 return (identifier, "", "")
-                
+
         except RateLimitError as e:
             # Rate limit error (429) - don't mark as unavailable, can retry
-            logger.warning(f"Rate limit error (429) for part {api_part_num}: {e}")
+            logger.warning(f"[BA:{identifier} RB:{rb_display}] Rebrickable rate limit error (429): {e}")
             return (identifier, "", "rb_rate_limit")
         except APIError as e:
             # Other API errors (network, server errors) - can retry
-            logger.warning(f"API error for part {api_part_num}: {e}")
+            logger.warning(f"[BA:{identifier} RB:{rb_display}] Rebrickable API error: {e}")
             return (identifier, "", "rb_other_error")
         except Exception as e:
             # Unexpected error - mark as unavailable
-            logger.error(f"Unexpected error fetching part {api_part_num} from Rebrickable: {e}")
+            logger.error(f"[BA:{identifier} RB:{rb_display}] Unexpected Rebrickable error: {e}")
             unavailable_images.add(identifier)
             return (identifier, "", "")
-    
+
     # No API key or all attempts failed - mark as unavailable
     unavailable_images.add(identifier)
     return (identifier, "", "")
+
 
 def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: int = MAX_WORKERS, user_uploaded_dir: Optional[Path] = None, progress_callback=None, cache_rb_dir: Optional[Path] = None, api_key: Optional[str] = None, user_data_dir: Optional[Path] = None, ba_to_rb_map: Optional[Dict[str, str]] = None) -> tuple[Dict[str, str], Dict[str, int]]:
     """
@@ -627,6 +636,8 @@ def count_custom_images(user_uploaded_dir: Path) -> int:
     jpg_files = list(user_uploaded_dir.glob("*.jpg"))
     
     return len(png_files) + len(jpg_files)
+
+
 def upload_custom_images(uploaded_files, user_uploaded_dir: Path) -> dict:
     """
     Upload multiple custom images to user-specific directory with security validation.
