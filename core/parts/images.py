@@ -302,9 +302,8 @@ def _fetch_single_image(identifier: str, cache_dir: Path, session: Optional[requ
             unavailable_images.add(identifier)
             return (identifier, "", "")
 
-    # No API key or all attempts failed - mark as unavailable
-    unavailable_images.add(identifier)
-    return (identifier, "", "")
+    # No API key - don't mark as unavailable, can retry
+    return (identifier, "", "no_rb_api")
 
 
 def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: int = MAX_WORKERS, user_uploaded_dir: Optional[Path] = None, progress_callback=None, cache_rb_dir: Optional[Path] = None, api_key: Optional[str] = None, user_data_dir: Optional[Path] = None, ba_to_rb_map: Optional[Dict[str, str]] = None) -> tuple[Dict[str, str], Dict[str, int]]:
@@ -353,7 +352,8 @@ def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: i
         "ba_downloaded": 0,
         "rb_downloaded": 0,
         "rb_rate_limit_errors": 0,
-        "rb_other_errors": 0
+        "rb_other_errors": 0,
+        "no_rb_api": 0
     }
     
     total_parts = len(part_ids)
@@ -444,6 +444,8 @@ def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: i
                     stats["rb_rate_limit_errors"] += 1
                 elif source == "rb_other_error":
                     stats["rb_other_errors"] += 1
+                elif source == "no_rb_api":
+                    stats["no_rb_api"] += 1
                     
                 completed_count += 1
                 

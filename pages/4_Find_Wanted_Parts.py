@@ -343,7 +343,7 @@ if search_alternative.startswith("***A"):
         )
         
         # Show download statistics for wanted parts
-        if wanted_stats["ba_downloaded"] > 0 or wanted_stats["rb_downloaded"] > 0 or wanted_stats["rb_rate_limit_errors"] > 0 or wanted_stats["rb_other_errors"] > 0:
+        if wanted_stats["ba_downloaded"] > 0 or wanted_stats["rb_downloaded"] > 0 or wanted_stats["rb_rate_limit_errors"] > 0 or wanted_stats["rb_other_errors"] > 0 or wanted_stats["no_rb_api"] > 0:
             if wanted_stats["ba_downloaded"] > 0:
                 st.info(f"📥 Downloaded {wanted_stats['ba_downloaded']} wanted part image(s) from BrickArchitect")
             if wanted_stats["rb_downloaded"] > 0:
@@ -355,6 +355,8 @@ if search_alternative.startswith("***A"):
                 )
             if wanted_stats["rb_other_errors"] > 0:
                 st.info(f"ℹ️ {wanted_stats['rb_other_errors']} temporary API error(s) for wanted parts")
+            if wanted_stats["no_rb_api"] > 0:
+                st.info(f"ℹ️ {wanted_stats['no_rb_api']} No Rebrickable API error(s) for wanted parts")
         
         # Merge with precomputed collection images
         precomputed_images = st.session_state.get("part_images_map", {})

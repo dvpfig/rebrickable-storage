@@ -731,7 +731,7 @@ if collection_files_stream:
                         from core.parts.images import _load_unavailable_images
                         unavailable_images_set = _load_unavailable_images(user_data_dir)
                         
-                        # Combine missing and unavailable (some unavailable might already be in missing)
+                        # Combine parts with missing or unavailable images (some unavailable might already be in missing)
                         all_missing_or_unavailable = sorted(set(missing_images) | unavailable_images_set)
                         
                         # Save to session state (including stats for display after rerun)
@@ -765,11 +765,12 @@ if collection_files_stream:
                 if stats["rb_rate_limit_errors"] > 0:
                     st.warning(
                         f"⚠️ {stats['rb_rate_limit_errors']} Rebrickable API rate limit error(s) (HTTP 429). "
-                        f"Click '🔄 Recompute images' to retry and fetch more images."
-                    )
+                        f"Click '🔄 Recompute images' to retry and fetch more images.")
                 if stats["rb_other_errors"] > 0:
                     st.info(f"ℹ️ {stats['rb_other_errors']} temporary API error(s) (network/server issues)")
-            
+                if stats["no_rb_api"] > 0:
+                    st.info(f"ℹ️ {stats['no_rb_api']} No Rebrickable API error(s)")
+
             # Show missing images if any
             missing_images = st.session_state.get("precompute_missing_images", [])
             if missing_images:
@@ -818,8 +819,8 @@ if collection_files_stream:
                 
                 # Display missing parts (not yet confirmed unavailable)
                 if missing_not_unavailable:
-                    with st.expander(f"⚠️ Parts without images - not yet checked ({len(missing_not_unavailable)})", expanded=False):
-                        st.markdown("These parts don't have cached images yet. They may be available from BrickArchitect or Rebrickable. Click '🔄 Recompute images' to attempt fetching them.")
+                    with st.expander(f"⚠️ Parts without images - not yet checked in RB ({len(missing_not_unavailable)})", expanded=False):
+                        st.markdown("These parts don't have cached images yet. They may be available via Rebrickable API. Click 'Fetch RB image' to attempt fetching them.")
                         st.markdown("---")
 
                         # Create reverse mapping (BA -> RB) for display

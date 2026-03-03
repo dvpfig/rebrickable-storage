@@ -684,20 +684,27 @@ def render_part_detail(part_num, part_group, location: str, alternative_colors: 
             st.markdown(f"(replace with {replacement_parts})")
 
         if _has_print:
-            # Show BA and RB images side by side
-            img_col_ba, img_col_rb = st.columns(2)
-            with img_col_ba:
-                if img_url:
+            from core.infrastructure.paths import init_paths
+            from core.auth.api_keys import load_api_key
+            _paths = init_paths()
+            _username = st.session_state.get("username")
+            _api_key = load_api_key(_paths.user_data_dir / _username) if _username else None
+
+            if img_url:
+                # Category 1: Has BA image — show BA + optional RB side by side
+                img_col_ba, img_col_rb = st.columns(2)
+                with img_col_ba:
                     st.image(img_url, width=80)
+                with img_col_rb:
+                    render_rb_image_button(str(part_num), f"loc_{location}", _paths.cache_images_rb, _api_key)
+            else:
+                # Category 2: No BA image at all — auto-fetch RB image as primary
+                from core.parts.images import fetch_rb_image_on_demand
+                rb_img_path = fetch_rb_image_on_demand(str(part_num), _paths.cache_images_rb, _api_key)
+                if rb_img_path:
+                    st.image(rb_img_path, width=100, caption="RB image")
                 else:
                     st.text("🚫 No image")
-            with img_col_rb:
-                from core.infrastructure.paths import init_paths
-                from core.auth.api_keys import load_api_key
-                _paths = init_paths()
-                _username = st.session_state.get("username")
-                _api_key = load_api_key(_paths.user_data_dir / _username) if _username else None
-                render_rb_image_button(str(part_num), f"loc_{location}", _paths.cache_images_rb, _api_key)
         else:
             if img_url:
                 st.image(img_url, width=100)
@@ -765,10 +772,15 @@ def render_part_detail(part_num, part_group, location: str, alternative_colors: 
             # Clamp any pre-set widget value to max_value to avoid StreamlitValueAboveMaxError
             if widget_key in st.session_state and st.session_state[widget_key] > qty_wanted:
                 st.session_state[widget_key] = qty_wanted
-            new_found = cols[3].number_input(
-                " ", min_value=0, max_value=qty_wanted, value=int(found), step=1,
+            # Only pass value when the key is NOT already in session state,
+            # otherwise Streamlit warns about conflicting default vs session state.
+            _input_kwargs = dict(
+                label=" ", min_value=0, max_value=qty_wanted, step=1,
                 key=widget_key, label_visibility="collapsed"
             )
+            if widget_key not in st.session_state:
+                _input_kwargs["value"] = int(found)
+            new_found = cols[3].number_input(**_input_kwargs)
             if int(new_found) != int(found):
                 if "found_counts" not in st.session_state:
                     st.session_state["found_counts"] = {}
