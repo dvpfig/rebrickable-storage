@@ -81,6 +81,67 @@ def _save_unavailable_images(unavailable_images: Set[str], user_data_dir: Path):
     except Exception as e:
         logger.error(f"Failed to save unavailable images to {file_path}: {e}")
 
+def _get_ba_unavailable_images_file(user_data_dir: Path) -> Path:
+    """Get the path to the user-specific BA-unavailable images file."""
+    return user_data_dir / "ba_unavailable_images.json"
+
+
+def _load_ba_unavailable_images(user_data_dir: Path) -> Set[str]:
+    """
+    Load the set of BA-unavailable images from file.
+    These are parts confirmed unavailable from BA cache, RB cache, user uploads, and BA site,
+    but NOT yet checked via Rebrickable API.
+    """
+    import json
+
+    if not user_data_dir:
+        return set()
+
+    file_path = _get_ba_unavailable_images_file(user_data_dir)
+    if file_path.exists():
+        try:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+                return set(data.get("ba_unavailable_parts", []))
+        except Exception as e:
+            logger.warning(f"Failed to load BA-unavailable images from {file_path}: {e}")
+            return set()
+    return set()
+
+
+def _save_ba_unavailable_images(ba_unavailable_images: Set[str], user_data_dir: Path):
+    """Save the set of BA-unavailable images to file."""
+    import json
+
+    if not user_data_dir:
+        return
+
+    file_path = _get_ba_unavailable_images_file(user_data_dir)
+    try:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(file_path, 'w') as f:
+            json.dump({
+                "ba_unavailable_parts": sorted(list(ba_unavailable_images)),
+                "last_updated": str(pd.Timestamp.now())
+            }, f, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to save BA-unavailable images to {file_path}: {e}")
+
+
+def get_ba_unavailable_images_count(user_data_dir: Path) -> int:
+    """Get the count of BA-unavailable images for a user."""
+    return len(_load_ba_unavailable_images(user_data_dir))
+
+
+def clear_ba_unavailable_images_cache(user_data_dir: Path) -> int:
+    """Clear the BA-unavailable images cache. Returns the count of cleared entries."""
+    ba_unavail = _load_ba_unavailable_images(user_data_dir)
+    count = len(ba_unavail)
+    if count > 0:
+        _save_ba_unavailable_images(set(), user_data_dir)
+    return count
+
+
 def precompute_location_images(collection_df_serialized: bytes, ba_mapping: dict, cache_images_dir, user_uploaded_dir=None, progress_callback=None, cache_rb_dir=None, api_key=None, user_data_dir=None):
     df = pd.read_csv(BytesIO(collection_df_serialized))
     
@@ -195,7 +256,7 @@ def fetch_image_bytes(url: str, _session: Optional[requests.Session] = None):
 
 
 
-def _fetch_single_image(identifier: str, cache_dir: Path, session: Optional[requests.Session] = None, cache_rb_dir: Optional[Path] = None, api_key: Optional[str] = None, unavailable_images: Optional[Set[str]] = None, rb_part_num: Optional[str] = None) -> tuple[str, str, str]:
+def _fetch_single_image(identifier: str, cache_dir: Path, session: Optional[requests.Session] = None, cache_rb_dir: Optional[Path] = None, api_key: Optional[str] = None, unavailable_images: Optional[Set[str]] = None, rb_part_num: Optional[str] = None, skip_ba: bool = False) -> tuple[str, str, str]:
     """
     Fetch a single image from URL and save to cache (thread-safe worker function).
     This function assumes the cache has already been checked.
@@ -210,6 +271,7 @@ def _fetch_single_image(identifier: str, cache_dir: Path, session: Optional[requ
         api_key: Optional Rebrickable API key for fallback
         unavailable_images: Optional set to track unavailable images (passed from main thread)
         rb_part_num: Optional original RB part number (for Rebrickable API calls)
+        skip_ba: If True, skip BrickArchitect download and go straight to Rebrickable API
     """
     # Check if this part is already marked as unavailable
     if unavailable_images is None:
@@ -224,21 +286,24 @@ def _fetch_single_image(identifier: str, cache_dir: Path, session: Optional[requ
 
     local_png = cache_dir / f"{identifier}.png"
 
-    # Try to fetch PNG from BrickArchitect URL (using BA part number)
-    url = f"https://brickarchitect.com/content/cache/parts/normal/50/{identifier}.png"
-    logger.info(f"[BA:{identifier} RB:{rb_display}] Attempting BrickArchitect: {url}")
-    data = fetch_image_bytes(url, session)
-    if data:
-        try:
-            with open(local_png, "wb") as f:
-                f.write(data)
-            logger.info(f"[BA:{identifier} RB:{rb_display}] Successfully downloaded from BrickArchitect ({len(data)} bytes)")
-            return (identifier, str(local_png), "ba")
-        except Exception as e:
-            logger.error(f"[BA:{identifier} RB:{rb_display}] Failed to save BrickArchitect image: {e}")
-            pass
+    # Try to fetch PNG from BrickArchitect URL (using BA part number) unless skip_ba is set
+    if not skip_ba:
+        url = f"https://brickarchitect.com/content/cache/parts/normal/50/{identifier}.png"
+        logger.info(f"[BA:{identifier} RB:{rb_display}] Attempting BrickArchitect: {url}")
+        data = fetch_image_bytes(url, session)
+        if data:
+            try:
+                with open(local_png, "wb") as f:
+                    f.write(data)
+                logger.info(f"[BA:{identifier} RB:{rb_display}] Successfully downloaded from BrickArchitect ({len(data)} bytes)")
+                return (identifier, str(local_png), "ba")
+            except Exception as e:
+                logger.error(f"[BA:{identifier} RB:{rb_display}] Failed to save BrickArchitect image: {e}")
+                pass
+        else:
+            logger.warning(f"[BA:{identifier} RB:{rb_display}] Failed to fetch from BrickArchitect")
     else:
-        logger.warning(f"[BA:{identifier} RB:{rb_display}] Failed to fetch from BrickArchitect")
+        logger.info(f"[BA:{identifier} RB:{rb_display}] Skipping BrickArchitect (BA-unavailable), going straight to Rebrickable API")
 
     # Fallback to Rebrickable API if BrickArchitect failed
     if cache_rb_dir and api_key:
@@ -325,6 +390,9 @@ def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: i
     4. Download from BrickArchitect
     5. Download from Rebrickable API (if API key available)
     
+    Parts in the BA-unavailable list skip steps 1-4 and go directly to step 5
+    (Rebrickable API) if an API key is available, otherwise they are skipped entirely.
+    
     Args:
         part_ids: List of part identifiers to fetch images for (BA part numbers)
         cache_dir: Path to BrickArchitect image cache directory
@@ -346,6 +414,8 @@ def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: i
     # Load unavailable images from file
     unavailable_images = _load_unavailable_images(user_data_dir)
     
+    # Load BA-unavailable images (confirmed unavailable from caches + BA site, not yet checked via RB API)
+    ba_unavailable_images = _load_ba_unavailable_images(user_data_dir)
     
     # Initialize statistics
     stats = {
@@ -379,8 +449,12 @@ def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: i
     
     # Batch check files in priority order
     for idx, pid in enumerate(part_ids):
-        # Skip if already marked as unavailable
+        # Skip if already marked as fully unavailable
         if pid in unavailable_images:
+            continue
+        
+        # Skip cache checks for BA-unavailable parts (they'll go straight to RB API)
+        if pid in ba_unavailable_images:
             continue
             
         # Priority 1: Check BrickArchitect cache
@@ -401,40 +475,58 @@ def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: i
     
     # Separate cached and uncached parts (excluding unavailable)
     cached_results = {pid: path for pid, path in file_cache.items() if path}
-    uncached_parts = [pid for pid in part_ids if pid not in cached_results and pid not in unavailable_images]
+    uncached_parts = [pid for pid in part_ids if pid not in cached_results and pid not in unavailable_images and pid not in ba_unavailable_images]
+    
+    # BA-unavailable parts that have an API key go straight to RB API
+    ba_unavail_with_api = [pid for pid in part_ids if pid in ba_unavailable_images and pid not in unavailable_images and api_key]
     
     if progress_callback:
         unavailable_count = len([pid for pid in part_ids if pid in unavailable_images])
+        ba_unavail_count = len([pid for pid in part_ids if pid in ba_unavailable_images and pid not in unavailable_images])
         status_msg = f"Found {len(cached_results)} cached"
         if unavailable_count > 0:
             status_msg += f", {unavailable_count} unavailable"
+        if ba_unavail_count > 0:
+            status_msg += f", {ba_unavail_count} BA-unavailable"
         progress_callback(len(cached_results), total_parts, status_msg, "Cache check complete")
     
-    if not uncached_parts:
+    if not uncached_parts and not ba_unavail_with_api:
         return cached_results, stats
     
     # Fetch uncached images in parallel (Priority 4 & 5: Download from BA or RB)
+    all_fetch_parts = len(uncached_parts) + len(ba_unavail_with_api)
     if progress_callback:
-        progress_callback(len(cached_results), total_parts, f"Fetching {len(uncached_parts)} images", "Downloading")
+        progress_callback(len(cached_results), total_parts, f"Fetching {all_fetch_parts} images", "Downloading")
     
     # Create a session for connection reuse across requests
     session = requests.Session()
     results = cached_results.copy()
     completed_count = len(cached_results)
     
+    # Track newly discovered BA-unavailable parts (failed BA but no API key)
+    new_ba_unavailable = set()
+    
     try:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all fetch tasks, passing unavailable_images set and RB part number mapping
+            # Submit normal fetch tasks (full pipeline: BA download -> RB API fallback)
             future_to_pid = {
                 executor.submit(_fetch_single_image, pid, cache_dir, session, cache_rb_dir, api_key, unavailable_images, ba_to_rb_map.get(pid, pid)): pid
                 for pid in uncached_parts
             }
+            
+            # Submit BA-unavailable parts with skip_ba=True (go straight to RB API)
+            for pid in ba_unavail_with_api:
+                future = executor.submit(_fetch_single_image, pid, cache_dir, session, cache_rb_dir, api_key, unavailable_images, ba_to_rb_map.get(pid, pid), True)
+                future_to_pid[future] = pid
             
             # Collect results as they complete
             for future in as_completed(future_to_pid):
                 pid, img_path, source = future.result()
                 if img_path:
                     results[pid] = img_path
+                    # If this part was BA-unavailable but now has an RB image, remove from BA-unavailable
+                    if pid in ba_unavailable_images:
+                        ba_unavailable_images.discard(pid)
                     # Track download source
                     if source == "ba":
                         stats["ba_downloaded"] += 1
@@ -446,6 +538,9 @@ def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: i
                     stats["rb_other_errors"] += 1
                 elif source == "no_rb_api":
                     stats["no_rb_api"] += 1
+                    # Part failed BA download and has no API key — mark as BA-unavailable
+                    if pid not in ba_unavailable_images:
+                        new_ba_unavailable.add(pid)
                     
                 completed_count += 1
                 
@@ -456,6 +551,10 @@ def get_cached_images_batch(part_ids: List[str], cache_dir: Path, max_workers: i
         session.close()
         # Save updated unavailable images to file
         _save_unavailable_images(unavailable_images, user_data_dir)
+        # Save updated BA-unavailable images to file
+        if new_ba_unavailable:
+            ba_unavailable_images.update(new_ba_unavailable)
+        _save_ba_unavailable_images(ba_unavailable_images, user_data_dir)
     
     return results, stats
 
@@ -477,6 +576,12 @@ def _fetch_images_for_parts(part_mapping_items: tuple, cache_images_dir, user_up
     """
     part_mapping = dict(part_mapping_items)
     
+    # Build reverse mapping: mapped (BA) part -> original (RB) part for Rebrickable API calls
+    ba_to_rb_map: Dict[str, str] = {}
+    for original_part, mapped_part in part_mapping.items():
+        if mapped_part not in ba_to_rb_map:
+            ba_to_rb_map[mapped_part] = original_part
+    
     # Batch fetch all images (including user-uploaded and Rebrickable fallback)
     unique_mapped_parts = list(set(part_mapping.values()))
     image_cache, stats = get_cached_images_batch(
@@ -485,7 +590,8 @@ def _fetch_images_for_parts(part_mapping_items: tuple, cache_images_dir, user_up
         user_uploaded_dir=user_uploaded_dir,
         cache_rb_dir=cache_rb_dir,
         api_key=api_key,
-        user_data_dir=user_data_dir
+        user_data_dir=user_data_dir,
+        ba_to_rb_map=ba_to_rb_map
     )
 
     # Build final mapping from original part numbers to image paths

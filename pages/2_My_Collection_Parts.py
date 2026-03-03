@@ -819,38 +819,100 @@ if collection_files_stream:
                 
                 # Display missing parts (not yet confirmed unavailable)
                 if missing_not_unavailable:
-                    with st.expander(f"⚠️ Parts without images - not yet checked in RB ({len(missing_not_unavailable)})", expanded=False):
-                        st.markdown("These parts don't have cached images yet. They may be available via Rebrickable API. Click 'Fetch RB image' to attempt fetching them.")
+                    # Initialize session state for tracking fetched RB images in this section
+                    if "p2_rb_fetched" not in st.session_state:
+                        st.session_state["p2_rb_fetched"] = {}
+                    
+                    # Keep expander open after fetching an image
+                    _p2_rb_expander_open = st.session_state.pop("p2_rb_keep_expander_open", False)
+                    
+                    with st.expander(f"⚠️ Parts without images - not yet checked in RB ({len(missing_not_unavailable)})", expanded=_p2_rb_expander_open):
+                        st.markdown("These parts don't have cached images yet. They may be available via Rebrickable API. Click 'Get RB img' to attempt fetching them one at a time.")
                         st.markdown("---")
 
                         # Create reverse mapping (BA -> RB) for display
                         rb_to_ba = {v: k for k, v in ba_mapping.items()}
                         
-                        # Prepare data for table display
-                        table_data = []
-                        for part_num in missing_not_unavailable:
-                            # Determine if this is BA or RB part number
-                            ba_num = part_num if part_num not in ba_mapping else ba_mapping[part_num]
-                            rb_num = rb_to_ba.get(part_num, part_num)
-                            
-                            # Show both numbers if they differ
-                            if ba_num != rb_num:
-                                display_text = f"{part_num} (BA: {ba_num}, RB: {rb_num})"
-                            else:
-                                display_text = part_num
-                            
-                            table_data.append(display_text)
+                        # Load API key for on-demand fetching
+                        from core.auth.api_keys import load_api_key
+                        _p2_api_key = load_api_key(user_data_dir)
                         
-                        # Display in multi-column table (4 columns)
-                        cols_per_row = 4
-                        for i in range(0, len(table_data), cols_per_row):
+                        from core.parts.images import fetch_rb_image_on_demand
+                        
+                        # Display each part with a fetch button
+                        cols_per_row = 3
+                        # Build display list: still-missing parts + parts fetched this session (shown temporarily with image)
+                        display_parts = list(missing_not_unavailable)
+                        for p in st.session_state["p2_rb_fetched"]:
+                            if p not in display_parts:
+                                display_parts.append(p)
+                        display_parts.sort()
+                        
+                        for i in range(0, len(display_parts), cols_per_row):
                             cols = st.columns(cols_per_row)
                             for j, col in enumerate(cols):
-                                if i + j < len(table_data):
-                                    col.markdown(f"• {table_data[i + j]}")
+                                if i + j < len(display_parts):
+                                    part_num = display_parts[i + j]
+                                    ba_num = part_num if part_num not in ba_mapping else ba_mapping[part_num]
+                                    rb_num = rb_to_ba.get(part_num, part_num)
+                                    
+                                    if ba_num != rb_num:
+                                        display_text = f"{part_num} (BA: {ba_num}, RB: {rb_num})"
+                                    else:
+                                        display_text = part_num
+                                    
+                                    with col:
+                                        # Check if this part was already fetched in this session
+                                        if part_num in st.session_state["p2_rb_fetched"]:
+                                            rb_path = st.session_state["p2_rb_fetched"][part_num]
+                                            if rb_path:
+                                                img_col, txt_col = st.columns([1, 2])
+                                                with img_col:
+                                                    st.image(rb_path, width=60)
+                                                with txt_col:
+                                                    st.markdown(f"✅ {display_text}")
+                                            else:
+                                                st.markdown(f"⚠️ {display_text} — not available")
+                                        else:
+                                            btn_col, txt_col = st.columns([1, 2])
+                                            with txt_col:
+                                                st.markdown(f"• {display_text}")
+                                            with btn_col:
+                                                btn_key = f"p2_rb_{part_num}"
+                                                if st.button("🔍 Get RB img", key=btn_key, type="secondary"):
+                                                    rb_path = fetch_rb_image_on_demand(
+                                                        str(rb_num), paths.cache_images_rb, _p2_api_key
+                                                    )
+                                                    st.session_state["p2_rb_fetched"][part_num] = rb_path
+                                                    # Remove from missing list so it won't show on next full reload
+                                                    current_missing = st.session_state.get("precompute_missing_images", [])
+                                                    if part_num in current_missing:
+                                                        current_missing.remove(part_num)
+                                                        st.session_state["precompute_missing_images"] = current_missing
+                                                    
+                                                    from core.parts.images import _load_ba_unavailable_images, _save_ba_unavailable_images
+                                                    from core.parts.images import _load_unavailable_images, _save_unavailable_images
+                                                    if rb_path:
+                                                        # Success: remove from BA-unavailable list
+                                                        ba_unavail = _load_ba_unavailable_images(user_data_dir)
+                                                        ba_unavail.discard(part_num)
+                                                        _save_ba_unavailable_images(ba_unavail, user_data_dir)
+                                                    else:
+                                                        # Failed: mark as fully unavailable, remove from BA-unavailable
+                                                        unavail = _load_unavailable_images(user_data_dir)
+                                                        unavail.add(part_num)
+                                                        _save_unavailable_images(unavail, user_data_dir)
+                                                        ba_unavail = _load_ba_unavailable_images(user_data_dir)
+                                                        ba_unavail.discard(part_num)
+                                                        _save_ba_unavailable_images(ba_unavail, user_data_dir)
+                                                    st.session_state["p2_rb_keep_expander_open"] = True
+                                                    st.rerun()
                         
                         st.markdown("---")
-                        st.info(f"💡 **Tip:** Click '🔄 Recompute images' below to attempt fetching these images.")
+                        if not _p2_api_key:
+                            st.warning("⚠️ No Rebrickable API key configured. Go to **My Collection - Sets** page to set up your API key.")
+                        else:
+                            st.info(f"💡 **Tip:** These images will be fetched in batch if included in a Wanted Parts list in page 'Find Wanted Parts'.")
             
             # Show parts without locations
             parts_without_location = st.session_state.get("precompute_parts_without_location", [])
@@ -886,6 +948,7 @@ if collection_files_stream:
                     st.session_state.pop("precompute_parts_without_location", None)
                     st.session_state.pop("precompute_stats", None)
                     st.session_state.pop("precompute_parts_count", None)
+                    st.session_state.pop("p2_rb_fetched", None)
                     
                     # Clear Streamlit cache for fetch_image_bytes to ensure fresh fetches
                     # This is important when images become available after initial failure
@@ -899,12 +962,16 @@ if collection_files_stream:
             
             with col_btn2:
                 from core.parts.images import get_unavailable_images_count, clear_unavailable_images_cache
+                from core.parts.images import get_ba_unavailable_images_count, clear_ba_unavailable_images_cache
                 unavailable_count = get_unavailable_images_count(user_data_dir)
+                ba_unavailable_count = get_ba_unavailable_images_count(user_data_dir)
+                total_unavailable = unavailable_count + ba_unavailable_count
                 
-                if unavailable_count > 0:
-                    if st.button(f"🔓 Reset unavailable list ({unavailable_count})", key="reset_unavailable_button", help="Clear the list of parts marked as unavailable to retry fetching them"):
+                if total_unavailable > 0:
+                    if st.button(f"🔓 Reset unavailable list ({total_unavailable})", key="reset_unavailable_button", help="Clear the list of parts marked as unavailable to retry fetching them"):
                         cleared_count = clear_unavailable_images_cache(user_data_dir)
-                        st.success(f"✅ Cleared {cleared_count} parts from unavailable list. Click '🔄 Recompute images' to retry fetching them.")
+                        cleared_ba_count = clear_ba_unavailable_images_cache(user_data_dir)
+                        st.success(f"✅ Cleared {cleared_count + cleared_ba_count} parts from unavailable lists. Click '🔄 Recompute images' to retry fetching them.")
                         st.session_state["precompute_collection_done"] = False
                         st.session_state.pop("precompute_missing_images", None)
                         st.session_state.pop("precompute_stats", None)
