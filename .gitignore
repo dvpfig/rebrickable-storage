@@ -1,7 +1,5 @@
 # User-specific data
 user_data/
-resources/auth_config.yaml
-user_data/auth_config.yaml
 
 # Python
 __pycache__/
@@ -55,7 +53,7 @@ test_user_data/
 .env.local
 
 # Resources (user-generated data files)
-#resources/
+resources/
 
 # Plans for coding & Tools for analysis
 plans/
