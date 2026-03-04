@@ -1,6 +1,60 @@
 # core/colors.py
 import pandas as pd
+import requests
+import zipfile
+import io
+from pathlib import Path
 from streamlit import cache_data
+
+
+def download_colors_csv(colors_path: Path) -> bool:
+    """
+    Download colors.csv from Rebrickable and save to the specified path.
+
+    Fetches the zipped CSV from https://cdn.rebrickable.com/media/downloads/colors.csv.zip,
+    extracts it, and saves as colors.csv.
+
+    Args:
+        colors_path: Path where colors.csv should be saved
+
+    Returns:
+        bool: True if download was successful, False otherwise
+    """
+    url = "https://cdn.rebrickable.com/media/downloads/colors.csv.zip"
+    try:
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+
+        with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
+            # Find the CSV file inside the zip
+            csv_files = [f for f in zf.namelist() if f.endswith('.csv')]
+            if not csv_files:
+                return False
+
+            # Extract the first CSV file
+            colors_path.parent.mkdir(parents=True, exist_ok=True)
+            with zf.open(csv_files[0]) as src, open(colors_path, 'wb') as dst:
+                dst.write(src.read())
+
+        return True
+    except Exception:
+        return False
+
+
+def ensure_colors_csv(colors_path: Path) -> bool:
+    """
+    Ensure colors.csv exists. If not found, download from Rebrickable.
+
+    Args:
+        colors_path: Path where colors.csv should exist
+
+    Returns:
+        bool: True if file exists (or was downloaded), False if unavailable
+    """
+    if colors_path.exists():
+        return True
+    return download_colors_csv(colors_path)
+
 
 @cache_data(show_spinner=False)
 def load_colors(colors_path):

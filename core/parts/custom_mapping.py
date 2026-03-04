@@ -57,7 +57,7 @@ def create_default_custom_mapping_csv(csv_path: Path):
         "RB pattern 2": [
             "28621pr**",
             "970l**r**pr**",
-            "",
+            "28649pr**",
             "92456c**pr**",
             "",
             "",

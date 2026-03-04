@@ -27,7 +27,7 @@ class Paths:
         self.user_data_dir = self.root / "user_data"
 
         # Use helper function to find latest mapping file
-        from resources.ba_part_mappings import find_latest_mapping_file
+        from core.external.ba_part_mappings import find_latest_mapping_file
         latest_mapping = find_latest_mapping_file(self.resources_dir)
         if latest_mapping:
             self.mapping_path = latest_mapping
@@ -47,6 +47,16 @@ class Paths:
             st.stop()
 
         self.colors_path = self.resources_dir / "colors.csv"
+
+        # Auto-download colors.csv from Rebrickable if not present
+        if not self.colors_path.exists():
+            from core.data.colors import ensure_colors_csv
+            if not ensure_colors_csv(self.colors_path):
+                st.warning(
+                    "⚠️ Could not download colors.csv from Rebrickable. "
+                    "Color information will be unavailable until the file is downloaded. "
+                    "Use the sidebar option in 'My Collection - Parts' to retry."
+                )
 
         for d in [self.global_cache_dir, self.cache_images, self.cache_images_rb, self.cache_labels, self.cache_set_inventories, self.resources_dir, self.user_data_dir]:
             d.mkdir(parents=True, exist_ok=True)

@@ -10,9 +10,9 @@ from core.data.preprocess import load_collection_files, get_collection_parts_tup
 from core.parts.images import precompute_location_images, create_custom_images_zip, count_custom_images, upload_custom_images, delete_all_custom_images
 from core.auth.security import validate_csv_file
 from core.external.download_helpers import create_download_callbacks
-from resources.ba_part_labels import download_ba_labels
-from resources.ba_part_images import download_ba_images
-from resources.ba_part_mappings import fetch_all_ba_parts, fetch_rebrickable_mappings, find_latest_mapping_file, display_mapping_files_info
+from core.external.ba_part_labels import download_ba_labels
+from core.external.ba_part_images import download_ba_images
+from core.external.ba_part_mappings import fetch_all_ba_parts, fetch_rebrickable_mappings, find_latest_mapping_file, display_mapping_files_info
 import os
 from dotenv import load_dotenv
 
@@ -121,8 +121,33 @@ with st.sidebar:
                 else:
                     st.warning("⚠️ Please enter an API key")
     
-    st.markdown("---")
+    # Rebrickable Colors Database Section
+    with st.expander("🎨 Rebrickable Colors Database", expanded=False):
+        st.markdown("Manage the LEGO colors database used for color identification and display.")
+        
+        colors_file = paths.colors_path
+        if colors_file.exists():
+            import os
+            from datetime import datetime
+            mod_time = os.path.getmtime(colors_file)
+            mod_date = datetime.fromtimestamp(mod_time).strftime("%Y-%m-%d %H:%M")
+            st.success(f"✅ colors.csv is available (last updated: {mod_date})")
+        else:
+            st.warning("⚠️ colors.csv not found. Click below to download from Rebrickable.")
+        
+        if st.button("🔄 Download latest colors from Rebrickable", key="download_colors_csv", type="primary"):
+            from core.data.colors import download_colors_csv
+            with st.spinner("Downloading colors.csv from Rebrickable..."):
+                success = download_colors_csv(colors_file)
+            if success:
+                st.success("✅ colors.csv downloaded and updated successfully!")
+                st.cache_data.clear()
+                st.rerun()
+            else:
+                st.error("❌ Failed to download colors.csv. Please check your internet connection and try again.")
     
+    st.markdown("---")
+
     # Custom Images Management
     with st.expander("🖼️ Custom Images"):
         st.markdown("Manage your custom part images uploaded when no official image was available.")
@@ -198,7 +223,7 @@ with st.sidebar:
         else:
             st.button("🗑️ Delete all custom images", key="delete_custom_images_disabled", disabled=True)
     
-    
+
 
 # Load mapping
 custom_mapping_path = paths.resources_dir / "custom_rb_ba_mapping.csv"
@@ -573,15 +598,73 @@ st.markdown("---")
 # ---------------------------------------------------------------------
 st.markdown("### 🧩 Custom RB->BA Mapping Rules")
 with st.expander("🧩 Custom RB-> BA Mapping Rules", expanded=False):
-    st.markdown("""
-    The application uses a two-tier mapping system to convert Rebrickable (RB) part numbers to BrickArchitect (BA) part numbers:
-    
-    1. **Excel File Mapping** (Primary): Explicit mappings from `base_part_mapping_{date}.xlsx`
-    2. **Custom Mapping CSV** (Secondary): User-defined mappings with wildcard support
-    """)
-    st.info("💡 **Mapping Priority**: 1) Base mapping file (Excel file, mappings from BA site) → 2) Custom mappings (CSV file, with wildcards) → 3) Leading digits match in base mapping → 4) Retrieve original RB part number")
-    
+
+    col_custom1, col_custom2 = st.columns(2)
+
+    with col_custom1:
+        st.markdown("""
+        The application uses a two-tier mapping system to convert Rebrickable (RB) part numbers to BrickArchitect (BA) part numbers:
+        
+        1. **Excel File Mapping** (Primary): Explicit mappings from `base_part_mapping_{date}.xlsx`
+        2. **Custom Mapping CSV** (Secondary): User-defined mappings with wildcard support
+        """)
+     
+        # Download / Upload custom mapping file
+        from core.parts.custom_mapping import load_custom_mapping_csv, save_custom_mapping_csv
+        
+        # Get custom mapping path
+        custom_mapping_path = paths.resources_dir / "custom_rb_ba_mapping.csv"
+
+        st.markdown("**📥 Download current custom mapping**")
+        if custom_mapping_path.exists():
+            with open(custom_mapping_path, "rb") as f:
+                st.download_button(
+                    label="📥 Download custom_rb_ba_mapping.csv",
+                    data=f.read(),
+                    file_name="custom_rb_ba_mapping.csv",
+                    mime="text/csv",
+                    key="download_custom_mapping_csv"
+                )
+        else:
+            st.info("No custom mapping file found yet.")
+
+        st.markdown("**📤 Upload replacement custom mapping**")
+        uploaded_mapping = st.file_uploader(
+            "Upload a CSV to replace the current mapping",
+            type=["csv"],
+            key="upload_custom_mapping_csv",
+            label_visibility="collapsed"
+        )
+        if uploaded_mapping is not None:
+            if st.button("📤 Replace mapping file", key="replace_custom_mapping", type="primary"):
+                try:
+                    import pandas as pd
+                    new_df = pd.read_csv(uploaded_mapping, dtype=str).fillna("")
+                    if "BA partnum" not in new_df.columns or "RB pattern 1" not in new_df.columns:
+                        st.error("❌ CSV must contain at least 'BA partnum' and 'RB pattern 1' columns.")
+                    else:
+                        save_custom_mapping_csv(new_df, custom_mapping_path)
+                        st.success("✅ Custom mapping file replaced successfully!")
+                        st.cache_data.clear()
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error reading uploaded file: {e}")
+                    
+    with col_custom2:   
+
+        st.info("""
+        💡 **Mapping Priority**:
+
+        1) Base mapping file (Excel file, mappings from BA site) → 
+        2) Custom mappings (CSV file, with wildcards) → 
+        3) Leading digits match in base mapping → 
+        4) Retrieve original RB part number
+        """)
+
+
     st.markdown("---")
+
+    # Custom mapping file editor    
     st.markdown("**Custom Mapping Editor:**")
     st.markdown("""
     Create your own mapping rules with wildcard support. Wildcards allow flexible pattern matching:
@@ -595,11 +678,6 @@ with st.expander("🧩 Custom RB-> BA Mapping Rules", expanded=False):
     
     **Multiple RB Patterns:** Use RB pattern 1 through RB pattern 4 columns to define alternative patterns that map to the same BA part.
     """)
-    
-    from core.parts.custom_mapping import load_custom_mapping_csv, save_custom_mapping_csv
-    
-    # Get custom mapping path
-    custom_mapping_path = paths.resources_dir / "custom_rb_ba_mapping.csv"
     
     # Load custom mapping
     custom_df = load_custom_mapping_csv(custom_mapping_path)

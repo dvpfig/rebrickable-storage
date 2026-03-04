@@ -176,7 +176,7 @@ def download_ba_images(mapping_path: Path, cache_images_dir: Path, timeout: int 
 if __name__ == "__main__":
     from ba_part_mappings import find_latest_mapping_file
     
-    SCRIPT_DIR = Path(__file__).parent
+    SCRIPT_DIR = Path(__file__).parent.parent.parent / "resources"
     INPUT_FILE = find_latest_mapping_file(SCRIPT_DIR)
     
     if not INPUT_FILE:

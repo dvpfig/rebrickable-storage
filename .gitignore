@@ -54,6 +54,9 @@ test_user_data/
 .env
 .env.local
 
+# Resources (user-generated data files)
+resources/
+
 # Plans for coding & Tools for analysis
 plans/
 tools/

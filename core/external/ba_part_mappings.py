@@ -823,7 +823,7 @@ def update_ba_mappings(output_file: Path, log_callback=None, stop_flag_callback=
 if __name__ == "__main__":
     import sys
     
-    SCRIPT_DIR = Path(__file__).parent
+    SCRIPT_DIR = Path(__file__).parent.parent.parent / "resources"
     timestamp = datetime.now().strftime("%Y-%m-%d")
     OUTPUT_FILE = SCRIPT_DIR / f"base_part_mapping_{timestamp}.xlsx"
     
