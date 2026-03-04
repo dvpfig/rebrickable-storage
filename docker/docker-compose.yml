@@ -17,3 +17,4 @@ services:
     volumes:
       - ${APP_DATA_LOCATION}/rebrickable-storage/user_data:/app/user_data
       - ${APP_DATA_LOCATION}/rebrickable-storage/cache:/app/cache
+      - ${APP_DATA_LOCATION}/rebrickable-storage/resources:/app/resources

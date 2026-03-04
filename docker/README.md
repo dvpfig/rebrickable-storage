@@ -11,7 +11,7 @@ This guide explains how to self-host the Rebrickable Storage application using D
 
 1. Create a directory for your application data:
 ```bash
-mkdir -p /path/to/your/data/rebrickable-storage/{data,cache}
+mkdir -p /path/to/your/data/rebrickable-storage/{user_data,cache,resources}
 ```
 
 2. Create a `.env` file in the same directory as `docker-compose.yml`:
@@ -46,7 +46,7 @@ docker-compose up -d
 
 - `APP_DATA_LOCATION`: Base directory path where application data will be stored
   - Example: `/home/user/appdata` or `C:\AppData` (Windows)
-  - The application will create subdirectories: `rebrickable-storage/data` and `rebrickable-storage/cache`
+  - The application will create subdirectories: `rebrickable-storage/user_data`, `rebrickable-storage/cache`, and `rebrickable-storage/resources`
 
 ### Optional Variables
 
@@ -62,8 +62,9 @@ After setup, your data directory will look like this:
 ```
 /path/to/your/data/
 └── rebrickable-storage/
-    ├── data/          # User data and session files
-    └── cache/         # Cached images and labels
+    ├── user_data/     # User data and session files
+    ├── cache/         # Cached images and labels
+    └── resources/     # Shared resources (colors.csv, part mappings, custom mappings)
 ```
 
 ## Configuration Examples
