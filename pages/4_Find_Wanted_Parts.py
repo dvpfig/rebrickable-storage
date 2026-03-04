@@ -5,6 +5,7 @@ import hashlib
 
 from core.state.progress import render_summary_table
 from core.infrastructure.paths import init_paths
+from core.infrastructure.paths import show_missing_mapping_error
 from core.parts.mapping import load_ba_mapping, build_rb_to_similar_parts_mapping, load_ba_part_names
 from core.data.preprocess import load_wanted_files, load_collection_files, merge_wanted_collection
 from core.parts.images import precompute_location_images, fetch_wanted_part_images
@@ -74,6 +75,9 @@ with st.sidebar:
             st.error("❌ Authentication manager not available.")
 
 # Load mapping and color data
+if not paths.has_mapping:
+    show_missing_mapping_error(stop=True)
+
 custom_mapping_path = paths.resources_dir / "custom_rb_ba_mapping.csv"
 ba_mapping = load_ba_mapping(paths.mapping_path, custom_mapping_path)
 rb_to_similar = build_rb_to_similar_parts_mapping(paths.mapping_path)

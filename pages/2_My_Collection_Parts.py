@@ -3,7 +3,7 @@ import pandas as pd
 from pathlib import Path
 import hashlib
 
-from core.infrastructure.paths import init_paths, save_uploadedfiles, manage_default_collection
+from core.infrastructure.paths import init_paths, save_uploadedfiles, manage_default_collection, show_missing_mapping_error
 from core.parts.mapping import load_ba_mapping, count_parts_in_mapping
 from core.labels.labels import generate_collection_labels_zip
 from core.data.preprocess import load_collection_files, get_collection_parts_tuple, get_collection_parts_set
@@ -225,9 +225,13 @@ with st.sidebar:
     
 
 
-# Load mapping
+# Load mapping (may be None if no mapping file exists yet)
 custom_mapping_path = paths.resources_dir / "custom_rb_ba_mapping.csv"
-ba_mapping = load_ba_mapping(paths.mapping_path, custom_mapping_path)
+_has_mapping = paths.has_mapping
+if _has_mapping:
+    ba_mapping = load_ba_mapping(paths.mapping_path, custom_mapping_path)
+else:
+    ba_mapping = None
 
 # Get max file size from environment
 max_file_size_mb = float(os.getenv('MAX_FILE_SIZE_MB', '1.0'))
@@ -310,159 +314,162 @@ col_sync1, col_sync2 = st.columns(2)
 # Column 1: Get latest Labels/Images
 with col_sync1:
     with st.expander("📥 Get latest Labels/Images", expanded=False):
-        st.markdown("Download the latest labels (.lbx) or images (.png) from BrickArchitect based on the part mapping database. Files cached locally - only new files will be downloaded.")
-        
-        # Display cache statistics
-        try:
-            labels_count = _count_cache_files(str(paths.cache_labels), "lbx")
-            images_count = _count_cache_files(str(paths.cache_images), "png")
-            st.info(f"📊 Cache: **{labels_count}** labels, **{images_count}** images")
-        except Exception as e:
-            st.warning(f"⚠️ Could not count cache files: {e}")
-        
-        st.markdown("---")
-        st.markdown("**Labels (.lbx files)**")
-        
-        # Calculate part counts for labels
-        try:
-            total_parts_with_labels, collection_parts_with_labels = count_parts_in_mapping(str(paths.mapping_path), _cached_collection_parts_tuple, "labels")
-            
-            labels_filter_mode = st.radio(
-                "Download mode:",
-                options=["collection", "all"],
-                format_func=lambda x: f"Only parts in my collection ({collection_parts_with_labels} parts)" if x == "collection" else f"All available parts ({total_parts_with_labels} parts)",
-                index=0,
-                key="labels_filter_mode",
-                horizontal=True
-            )
-        except Exception as e:
-            st.warning(f"⚠️ Could not calculate part counts: {e}")
-            labels_filter_mode = st.radio(
-                "Download mode:",
-                options=["collection", "all"],
-                format_func=lambda x: "Only parts in my collection" if x == "collection" else "All available parts",
-                index=0,
-                key="labels_filter_mode",
-                horizontal=True
-            )
-        
-        if "ba_labels_stop_flag" not in st.session_state:
-            st.session_state.ba_labels_stop_flag = False
-        
-        if not st.session_state.get("ba_labels_downloading", False):
-            if st.button("📥 Get latest BA labels", key="download_ba_labels", type="primary"):
-                st.session_state.ba_labels_downloading = True
-                st.session_state.ba_labels_stop_flag = False
-                st.rerun()
+        if not _has_mapping:
+            st.warning("⚠️ No mapping file found. Use **'🔄 Sync latest Parts from BrickArchitect'** on the right to create one first.")
         else:
-            if st.button("⏹️ Stop Download", key="stop_ba_labels", type="secondary"):
-                st.session_state.ba_labels_stop_flag = True
+            st.markdown("Download the latest labels (.lbx) or images (.png) from BrickArchitect based on the part mapping database. Files cached locally - only new files will be downloaded.")
         
-        if st.session_state.get("ba_labels_downloading", False):
-            progress_callback, stop_flag_callback, stats_callback = create_download_callbacks(
-                stop_flag_key="ba_labels_stop_flag",
-                show_stats=False
-            )
-            
+            # Display cache statistics
             try:
-                collection_parts_set = None
-                if labels_filter_mode == "collection":
-                    collection_parts_set = get_collection_parts_set(user_collection_dir)
-                    if not collection_parts_set:
-                        st.warning("⚠️ No collection files found. Downloading all parts instead.")
-                        labels_filter_mode = "all"
-                
-                with st.spinner("Downloading BA labels..."):
-                    stats = download_ba_labels(
-                        mapping_path=paths.mapping_path,
-                        cache_labels_dir=paths.cache_labels,
-                        timeout=10,
-                        progress_callback=progress_callback,
-                        stop_flag_callback=stop_flag_callback,
-                        stats_callback=stats_callback,
-                        filter_mode=labels_filter_mode,
-                        collection_parts=collection_parts_set
-                    )
-                
+                labels_count = _count_cache_files(str(paths.cache_labels), "lbx")
+                images_count = _count_cache_files(str(paths.cache_images), "png")
+                st.info(f"📊 Cache: **{labels_count}** labels, **{images_count}** images")
             except Exception as e:
-                st.error(f"❌ Error during download: {e}")
-            finally:
-                st.session_state.ba_labels_downloading = False
+                st.warning(f"⚠️ Could not count cache files: {e}")
+            
+            st.markdown("---")
+            st.markdown("**Labels (.lbx files)**")
+            
+            # Calculate part counts for labels
+            try:
+                total_parts_with_labels, collection_parts_with_labels = count_parts_in_mapping(str(paths.mapping_path), _cached_collection_parts_tuple, "labels")
+                
+                labels_filter_mode = st.radio(
+                    "Download mode:",
+                    options=["collection", "all"],
+                    format_func=lambda x: f"Only parts in my collection ({collection_parts_with_labels} parts)" if x == "collection" else f"All available parts ({total_parts_with_labels} parts)",
+                    index=0,
+                    key="labels_filter_mode",
+                    horizontal=True
+                )
+            except Exception as e:
+                st.warning(f"⚠️ Could not calculate part counts: {e}")
+                labels_filter_mode = st.radio(
+                    "Download mode:",
+                    options=["collection", "all"],
+                    format_func=lambda x: "Only parts in my collection" if x == "collection" else "All available parts",
+                    index=0,
+                    key="labels_filter_mode",
+                    horizontal=True
+                )
+            
+            if "ba_labels_stop_flag" not in st.session_state:
                 st.session_state.ba_labels_stop_flag = False
-        
-        st.markdown("---")
-        st.markdown("**Images (.png files)**")
-        
-        # Calculate part counts for images
-        try:
-            total_parts_with_images, collection_parts_with_images = count_parts_in_mapping(str(paths.mapping_path), _cached_collection_parts_tuple, "images")
             
-            images_filter_mode = st.radio(
-                "Download mode:",
-                options=["collection", "all"],
-                format_func=lambda x: f"Only parts in my collection ({collection_parts_with_images} parts)" if x == "collection" else f"All available parts ({total_parts_with_images} parts)",
-                index=0,
-                key="images_filter_mode",
-                horizontal=True
-            )
-        except Exception as e:
-            st.warning(f"⚠️ Could not calculate part counts: {e}")
-            images_filter_mode = st.radio(
-                "Download mode:",
-                options=["collection", "all"],
-                format_func=lambda x: "Only parts in my collection" if x == "collection" else "All available parts",
-                index=0,
-                key="images_filter_mode",
-                horizontal=True
-            )
-        
-        if "ba_images_stop_flag" not in st.session_state:
-            st.session_state.ba_images_stop_flag = False
-        
-        if not st.session_state.get("ba_images_downloading", False):
-            if st.button("📥 Get latest BA images", key="download_ba_images", type="primary"):
-                st.session_state.ba_images_downloading = True
-                st.session_state.ba_images_stop_flag = False
-                st.rerun()
-        else:
-            if st.button("⏹️ Stop Download", key="stop_ba_images", type="secondary"):
-                st.session_state.ba_images_stop_flag = True
-        
-        if st.session_state.get("ba_images_downloading", False):
-            progress_callback_images, stop_flag_callback_images, stats_callback_images = create_download_callbacks(
-                stop_flag_key="ba_images_stop_flag",
-                show_stats=False
-            )
+            if not st.session_state.get("ba_labels_downloading", False):
+                if st.button("📥 Get latest BA labels", key="download_ba_labels", type="primary"):
+                    st.session_state.ba_labels_downloading = True
+                    st.session_state.ba_labels_stop_flag = False
+                    st.rerun()
+            else:
+                if st.button("⏹️ Stop Download", key="stop_ba_labels", type="secondary"):
+                    st.session_state.ba_labels_stop_flag = True
             
+            if st.session_state.get("ba_labels_downloading", False):
+                progress_callback, stop_flag_callback, stats_callback = create_download_callbacks(
+                    stop_flag_key="ba_labels_stop_flag",
+                    show_stats=False
+                )
+                
+                try:
+                    collection_parts_set = None
+                    if labels_filter_mode == "collection":
+                        collection_parts_set = get_collection_parts_set(user_collection_dir)
+                        if not collection_parts_set:
+                            st.warning("⚠️ No collection files found. Downloading all parts instead.")
+                            labels_filter_mode = "all"
+                    
+                    with st.spinner("Downloading BA labels..."):
+                        stats = download_ba_labels(
+                            mapping_path=paths.mapping_path,
+                            cache_labels_dir=paths.cache_labels,
+                            timeout=10,
+                            progress_callback=progress_callback,
+                            stop_flag_callback=stop_flag_callback,
+                            stats_callback=stats_callback,
+                            filter_mode=labels_filter_mode,
+                            collection_parts=collection_parts_set
+                        )
+                    
+                except Exception as e:
+                    st.error(f"❌ Error during download: {e}")
+                finally:
+                    st.session_state.ba_labels_downloading = False
+                    st.session_state.ba_labels_stop_flag = False
+            
+            st.markdown("---")
+            st.markdown("**Images (.png files)**")
+            
+            # Calculate part counts for images
             try:
-                collection_parts_set = None
-                if images_filter_mode == "collection":
-                    collection_parts_set = get_collection_parts_set(user_collection_dir)
-                    if not collection_parts_set:
-                        st.warning("⚠️ No collection files found. Downloading all parts instead.")
-                        images_filter_mode = "all"
+                total_parts_with_images, collection_parts_with_images = count_parts_in_mapping(str(paths.mapping_path), _cached_collection_parts_tuple, "images")
                 
-                with st.spinner("Downloading BA images..."):
-                    stats = download_ba_images(
-                        mapping_path=paths.mapping_path,
-                        cache_images_dir=paths.cache_images,
-                        timeout=10,
-                        progress_callback=progress_callback_images,
-                        stop_flag_callback=stop_flag_callback_images,
-                        stats_callback=stats_callback_images,
-                        filter_mode=images_filter_mode,
-                        collection_parts=collection_parts_set
-                    )
-                
+                images_filter_mode = st.radio(
+                    "Download mode:",
+                    options=["collection", "all"],
+                    format_func=lambda x: f"Only parts in my collection ({collection_parts_with_images} parts)" if x == "collection" else f"All available parts ({total_parts_with_images} parts)",
+                    index=0,
+                    key="images_filter_mode",
+                    horizontal=True
+                )
             except Exception as e:
-                st.error(f"❌ Error during download: {e}")
-            finally:
-                st.session_state.ba_images_downloading = False
+                st.warning(f"⚠️ Could not calculate part counts: {e}")
+                images_filter_mode = st.radio(
+                    "Download mode:",
+                    options=["collection", "all"],
+                    format_func=lambda x: "Only parts in my collection" if x == "collection" else "All available parts",
+                    index=0,
+                    key="images_filter_mode",
+                    horizontal=True
+                )
+            
+            if "ba_images_stop_flag" not in st.session_state:
                 st.session_state.ba_images_stop_flag = False
+            
+            if not st.session_state.get("ba_images_downloading", False):
+                if st.button("📥 Get latest BA images", key="download_ba_images", type="primary"):
+                    st.session_state.ba_images_downloading = True
+                    st.session_state.ba_images_stop_flag = False
+                    st.rerun()
+            else:
+                if st.button("⏹️ Stop Download", key="stop_ba_images", type="secondary"):
+                    st.session_state.ba_images_stop_flag = True
+            
+            if st.session_state.get("ba_images_downloading", False):
+                progress_callback_images, stop_flag_callback_images, stats_callback_images = create_download_callbacks(
+                    stop_flag_key="ba_images_stop_flag",
+                    show_stats=False
+                )
+                
+                try:
+                    collection_parts_set = None
+                    if images_filter_mode == "collection":
+                        collection_parts_set = get_collection_parts_set(user_collection_dir)
+                        if not collection_parts_set:
+                            st.warning("⚠️ No collection files found. Downloading all parts instead.")
+                            images_filter_mode = "all"
+                    
+                    with st.spinner("Downloading BA images..."):
+                        stats = download_ba_images(
+                            mapping_path=paths.mapping_path,
+                            cache_images_dir=paths.cache_images,
+                            timeout=10,
+                            progress_callback=progress_callback_images,
+                            stop_flag_callback=stop_flag_callback_images,
+                            stats_callback=stats_callback_images,
+                            filter_mode=images_filter_mode,
+                            collection_parts=collection_parts_set
+                        )
+                    
+                except Exception as e:
+                    st.error(f"❌ Error during download: {e}")
+                finally:
+                    st.session_state.ba_images_downloading = False
+                    st.session_state.ba_images_stop_flag = False
 
 # Column 2: Sync latest Parts from BrickArchitect
 with col_sync2:
-    with st.expander("🔄 Sync latest Parts from BrickArchitect", expanded=False):
+    with st.expander("🔄 Sync latest Parts from BrickArchitect", expanded=not _has_mapping):
         # BA Mappings Update Section
         st.markdown("**Update part number mapping database** between BrickArchitect and Rebrickable.")
         
@@ -532,6 +539,8 @@ with col_sync2:
                 # Reset fetch state
                 st.session_state.ba_parts_fetching = False
                 st.session_state.ba_parts_stop_flag = False
+                # Invalidate cached paths so mapping_path gets re-detected
+                st.session_state.pop("_paths_instance", None)
         
         st.markdown("---")
         
@@ -594,8 +603,12 @@ with col_sync2:
 st.markdown("---")
 
 # ---------------------------------------------------------------------
-# --- Custom RB-> BA Mapping Rules
+# --- Custom RB-> BA Mapping Rules (requires mapping file)
 # ---------------------------------------------------------------------
+if not _has_mapping:
+    show_missing_mapping_error(stop=False)
+    st.stop()
+
 st.markdown("### 🧩 Custom RB->BA Mapping Rules")
 with st.expander("🧩 Custom RB-> BA Mapping Rules", expanded=False):
 

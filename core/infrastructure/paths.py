@@ -29,22 +29,8 @@ class Paths:
         # Use helper function to find latest mapping file
         from core.external.ba_part_mappings import find_latest_mapping_file
         latest_mapping = find_latest_mapping_file(self.resources_dir)
-        if latest_mapping:
-            self.mapping_path = latest_mapping
-        else:
-            # No mapping file found - display error to user
-            self.mapping_path = None
-            st.error("❌ **No mapping file found!**")
-            st.warning(
-                "⚠️ No BA vs RB mapping file was found in the resources directory. "
-                "Please create a mapping file by using the sidebar option: "
-                "**'Sync latest Parts from BrickArchitect' → 'Get full list of BA parts'**"
-            )
-            st.info(
-                "💡 The mapping file should be named in the format: "
-                "`base_part_mapping_YYYY-MM-DD.xlsx`"
-            )
-            st.stop()
+        # mapping_path may be None when no mapping file exists yet
+        self.mapping_path = latest_mapping
 
         self.colors_path = self.resources_dir / "colors.csv"
 
@@ -103,6 +89,38 @@ class Paths:
         collection_sets_dir = self.user_data_dir / username / "collection_sets"
         collection_sets_dir.mkdir(parents=True, exist_ok=True)
         return collection_sets_dir
+
+    @property
+    def has_mapping(self) -> bool:
+        """Check if a valid mapping file is available."""
+        return self.mapping_path is not None
+
+
+def show_missing_mapping_error(stop: bool = True):
+    """
+    Display a user-friendly error when no mapping file is found,
+    with a navigation link to the page where it can be created.
+    
+    Args:
+        stop: If True, call st.stop() after displaying the error.
+    """
+    st.error("❌ **No mapping file found!**")
+    st.warning(
+        "⚠️ No BA vs RB mapping file was found in the resources directory. "
+        "Please create one by going to **My Collection - Parts** and using "
+        "**'🔄 Sync latest Parts from BrickArchitect' → 'Get full list of BA parts'**."
+    )
+    st.page_link(
+        "pages/2_My_Collection_Parts.py",
+        label="📦 Go to My Collection - Parts",
+        icon="➡️",
+    )
+    st.info(
+        "💡 The mapping file should be named in the format: "
+        "`base_part_mapping_YYYY-MM-DD.xlsx`"
+    )
+    if stop:
+        st.stop()
 
 def init_paths() -> Paths:
     """

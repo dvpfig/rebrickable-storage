@@ -1,5 +1,6 @@
 import streamlit as st
 from ui.shared_content import render_about_info_content, render_app_features_content, render_new_user_content
+from core.infrastructure.paths import init_paths
 
 # ---------------------------------------------------------------------
 # --- Page configuration
@@ -89,6 +90,15 @@ display_name = st.session_state.get("name", username)
 st.write(f"👤 Welcome, **{display_name}**!")
 
 st.markdown("## 🚀 Getting Started - Choose a Function")
+
+# Show warning if no mapping file exists yet
+paths = init_paths()
+if not paths.has_mapping:
+    st.warning(
+        "⚠️ **No BA vs RB mapping file found.** Some features (labels, images, part matching) "
+        "won't work until you create one. Go to **My Collection - Parts** → "
+        "**'🔄 Sync latest Parts from BrickArchitect'** → **'Get full list of BA parts'** to set it up."
+    )
 
 st.info("Use the topbar menu to navigate between pages")
 
