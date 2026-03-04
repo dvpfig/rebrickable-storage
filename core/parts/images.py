@@ -288,7 +288,7 @@ def _fetch_single_image(identifier: str, cache_dir: Path, session: Optional[requ
 
     # Try to fetch PNG from BrickArchitect URL (using BA part number) unless skip_ba is set
     if not skip_ba:
-        url = f"https://brickarchitect.com/content/cache/parts/normal/50/{identifier}.png"
+        url = f"https://brickarchitect.com/content/parts-large/{identifier}.png"
         logger.info(f"[BA:{identifier} RB:{rb_display}] Attempting BrickArchitect: {url}")
         data = fetch_image_bytes(url, session)
         if data:
