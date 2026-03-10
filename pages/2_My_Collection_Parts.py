@@ -289,6 +289,9 @@ with col_collection2:
         manage_default_collection(user_collection_dir)
 
 # Prepare collection files for label generation
+# Read file contents into BytesIO to avoid holding file handles open on Windows,
+# which would cause PermissionError when trying to delete files.
+from io import BytesIO
 default_collection_files = sorted(user_collection_dir.glob("*.csv"))
 collection_files_stream = []
 collection_file_paths = []
@@ -296,8 +299,10 @@ collection_file_paths = []
 if default_collection_files:
     for csv_file in default_collection_files:
         collection_file_paths.append(csv_file)
-        file_handle = open(csv_file, "rb")
-        collection_files_stream.append(file_handle)
+        data = csv_file.read_bytes()
+        buf = BytesIO(data)
+        buf.name = str(csv_file)
+        collection_files_stream.append(buf)
 
 st.markdown("---")
 

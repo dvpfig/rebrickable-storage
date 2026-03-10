@@ -162,10 +162,15 @@ collection_files_stream = []
 collection_file_paths = []
 
 # Add selected files from default collection
+# Read file contents into BytesIO to avoid holding file handles open on Windows,
+# which would cause PermissionError when trying to delete files.
+from io import BytesIO
 for f in selected_files:
     collection_file_paths.append(f)
-    file_handle = open(f, "rb")
-    collection_files_stream.append(file_handle)
+    data = Path(f).read_bytes()
+    buf = BytesIO(data)
+    buf.name = str(f)
+    collection_files_stream.append(buf)
 
 # Add uploaded files
 if uploaded_collection_files:

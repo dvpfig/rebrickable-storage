@@ -248,17 +248,19 @@ def _collection_dir_fingerprint(collection_dir):
 def _get_collection_parts_tuple_cached(_dir_str, _fingerprint):
     """Cached inner function for get_collection_parts_tuple."""
     from pathlib import Path
+    from io import BytesIO
     collection_dir = Path(_dir_str)
     collection_files = sorted(collection_dir.glob("*.csv"))
     if not collection_files:
         return None
-    collection_file_handles = [open(f, "rb") for f in collection_files]
-    try:
-        collection_df = load_collection_files(collection_file_handles)
-        return tuple(collection_df["Part"].astype(str).unique())
-    finally:
-        for fh in collection_file_handles:
-            fh.close()
+    collection_file_handles = []
+    for f in collection_files:
+        data = f.read_bytes()
+        buf = BytesIO(data)
+        buf.name = str(f)
+        collection_file_handles.append(buf)
+    collection_df = load_collection_files(collection_file_handles)
+    return tuple(collection_df["Part"].astype(str).unique())
 
 
 def get_collection_parts_tuple(collection_dir):
@@ -282,17 +284,19 @@ def get_collection_parts_tuple(collection_dir):
 def _get_collection_parts_set_cached(_dir_str, _fingerprint):
     """Cached inner function for get_collection_parts_set."""
     from pathlib import Path
+    from io import BytesIO
     collection_dir = Path(_dir_str)
     collection_files = sorted(collection_dir.glob("*.csv"))
     if not collection_files:
         return None
-    collection_file_handles = [open(f, "rb") for f in collection_files]
-    try:
-        collection_df = load_collection_files(collection_file_handles)
-        return set(collection_df["Part"].astype(str).unique())
-    finally:
-        for fh in collection_file_handles:
-            fh.close()
+    collection_file_handles = []
+    for f in collection_files:
+        data = f.read_bytes()
+        buf = BytesIO(data)
+        buf.name = str(f)
+        collection_file_handles.append(buf)
+    collection_df = load_collection_files(collection_file_handles)
+    return set(collection_df["Part"].astype(str).unique())
 
 
 def get_collection_parts_set(collection_dir):

@@ -163,10 +163,10 @@ def save_uploadedfiles(uploadedfiles_list, user_collection_dir: Path):
 def manage_default_collection(user_collection_dir: Path):
     """
     Display UI for managing (deleting) collection CSV files.
-    
+
     Args:
         user_collection_dir: Path to user's collection directory
-        
+
     Returns:
         None
     """
@@ -175,10 +175,31 @@ def manage_default_collection(user_collection_dir: Path):
         mark_for_delete = False
         if st.button("Delete selected files"):
             mark_for_delete = True
-        
+
+        deleted_any = False
         for csv_file in default_collection_files:
             include = st.checkbox(f"{csv_file.name}", value=False, key=f"del_{csv_file.name}")
             if include & mark_for_delete:
-                os.remove(csv_file)
-            
+                try:
+                    os.remove(csv_file)
+                    deleted_any = True
+                except PermissionError:
+                    # On Windows, cached file handles may hold the file open.
+                    # Force-close by collecting garbage and retry once.
+                    import gc
+                    gc.collect()
+                    try:
+                        os.remove(csv_file)
+                        deleted_any = True
+                    except PermissionError:
+                        st.error(
+                            f"⚠️ Could not delete **{csv_file.name}** — "
+                            "the file is in use. Please reload the page and try again."
+                        )
+
+        if deleted_any:
+            # Clear cached data that may reference deleted files
+            st.cache_data.clear()
+            st.rerun()
+
     return
