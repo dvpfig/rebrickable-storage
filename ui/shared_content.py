@@ -19,7 +19,7 @@ def render_about_info_content():
     - 🏷️ Label Generation
     - 🔍 Parts Finding
     - 📦 Set Collection Management
-    - 🧩 Rebrickable Parts & Sets Integration
+    - f Rebrickable Parts & Sets Integration
     - 🖼️ Visual Integration (Brickarchitect)
     - 💾 Progress Tracking
 
@@ -101,8 +101,9 @@ def render_app_features_content():
         2. **Select** your collection files or sets to search through
         3. **Generate** a pickup list showing parts grouped by storage location
         4. **View** part images, colors, and quantities for easy identification
-        5. **Mark** parts as found while collecting them
-        6. **Save** your progress and resume later
+        5. **Export** the pickup list as a PDF for offline collecting
+        6. **Mark** parts as found while collecting them
+        7. **Save** your progress and resume later
         
         Streamlines the process of gathering parts for your next build!
         """)

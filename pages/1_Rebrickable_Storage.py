@@ -132,7 +132,7 @@ with col3:
     Find parts you need for new builds:
     - Upload wanted parts lists
     - Match against collection or sets
-    - Get pickup lists by location
+    - Get pickup lists by location, export as pdf
     """)
     if st.button("🔎 Go to Find Wanted Parts", width='stretch'):
         st.switch_page("pages/4_Find_Wanted_Parts.py")

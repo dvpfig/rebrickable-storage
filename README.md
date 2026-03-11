@@ -12,6 +12,7 @@ Built with Python and Streamlit, using data from [Rebrickable](https://rebrickab
 - **Smart part matching** between wanted lists and your collection or sets
 - **Visual part identification** with images from BrickArchitect
 - **Label generation** for storage containers (LBX and image formats)
+- **PDF pickup list export** for offline part collecting
 - **Progress tracking** to resume work across sessions
 - **Dark/light theme** support
 - **BrickArchitect integration** for part images and labels
@@ -98,8 +99,9 @@ Access at `http://localhost:8501`
 2. **Upload wanted parts** CSV from Rebrickable (e.g., from a MOC or set inventory)
 3. **Select collection files or sets** to search through
 4. **Generate pickup list** organized by storage location
-5. **Mark parts as found** while collecting
-6. **Download results** or generate printable labels
+5. **Export pickup list as PDF** for offline use while collecting
+6. **Mark parts as found** while collecting
+7. **Download results** or generate printable labels
 
 ## Data Sources
 

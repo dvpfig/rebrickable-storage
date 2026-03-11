@@ -468,9 +468,42 @@ if search_alternative.startswith("***A"):
         merged["Found"] = [found_map.get(k, 0) for k in keys_tuples]
         merged["Complete"] = merged["Found"] >= merged["Quantity_wanted"]
 
-        # Download button
+        # Download buttons
         csv = merged.to_csv(index=False).encode("utf-8")
-        st.download_button("💾 Download merged CSV", csv, "lego_wanted_with_location.csv", type="primary")
+        dl_col1, dl_col2 = st.columns(2)
+        with dl_col1:
+            st.download_button("💾 Download merged CSV", csv, "lego_wanted_with_location.csv", type="primary")
+        with dl_col2:
+            if st.button("📄 Generate PDF Pickup List", key="gen_pdf_btn", type="primary"):
+                with st.spinner("Generating PDF..."):
+                    from core.export.pdf_pickup_list import generate_pickup_list_pdf
+                    # Collect source file names
+                    _wanted_names = [f.name for f in wanted_files] if wanted_files else []
+                    _collection_names = []
+                    for f in collection_file_paths:
+                        if isinstance(f, Path):
+                            _collection_names.append(f.name)
+                        elif hasattr(f, 'name'):
+                            _collection_names.append(f.name)
+                    pdf_bytes = generate_pickup_list_pdf(
+                        merged_df=merged,
+                        color_lookup=color_lookup,
+                        part_images_map=st.session_state.get("part_images_map", {}),
+                        ba_part_names=ba_part_names,
+                        second_loc_by_location=second_loc_by_location,
+                        locations_index=st.session_state.get("locations_index", {}),
+                        wanted_file_names=_wanted_names,
+                        collection_file_names=_collection_names,
+                    )
+                    st.session_state["pdf_pickup_bytes"] = pdf_bytes
+            if st.session_state.get("pdf_pickup_bytes"):
+                st.download_button(
+                    "⬇️ Download PDF Pickup List",
+                    st.session_state["pdf_pickup_bytes"],
+                    "lego_pickup_list.pdf",
+                    mime="application/pdf",
+                    key="download_pdf_btn",
+                )
         
         # Export missing parts
         render_missing_parts_export(merged)
