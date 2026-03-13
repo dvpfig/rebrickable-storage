@@ -24,9 +24,9 @@ APPLICATION EXECUTION FLOW
 │    │    └─ calculate_color_distance(color1_rgb, color2_rgb, is_trans1, ...)
 │    │    └─ build_color_similarity_matrix(colors_df)
 │     ├─ colors.py
+│    │    └─ download_colors_csv(colors_path)
+│    │    └─ ensure_colors_csv(colors_path)
 │    │    └─ load_colors(colors_path)
-│    │    └─ build_color_lookup(colors_df)
-│    │    └─ render_color_cell(color_id, color_lookup)
 │     ├─ preprocess.py
 │    │    └─ sanitize_and_validate(df, required, label)
 │    │    └─ load_wanted_files(files)
@@ -35,7 +35,24 @@ APPLICATION EXECUTION FLOW
 │         └─ __init__(self, user_data_dir, global_cache_dir, ...)
 │         └─ load_sets_from_csv(self, csv_file, source_name)
 │         └─ _parse_bool(self, value)
+│ ├─ core/export/
+│     └─ pdf_pickup_list.py
+│         └─ _sanitize_text(text)
+│         └─ _hex_to_rgb(hex_str)
+│         └─ _safe_image_path(part_num, part_images_map)
 │ ├─ core/external/
+│     ├─ ba_part_images.py
+│    │    └─ download_ba_images(mapping_path, cache_images_dir, timeout, ...)
+│    │    └─ log(message, status)
+│    │    └─ should_stop()
+│     ├─ ba_part_labels.py
+│    │    └─ download_ba_labels(mapping_path, cache_labels_dir, timeout, ...)
+│    │    └─ log(message, status)
+│    │    └─ should_stop()
+│     ├─ ba_part_mappings.py
+│    │    └─ find_latest_mapping_file(resources_dir)
+│    │    └─ display_mapping_files_info(resources_dir, count_parts_callback)
+│    │    └─ get_rebrickable_parts(ba_part_number, log_callback)
 │     ├─ download_helpers.py
 │    │    └─ create_download_callbacks(stop_flag_key, show_stats, stats_formatter)
 │    │    └─ __init__(self, stop_flag_key, show_stats, ...)
@@ -46,9 +63,9 @@ APPLICATION EXECUTION FLOW
 │         └─ get_set_parts(self, set_number, include_spares)
 │ ├─ core/infrastructure/
 │     ├─ paths.py
+│    │    └─ show_missing_mapping_error(stop)
 │    │    └─ init_paths()
 │    │    └─ save_uploadedfiles(uploadedfiles_list, user_collection_dir)
-│    │    └─ manage_default_collection(user_collection_dir)
 │     └─ session.py
 │         └─ ensure_session_state_keys()
 │         └─ short_key()
@@ -72,14 +89,18 @@ APPLICATION EXECUTION FLOW
 │     └─ mapping.py
 │         └─ read_ba_mapping_from_excel_bytes(excel_bytes)
 │         └─ load_ba_part_names(mapping_path)
-│         └─ load_ba_mapping(mapping_path, custom_mapping_path)
+│         └─ _load_ba_mapping_data(mapping_path_str, custom_mapping_path_str)
 │ └─ core/state/
       ├─ find_wanted_parts.py
+     │    └─ has_pr_or_pat_suffix(part_num)
+     │    └─ render_rb_image_button(part_num, context_key, cache_rb_dir, ...)
      │    └─ get_unfound_parts(merged_df, color_lookup)
-     │    └─ merge_set_results(original_df, set_results)
-     │    └─ render_missing_parts_by_set(set_results, merged_df, part_images_map, ...)
-      └─ progress.py
-          └─ render_summary_table(merged_df, set_search_results, set_found_counts, ...)
+      ├─ progress.py
+     │    └─ render_summary_table(merged_df, set_search_results, set_found_counts, ...)
+      └─ progress_manager.py
+          └─ __init__(self, user_progress_dir)
+          └─ sanitize_filename(name)
+          └─ generate_default_name()
 │
 ├─┬─ UI MODULES
 │ ├─ ui/shared_content.py
@@ -91,13 +112,13 @@ APPLICATION EXECUTION FLOW
 │
 ├─┬─ PAGES
 │ ├─ pages/1_Rebrickable_Storage.py
-│     └─ 90 lines of code
+│     └─ 98 lines of code
 │ ├─ pages/2_My_Collection_Parts.py
-│     └─ 697 lines of code
+│     └─ 835 lines of code
 │ ├─ pages/3_My_Collection_Sets.py
 │     └─ 403 lines of code
 │ └─ pages/4_Find_Wanted_Parts.py
-      └─ 351 lines of code
+      └─ 738 lines of code
 │
 └─┬─ RESOURCES
   ├─ auth_config.yaml (User credentials)
@@ -184,14 +205,14 @@ MULTI-PAGE NAVIGATION STRUCTURE
   │
   ├─ 1_Rebrickable_Storage
   │    └─ 1_Rebrickable_Storage
-  │       ├─ 90 lines of code
-  │       ├─ 1 core module imports
+  │       ├─ 98 lines of code
+  │       ├─ 2 core module imports
   │       └─ 5 UI elements
   ├─ 2_My_Collection_Parts
   │    └─ 🏷️ My Collection - Parts
-  │       ├─ 697 lines of code
-  │       ├─ 15 core module imports
-  │       └─ 46 UI elements
+  │       ├─ 835 lines of code
+  │       ├─ 24 core module imports
+  │       └─ 53 UI elements
   ├─ 3_My_Collection_Sets
   │    └─ 📦 My Collection - Sets
   │       ├─ 403 lines of code
@@ -199,9 +220,9 @@ MULTI-PAGE NAVIGATION STRUCTURE
   │       └─ 30 UI elements
   └─ 4_Find_Wanted_Parts
        └─ 🔍 Find Wanted Parts
-          ├─ 351 lines of code
-          ├─ 12 core module imports
-          └─ 12 UI elements
+          ├─ 738 lines of code
+          ├─ 19 core module imports
+          └─ 29 UI elements
 
 ================================================================================
 PAGE NAVIGATION FLOW
@@ -243,6 +264,7 @@ PAGE NAVIGATION FLOW
 │  ├─ Upload wanted parts lists
 │  ├─ Select collection files to search
 │  ├─ Generate pickup list by location
+│  ├─ Export pickup list as PDF
 │  ├─ Search owned sets for missing parts
 │  ├─ Mark parts as found (per-location mark all/clear)
 │  ├─ View color alternatives
@@ -265,21 +287,21 @@ FUNCTION DISTRIBUTION ANALYSIS
 ├─ PAGE COMPLEXITY METRICS
 │
 │  ├─ 1_Rebrickable_Storage
-│  │     ├─ 90 lines of code
-│  │     ├─ 1 core module imports
+│  │     ├─ 98 lines of code
+│  │     ├─ 2 core module imports
 │  │     └─ 5 UI elements
 │  ├─ 2_My_Collection_Parts
-│  │     ├─ 697 lines of code
-│  │     ├─ 15 core module imports
-│  │     └─ 46 UI elements
+│  │     ├─ 835 lines of code
+│  │     ├─ 24 core module imports
+│  │     └─ 53 UI elements
 │  ├─ 3_My_Collection_Sets
 │  │     ├─ 403 lines of code
 │  │     ├─ 4 core module imports
 │  │     └─ 30 UI elements
 │  └─ 4_Find_Wanted_Parts
-│        ├─ 351 lines of code
-│        ├─ 12 core module imports
-│        └─ 12 UI elements
+│        ├─ 738 lines of code
+│        ├─ 19 core module imports
+│        └─ 29 UI elements
 │
 └─ ARCHITECTURE PATTERN
 
@@ -369,7 +391,9 @@ app.py
 ├─ auth
 │    └─ → core.auth.security
 ├─ find_wanted_parts
+│    ├─ → core.auth.api_keys
 │    ├─ → core.data.colors
+│    ├─ → core.infrastructure.paths
 │    ├─ → core.infrastructure.session
 │    └─ → core.parts.images
 ├─ images
@@ -381,6 +405,9 @@ app.py
 │    └─ → core.labels.lbx_merger
 ├─ mapping
 │    └─ → core.parts.custom_mapping
+├─ paths
+│    ├─ → core.data.colors
+│    └─ → core.external.ba_part_mappings
 └─ sets
      └─ → core.external.rebrickable_api
 
@@ -428,10 +455,13 @@ ARCHITECTURE OVERVIEW
 ├─ EXTERNAL INTEGRATIONS
 │
 │  ┌─ Rebrickable API
-│  │  └─ Part data and mappings
+│  │  ├─ Part data, set inventories, and mappings
+│  │  └─ Colors database (auto-downloaded)
 │  │
-│  └─ BrickArchitect Images
-│     └─ Part images (cached locally)
+│  └─ BrickArchitect
+│     ├─ Part images (cached locally)
+│     ├─ Label files (cached locally)
+│     └─ Part number mappings (scraping)
 │
 └─ DEPLOYMENT
 
@@ -451,34 +481,16 @@ ARCHITECTURE OVERVIEW
 RUNTIME METRICS & DATA DIMENSIONS
 ================================================================================
 
-┌─ RESOURCE DATA
-│
-│  Colors Database:
-│  ├─ Rows: 273
-│  └─ Columns: 8
-│
-│  Part Mappings (BA ↔ RB): base_part_mapping_2026-02-13.xlsx
-│  ├─ Rows: 4446
-│  └─ Columns: 84
-│
-│  Custom Mappings: 13 rules
-│
-├─ CACHE DATA
-│
-│  ├─ BrickArchitect images: 1716
-│  ├─ Rebrickable images: 937
-│  ├─ Label files: 4113
-│  └─ Set inventories: 19
-│
-├─ CORE MODULE DISTRIBUTION
+┌─ CORE MODULE DISTRIBUTION
 │
 │  ├─ core/auth/: 3 module(s)
 │  ├─ core/data/: 4 module(s)
-│  ├─ core/external/: 2 module(s)
+│  ├─ core/export/: 1 module(s)
+│  ├─ core/external/: 5 module(s)
 │  ├─ core/infrastructure/: 2 module(s)
 │  ├─ core/labels/: 2 module(s)
 │  ├─ core/parts/: 3 module(s)
-│  ├─ core/state/: 2 module(s)
+│  ├─ core/state/: 3 module(s)
 │
 └─ DATA STRUCTURE DIMENSIONS
 
@@ -498,7 +510,7 @@ RUNTIME METRICS & DATA DIMENSIONS
 ================================================================================
 STATISTICS SUMMARY
 ================================================================================
-Total Functions: 164
-Total Classes: 11
-Session State Keys: 18
-Modules Analyzed: 23
+Total Functions: 211
+Total Classes: 13
+Session State Keys: 27
+Modules Analyzed: 25
