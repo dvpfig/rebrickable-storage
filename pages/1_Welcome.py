@@ -5,7 +5,7 @@ from core.infrastructure.paths import init_paths
 # ---------------------------------------------------------------------
 # --- Page configuration
 # ---------------------------------------------------------------------
-st.sidebar.header("🧩 Rebrickable Storage")
+st.sidebar.header("🧩 Welcome")
 
 # Theme settings note for new users
 st.sidebar.markdown("---")
@@ -113,7 +113,7 @@ with col1:
     - Generate printable labels by location
     """)
     if st.button("📂 Go to My Collection - Parts", width='stretch'):
-        st.switch_page("pages/2_My_Collection_Parts.py")
+        st.switch_page("pages/3_My_Collection_Parts.py")
 
 with col2:
     st.markdown("### 📦 My Collection - Sets")
@@ -124,7 +124,7 @@ with col2:
     - View your complete set collection
     """)
     if st.button("📦 Go to My Collection - Sets", width='stretch'):
-        st.switch_page("pages/3_My_Collection_Sets.py")
+        st.switch_page("pages/4_My_Collection_Sets.py")
 
 with col3:
     st.markdown("### 🔍 Find Wanted Parts")
@@ -135,7 +135,7 @@ with col3:
     - Get pickup lists by location, export as pdf
     """)
     if st.button("🔎 Go to Find Wanted Parts", width='stretch'):
-        st.switch_page("pages/4_Find_Wanted_Parts.py")
+        st.switch_page("pages/5_Find_Wanted_Parts.py")
 
 st.markdown("---")
 

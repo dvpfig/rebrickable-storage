@@ -98,10 +98,11 @@ if auth_status is True:
 # ---------------------------------------------------------------------
 
 pg = st.navigation([
-    "pages/1_Rebrickable_Storage.py",
-    "pages/2_My_Collection_Parts.py",
-    "pages/3_My_Collection_Sets.py",
-    "pages/4_Find_Wanted_Parts.py"
+    "pages/1_Welcome.py",
+    "pages/2_Help_How_To.py",
+    "pages/3_My_Collection_Parts.py",
+    "pages/4_My_Collection_Sets.py",
+    "pages/5_Find_Wanted_Parts.py"
 ], position="top")
 pg.run()
 

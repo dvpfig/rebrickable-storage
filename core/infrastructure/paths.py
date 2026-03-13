@@ -127,7 +127,7 @@ def show_missing_mapping_error(stop: bool = True):
         "**'🔄 Sync latest Parts from BrickArchitect' → 'Get full list of BA parts'**."
     )
     st.page_link(
-        "pages/2_My_Collection_Parts.py",
+        "pages/3_My_Collection_Parts.py",
         label="📦 Go to My Collection - Parts",
         icon="➡️",
     )

@@ -35,7 +35,7 @@ load_dotenv()
 if not st.session_state.get("authentication_status"):
     st.warning("⚠️ Please login on the first page to access this feature.")
     if st.button("🔐 Go to Login Page"):
-        st.switch_page("pages/1_Rebrickable_Storage.py")
+        st.switch_page("pages/1_Welcome.py")
     st.stop()
 
 
