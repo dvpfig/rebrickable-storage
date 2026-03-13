@@ -33,5 +33,17 @@ def ensure_session_state_keys():
     if "sets_data_loaded" not in st.session_state:
         st.session_state["sets_data_loaded"] = False
 
+    # Progress management session state
+    if "current_progress_filename" not in st.session_state:
+        st.session_state["current_progress_filename"] = None
+    if "loaded_progress_wanted_files" not in st.session_state:
+        st.session_state["loaded_progress_wanted_files"] = None
+    if "loaded_progress_found_counts" not in st.session_state:
+        st.session_state["loaded_progress_found_counts"] = None
+    if "loaded_progress_set_found_counts" not in st.session_state:
+        st.session_state["loaded_progress_set_found_counts"] = None
+    if "_session_restored_from_progress" not in st.session_state:
+        st.session_state["_session_restored_from_progress"] = False
+
 def short_key(*args) -> str:
     return md5("::".join(map(str, args)).encode("utf-8")).hexdigest()

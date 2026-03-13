@@ -90,6 +90,22 @@ class Paths:
         collection_sets_dir.mkdir(parents=True, exist_ok=True)
         return collection_sets_dir
 
+    def get_user_progress_dir(self, username: str) -> Path:
+        """
+        Get the user-specific progress directory.
+        Creates the directory if it doesn't exist.
+
+        Args:
+            username: Username for the directory
+
+        Returns:
+            Path: Path to user's progress directory (user_data/{username}/progress/)
+        """
+        progress_dir = self.user_data_dir / username / "progress"
+        progress_dir.mkdir(parents=True, exist_ok=True)
+        return progress_dir
+
+
     @property
     def has_mapping(self) -> bool:
         """Check if a valid mapping file is available."""

@@ -1,9 +1,11 @@
 import streamlit as st
 import pandas as pd
+import json
 from pathlib import Path
 import hashlib
 
 from core.state.progress import render_summary_table
+from core.state.progress_manager import ProgressManager
 from core.infrastructure.paths import init_paths
 from core.infrastructure.paths import show_missing_mapping_error
 from core.parts.mapping import load_ba_mapping, build_rb_to_similar_parts_mapping, load_ba_part_names
@@ -43,36 +45,176 @@ username = st.session_state.get("username")
 user_collection_dir = paths.get_user_collection_parts_dir(username)
 user_uploaded_images_dir = paths.get_user_uploaded_images_dir(username)
 
-# Save/Load Progress buttons in sidebar
+# Initialize ProgressManager for the current user
+progress_manager = ProgressManager(paths.get_user_progress_dir(username))
+
+# Progress management in sidebar
 with st.sidebar:
     st.markdown("---")
-    # Save progress
-    if st.button("💾 Save Progress", width='stretch', type="primary"):
-        session_data = {
-            "found_counts": st.session_state.get("found_counts", {}),
-            "locations_index": st.session_state.get("locations_index", {}),
-            "set_found_counts": st.session_state.get("set_found_counts", {})
-        }
-        if st.session_state.get("auth_manager"):
-            st.session_state.auth_manager.save_user_session(username, session_data, paths.user_data_dir)
-            st.success("Progress saved!")
-        else:
-            st.error("❌ Authentication manager not available.")
+    st.markdown("#### 💾 Progress Management")
 
-    # Load progress
-    if st.button("📂 Load Progress", width='stretch', type="primary"):
-        if st.session_state.get("auth_manager"):
-            saved_data = st.session_state.auth_manager.load_user_session(username, paths.user_data_dir)
-            if saved_data:
-                st.session_state["found_counts"] = saved_data.get("found_counts", {})
-                st.session_state["locations_index"] = saved_data.get("locations_index", {})
-                st.session_state["set_found_counts"] = saved_data.get("set_found_counts", {})
-                st.success("Progress loaded!")
-                st.rerun()
-            else:
-                st.info("No saved progress found.")
+    # --- Save Progress Section ---
+    # Only show save when a pickup list is active (wanted files processed)
+    if st.session_state.get("start_processing") and st.session_state.get("merged_df") is not None:
+        current_filename = st.session_state.get("current_progress_filename")
+        if current_filename:
+            default_name = Path(current_filename).stem
         else:
-            st.error("❌ Authentication manager not available.")
+            default_name = ProgressManager.generate_default_name()
+
+        progress_name = st.text_input(
+            "Progress name",
+            value=default_name,
+            key="progress_name_input",
+            label_visibility="collapsed",
+            placeholder="Enter progress name...",
+        )
+
+        if st.button("💾 Save Progress", key="save_progress_btn", type="primary", use_container_width=True):
+            try:
+                # Gather current wanted CSV file names
+                _wanted_files_for_save = st.session_state.get("_wanted_file_names", [])
+                # Save merged_df and locations_index for full session restore
+                _merged_df = st.session_state.get("merged_df")
+                _merged_csv = _merged_df.to_csv(index=False) if _merged_df is not None else None
+                _locations_idx = st.session_state.get("locations_index", {})
+                saved_path = progress_manager.save_progress(
+                    name=progress_name,
+                    found_counts=st.session_state.get("found_counts", {}),
+                    set_found_counts=st.session_state.get("set_found_counts", {}),
+                    wanted_csv_files=_wanted_files_for_save,
+                    merged_df_csv=_merged_csv,
+                    locations_index=_locations_idx,
+                )
+                st.session_state["current_progress_filename"] = saved_path.name
+                st.toast(f"✅ Progress saved: {saved_path.stem}")
+            except ValueError as e:
+                st.toast(f"❌ {e}", icon="🚫")
+
+    # --- Progress File List Section ---
+    all_progress = progress_manager.list_progress_files()
+    if all_progress:
+        # Determine current wanted CSV file names for matching
+        _current_wanted_names = sorted(st.session_state.get("_wanted_file_names", []))
+        _pickup_active = st.session_state.get("start_processing", False) and st.session_state.get("merged_df") is not None
+
+        with st.expander(f"📂 Saved Progress ({len(all_progress)})", expanded=False):
+            for idx, pf in enumerate(all_progress):
+                pf_filename = pf["filename"]
+                pf_name = pf["name"]
+                pf_updated = pf.get("last_updated", "")
+                pf_wanted = pf.get("wanted_csv_files", [])
+
+                # Determine if this file matches current wanted CSVs
+                is_match = True
+                if _pickup_active and _current_wanted_names:
+                    is_match = (pf_wanted == _current_wanted_names)
+
+                # Display file entry
+                st.markdown(f"**{pf_name}**")
+                if pf_updated:
+                    try:
+                        from datetime import datetime as _dt
+                        dt = _dt.fromisoformat(pf_updated)
+                        st.caption(f"🕐 {dt.strftime('%Y-%m-%d %H:%M')}")
+                    except (ValueError, TypeError):
+                        st.caption(f"🕐 {pf_updated}")
+
+                if not is_match:
+                    st.info("ℹ️ Wanted CSV files mismatch", icon="ℹ️")
+
+                # Action buttons row
+                btn_cols = st.columns([1, 1, 1])
+
+                # Load button
+                with btn_cols[0]:
+                    if st.button("📂", key=f"load_{idx}", help="Load this progress", use_container_width=True):
+                        try:
+                            loaded = progress_manager.load_progress(pf_filename)
+                            loaded_found = loaded.get("found_counts", {})
+                            loaded_set_found = loaded.get("set_found_counts", {})
+
+                            # Always restore found_counts and set_found_counts
+                            st.session_state["found_counts"] = loaded_found
+                            st.session_state["set_found_counts"] = loaded_set_found
+                            st.session_state["current_progress_filename"] = pf_filename
+                            st.session_state["_wanted_file_names"] = loaded.get("wanted_csv_files", [])
+
+                            # Always signal that we want to show the pickup list
+                            st.session_state["start_processing"] = True
+                            st.session_state["_progress_choice_made"] = True
+                            st.session_state["precompute_done"] = True
+                            st.session_state["_session_restored_from_progress"] = True
+
+                            # Restore full session if merged_df_csv is available
+                            merged_csv = loaded.get("merged_df_csv")
+                            if merged_csv:
+                                import io
+                                restored_df = pd.read_csv(io.StringIO(merged_csv))
+                                st.session_state["merged_df"] = restored_df
+                            # Restore locations_index if available
+                            loc_idx = loaded.get("locations_index")
+                            if loc_idx is not None:
+                                st.session_state["locations_index"] = loc_idx
+
+                            # Clear any pre-upload state
+                            st.session_state["loaded_progress_wanted_files"] = None
+                            st.session_state["loaded_progress_found_counts"] = None
+                            st.session_state["loaded_progress_set_found_counts"] = None
+
+                            st.toast(f"✅ Loaded: {pf_name}")
+                            st.rerun()
+                        except json.JSONDecodeError:
+                            st.toast(f"❌ Corrupted file: {pf_name}", icon="🚫")
+                        except FileNotFoundError:
+                            st.toast(f"❌ File not found: {pf_name}", icon="🚫")
+                            st.rerun()
+
+                # Rename button
+                with btn_cols[1]:
+                    if st.button("✏️", key=f"rename_toggle_{idx}", help="Rename this progress", use_container_width=True):
+                        st.session_state[f"renaming_{idx}"] = not st.session_state.get(f"renaming_{idx}", False)
+                        st.rerun()
+
+                # Delete button
+                with btn_cols[2]:
+                    if st.session_state.get(f"confirm_delete_{idx}", False):
+                        if st.button("⚠️", key=f"confirm_del_{idx}", help="Click to confirm delete", type="primary", use_container_width=True):
+                            progress_manager.delete_progress(pf_filename)
+                            # Clear current filename if we deleted the active one
+                            if st.session_state.get("current_progress_filename") == pf_filename:
+                                st.session_state["current_progress_filename"] = None
+                            st.session_state.pop(f"confirm_delete_{idx}", None)
+                            st.toast(f"🗑️ Deleted: {pf_name}")
+                            st.rerun()
+                    else:
+                        if st.button("🗑️", key=f"delete_{idx}", help="Delete this progress", use_container_width=True):
+                            st.session_state[f"confirm_delete_{idx}"] = True
+                            st.rerun()
+
+                # Rename inline input
+                if st.session_state.get(f"renaming_{idx}", False):
+                    new_name = st.text_input(
+                        "New name",
+                        value=pf_name,
+                        key=f"rename_input_{idx}",
+                        label_visibility="collapsed",
+                    )
+                    if st.button("✅ Rename", key=f"rename_confirm_{idx}", use_container_width=True):
+                        try:
+                            new_filename = progress_manager.rename_progress(pf_filename, new_name)
+                            # Update current filename if we renamed the active one
+                            if st.session_state.get("current_progress_filename") == pf_filename:
+                                st.session_state["current_progress_filename"] = new_filename
+                            st.session_state.pop(f"renaming_{idx}", None)
+                            st.toast(f"✅ Renamed to: {new_name}")
+                            st.rerun()
+                        except FileExistsError:
+                            st.toast(f"❌ Name already exists: {new_name}", icon="🚫")
+                        except ValueError as e:
+                            st.toast(f"❌ {e}", icon="🚫")
+
+                st.markdown("---")
 
 # Load mapping and color data
 if not paths.has_mapping:
@@ -120,6 +262,41 @@ with col1:
                 wanted_files.append(file)
             else:
                 st.error(f"❌ {file.name}: {error_msg}")
+
+    # Store wanted file names for progress management (only from uploaded files)
+    # Detect when the user changes the wanted CSV files and reset processing state
+    if wanted_files:
+        _new_wanted_names = sorted([f.name for f in wanted_files])
+        _prev_wanted_names = st.session_state.get("_wanted_file_names", [])
+        if _new_wanted_names != _prev_wanted_names:
+            # Wanted files changed — reset to stage 1
+            st.session_state["_wanted_file_names"] = _new_wanted_names
+            st.session_state["start_processing"] = False
+            st.session_state["_session_restored_from_progress"] = False
+            st.session_state["_progress_choice_made"] = False
+            st.session_state["merged_df"] = None
+            st.session_state["merged_source_hash"] = None
+            st.session_state["current_progress_filename"] = None
+            st.session_state.pop("expanded_locations", None)
+            st.session_state.pop("pdf_pickup_bytes", None)
+
+    # Show info about loaded progress wanted files (informational only, no re-upload required)
+    _loaded_wanted = st.session_state.get("_wanted_file_names", [])
+    if not wanted_files and _loaded_wanted and not st.session_state.get("_session_restored_from_progress", False):
+        # User cleared the wanted files uploader without a restored session — reset
+        st.session_state["_wanted_file_names"] = []
+        st.session_state["start_processing"] = False
+        st.session_state["_session_restored_from_progress"] = False
+        st.session_state["_progress_choice_made"] = False
+        st.session_state["merged_df"] = None
+        st.session_state["merged_source_hash"] = None
+        st.session_state.pop("expanded_locations", None)
+        st.session_state.pop("pdf_pickup_bytes", None)
+    elif not wanted_files and _loaded_wanted:
+        st.info(
+            f"📋 **Progress loaded** — based on:\n\n"
+            + "\n".join(f"- `{f}`" for f in _loaded_wanted)
+        )
 
 with col2:
     st.markdown("### 🗂️ Collection (Parts): Select Files")
@@ -201,7 +378,15 @@ st.markdown("---")
 # === ALTERNATIVE A: Find Wanted Parts (Parts -> Sets)
 # =====================================================================
 if search_alternative.startswith("***A"):
-    if not collection_files_stream:
+    # Check if we have a restored session from loaded progress
+    # _has_restored_session is True when progress was loaded from sidebar (with or without merged_df_csv)
+    _has_restored_session = (
+        st.session_state.get("start_processing")
+        and st.session_state.get("_progress_choice_made")
+        and st.session_state.get("_session_restored_from_progress", False)
+    )
+
+    if not collection_files_stream and not _has_restored_session:
         st.info("📤 Upload at least one Collection file to begin.")
         st.session_state["start_processing"] = False
     else:
@@ -214,93 +399,96 @@ if search_alternative.startswith("***A"):
             _unique_count = len(_wanted_preview[["Part", "Color"]].drop_duplicates())
             st.markdown(f"**{_unique_count} wanted part/color combination(s)** to search for.")
         
-        # Calculate hash of collection files to detect changes
-        collection_hash = hashlib.md5()
-        for f in collection_file_paths:
-            if isinstance(f, Path):
-                collection_hash.update(str(f).encode())
-                collection_hash.update(str(f.stat().st_mtime).encode())
-            else:
-                collection_hash.update(f.name.encode())
-                collection_hash.update(str(f.size).encode())
-        current_collection_hash = collection_hash.hexdigest()
-        
-        # Check if collection files have changed
-        if st.session_state.get("collection_hash") != current_collection_hash:
-            st.session_state["collection_hash"] = current_collection_hash
-            st.session_state["precompute_done"] = False
-            st.session_state.pop("precompute_stats_page4", None)
-        
-        # Precompute collection images button
-        precompute_done = st.session_state.get("precompute_done", False)
-        
-        if not precompute_done:
-            if st.button("🔄 Precompute collection images", key="precompute_button", type="primary"):
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                
-                def update_progress(current, total, item, status):
-                    progress = current / total if total > 0 else 0
-                    progress_bar.progress(progress)
-                    status_text.text(f"Processing {current}/{total}: {item} - {status}")
-                
-                try:
-                    with st.spinner("Precomputing collection images..."):
-                        collection = load_collection_files(collection_files_stream)
-                        collection_bytes = collection.to_csv(index=False).encode('utf-8')
-                        
-                        from core.auth.api_keys import load_api_key
-                        user_data_dir = paths.user_data_dir / username
-                        api_key = load_api_key(user_data_dir)
-                        
-                        images_index, part_images_map, stats = precompute_location_images(
-                            collection_bytes, ba_mapping, paths.cache_images,
-                            user_uploaded_dir=user_uploaded_images_dir,
-                            progress_callback=update_progress,
-                            cache_rb_dir=paths.cache_images_rb,
-                            api_key=api_key, user_data_dir=user_data_dir
-                        )
-                        
-                        st.session_state["locations_index"] = images_index
-                        st.session_state["part_images_map"] = part_images_map
-                        st.session_state["collection_df"] = collection
-                        st.session_state["collection_bytes"] = collection_bytes
-                        st.session_state["precompute_done"] = True
-                        st.session_state["precompute_stats_page4"] = stats
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Error precomputing images: {e}")
-                finally:
-                    progress_bar.empty()
-                    status_text.empty()
-        else:
-            st.button("✅ Collection images precomputed", key="precompute_button_done", disabled=True)
+        if not _has_restored_session:
+            # Calculate hash of collection files to detect changes
+            collection_hash = hashlib.md5()
+            for f in collection_file_paths:
+                if isinstance(f, Path):
+                    collection_hash.update(str(f).encode())
+                    collection_hash.update(str(f.stat().st_mtime).encode())
+                else:
+                    collection_hash.update(f.name.encode())
+                    collection_hash.update(str(f.size).encode())
+            current_collection_hash = collection_hash.hexdigest()
             
-            stats = st.session_state.get("precompute_stats_page4")
-            if stats:
-                if stats["ba_downloaded"] > 0:
-                    st.info(f"📥 Downloaded {stats['ba_downloaded']} image(s) from BrickArchitect")
-                if stats["rb_downloaded"] > 0:
-                    st.success(f"🎉 Downloaded {stats['rb_downloaded']} image(s) from Rebrickable API")
-                if stats["rb_rate_limit_errors"] > 0:
-                    st.warning(
-                        f"⚠️ {stats['rb_rate_limit_errors']} Rebrickable API rate limit error(s) (HTTP 429). "
-                        f"Re-run precompute to retry and fetch more images."
-                    )
-                if stats["rb_other_errors"] > 0:
-                    st.info(f"ℹ️ {stats['rb_other_errors']} temporary API error(s) (network/server issues)")
-        
-        # Generate pickup list button
-        can_generate = wanted_files and precompute_done
-        
-        if not can_generate:
-            st.info("📤 Upload at least one Wanted file and Precompute collection to generate pickup list")
-            st.button("🚀 Generate pickup list", key="generate_button", disabled=True)
-            st.session_state["start_processing"] = False
-        else:
-            if st.button("🚀 Generate pickup list", key="generate_button", type="primary"):
-                st.session_state["start_processing"] = True
-                st.session_state.pop("rb_images_shown", None)
+            # Check if collection files have changed
+            if st.session_state.get("collection_hash") != current_collection_hash:
+                st.session_state["collection_hash"] = current_collection_hash
+                st.session_state["precompute_done"] = False
+                st.session_state.pop("precompute_stats_page4", None)
+            
+            # Precompute collection images button
+            precompute_done = st.session_state.get("precompute_done", False)
+            
+            if not precompute_done:
+                if st.button("🔄 Precompute collection images", key="precompute_button", type="primary"):
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    
+                    def update_progress(current, total, item, status):
+                        progress = current / total if total > 0 else 0
+                        progress_bar.progress(progress)
+                        status_text.text(f"Processing {current}/{total}: {item} - {status}")
+                    
+                    try:
+                        with st.spinner("Precomputing collection images..."):
+                            collection = load_collection_files(collection_files_stream)
+                            collection_bytes = collection.to_csv(index=False).encode('utf-8')
+                            
+                            from core.auth.api_keys import load_api_key
+                            user_data_dir = paths.user_data_dir / username
+                            api_key = load_api_key(user_data_dir)
+                            
+                            images_index, part_images_map, stats = precompute_location_images(
+                                collection_bytes, ba_mapping, paths.cache_images,
+                                user_uploaded_dir=user_uploaded_images_dir,
+                                progress_callback=update_progress,
+                                cache_rb_dir=paths.cache_images_rb,
+                                api_key=api_key, user_data_dir=user_data_dir
+                            )
+                            
+                            st.session_state["locations_index"] = images_index
+                            st.session_state["part_images_map"] = part_images_map
+                            st.session_state["collection_df"] = collection
+                            st.session_state["collection_bytes"] = collection_bytes
+                            st.session_state["precompute_done"] = True
+                            st.session_state["precompute_stats_page4"] = stats
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error precomputing images: {e}")
+                    finally:
+                        progress_bar.empty()
+                        status_text.empty()
+            else:
+                st.button("✅ Collection images precomputed", key="precompute_button_done", disabled=True)
+                
+                stats = st.session_state.get("precompute_stats_page4")
+                if stats:
+                    if stats["ba_downloaded"] > 0:
+                        st.info(f"📥 Downloaded {stats['ba_downloaded']} image(s) from BrickArchitect")
+                    if stats["rb_downloaded"] > 0:
+                        st.success(f"🎉 Downloaded {stats['rb_downloaded']} image(s) from Rebrickable API")
+                    if stats["rb_rate_limit_errors"] > 0:
+                        st.warning(
+                            f"⚠️ {stats['rb_rate_limit_errors']} Rebrickable API rate limit error(s) (HTTP 429). "
+                            f"Re-run precompute to retry and fetch more images."
+                        )
+                    if stats["rb_other_errors"] > 0:
+                        st.info(f"ℹ️ {stats['rb_other_errors']} temporary API error(s) (network/server issues)")
+            
+            # Generate pickup list button
+            can_generate = wanted_files and precompute_done
+            
+            if not can_generate:
+                st.info("📤 Upload at least one Wanted file and Precompute collection to generate pickup list")
+                st.button("🚀 Generate pickup list", key="generate_button", disabled=True)
+                st.session_state["start_processing"] = False
+            else:
+                if st.button("🚀 Generate pickup list", key="generate_button", type="primary"):
+                    st.session_state["start_processing"] = True
+                    st.session_state["_progress_choice_made"] = False
+                    st.session_state["_session_restored_from_progress"] = False
+                    st.session_state.pop("rb_images_shown", None)
 
     st.markdown("---")
 
@@ -308,37 +496,99 @@ if search_alternative.startswith("***A"):
     # --- MAIN WANTED PARTS PROCESSING LOGIC (Alternative A)
     # -----------------------------------------------------------------
     if st.session_state.get("start_processing"):
-        # Processing Wanted files and merging with precomputed collection
-        try:
-            wanted = load_wanted_files(wanted_files)
-            collection = st.session_state.get("collection_df")
-            if collection is None:
-                st.error("❌ Collection data not found. Please precompute collection images first.")
-                st.stop()
-        except Exception as e:
-            st.error(f"Error parsing uploaded files: {e}")
-            st.stop()
+        # --- Task 6.1: Auto-detect matching progress on generate ---
+        # --- Task 7.2: Auto-apply loaded progress when matching files uploaded ---
+        _current_wanted_names = sorted([f.name for f in wanted_files]) if wanted_files else []
 
-        # Merge wanted and collection data
-        _wanted_hash = hashlib.md5(pd.util.hash_pandas_object(wanted).values.tobytes()).hexdigest()
-        _collection_hash = hashlib.md5(pd.util.hash_pandas_object(collection).values.tobytes()).hexdigest()
-        merged_source_hash = hashlib.md5((_collection_hash + _wanted_hash).encode()).hexdigest()
-        
-        if st.session_state.get("merged_df") is None or st.session_state.get("merged_source_hash") != merged_source_hash:
-            with st.spinner("Processing wanted parts and generating pickup list..."):
-                merged = merge_wanted_collection(wanted, collection, rb_to_similar)
+        # Check if we have pre-loaded progress from the pre-upload flow (Task 7.2)
+        _loaded_wanted = st.session_state.get("loaded_progress_wanted_files")
+        _loaded_found = st.session_state.get("loaded_progress_found_counts")
+        _loaded_set_found = st.session_state.get("loaded_progress_set_found_counts")
+
+        if _loaded_wanted and _loaded_found is not None and _current_wanted_names == sorted(_loaded_wanted):
+            # Auto-apply the pre-loaded progress
+            st.session_state["found_counts"] = _loaded_found
+            st.session_state["set_found_counts"] = _loaded_set_found or {}
+            # Clear the loaded progress keys
+            st.session_state["loaded_progress_wanted_files"] = None
+            st.session_state["loaded_progress_found_counts"] = None
+            st.session_state["loaded_progress_set_found_counts"] = None
+        elif not st.session_state.get("_progress_choice_made"):
+            # Check for matching saved progress files (Task 6.1)
+            matching_progress = progress_manager.find_matching_progress(_current_wanted_names)
+            if matching_progress:
+                st.markdown("#### 📂 Matching saved progress found")
+                options = ["🆕 Start from zero"] + [f"📂 {mp['name']}" for mp in matching_progress]
+                choice = st.radio(
+                    "Load from saved progress or start fresh?",
+                    options=options,
+                    key="progress_choice_radio",
+                )
+                if st.button("✅ Continue", key="progress_choice_confirm", type="primary"):
+                    if choice == "🆕 Start from zero":
+                        st.session_state["found_counts"] = {}
+                        st.session_state["set_found_counts"] = {}
+                        st.session_state["current_progress_filename"] = None
+                    else:
+                        # Find the selected progress file
+                        selected_name = choice.replace("📂 ", "")
+                        for mp in matching_progress:
+                            if mp["name"] == selected_name:
+                                try:
+                                    loaded = progress_manager.load_progress(mp["filename"])
+                                    st.session_state["found_counts"] = loaded.get("found_counts", {})
+                                    st.session_state["set_found_counts"] = loaded.get("set_found_counts", {})
+                                    st.session_state["current_progress_filename"] = mp["filename"]
+                                except (json.JSONDecodeError, FileNotFoundError) as e:
+                                    st.error(f"❌ Could not load progress: {e}")
+                                break
+                    st.session_state["_progress_choice_made"] = True
+                    st.rerun()
+                st.stop()
+
+        # Processing: either use restored merged_df from loaded progress, or merge from uploaded files
+        if _has_restored_session and st.session_state.get("merged_df") is not None:
+            # Session restored from loaded progress — merged_df already in session state
+            merged = st.session_state["merged_df"]
+            # Ensure BA_part_name column exists
+            if "BA_part_name" not in merged.columns:
                 merged["BA_part_name"] = merged["Part"].astype(str).map(ba_part_names).fillna("")
                 st.session_state["merged_df"] = merged
-                st.session_state["merged_source_hash"] = merged_source_hash
+        elif _has_restored_session and st.session_state.get("merged_df") is None:
+            # Old progress file without merged_df_csv — cannot restore full session
+            st.warning(
+                "⚠️ This progress file was saved with an older version and doesn't contain the full parts list. "
+                "Please re-upload the wanted CSV files and generate the pickup list, then save again to update the progress file."
+            )
+            st.stop()
+        else:
+            # Normal flow: merge from uploaded wanted + collection files
+            try:
+                wanted = load_wanted_files(wanted_files)
+                collection = st.session_state.get("collection_df")
+                if collection is None:
+                    st.error("❌ Collection data not found. Please precompute collection images first.")
+                    st.stop()
+            except Exception as e:
+                st.error(f"Error parsing uploaded files: {e}")
+                st.stop()
 
-        merged = st.session_state["merged_df"]
-        
-        # Fetch images for all wanted parts
-        if "merged_bytes" not in st.session_state or st.session_state.get("merged_bytes_hash") != merged_source_hash:
-            st.session_state["merged_bytes"] = merged.to_csv(index=False).encode('utf-8')
-            st.session_state["merged_bytes_hash"] = merged_source_hash
-        
-        merged_bytes = st.session_state["merged_bytes"]
+            # Merge wanted and collection data
+            _wanted_hash = hashlib.md5(pd.util.hash_pandas_object(wanted).values.tobytes()).hexdigest()
+            _collection_hash = hashlib.md5(pd.util.hash_pandas_object(collection).values.tobytes()).hexdigest()
+            merged_source_hash = hashlib.md5((_collection_hash + _wanted_hash).encode()).hexdigest()
+            
+            if st.session_state.get("merged_df") is None or st.session_state.get("merged_source_hash") != merged_source_hash:
+                with st.spinner("Processing wanted parts and generating pickup list..."):
+                    merged = merge_wanted_collection(wanted, collection, rb_to_similar)
+                    merged["BA_part_name"] = merged["Part"].astype(str).map(ba_part_names).fillna("")
+                    st.session_state["merged_df"] = merged
+                    st.session_state["merged_source_hash"] = merged_source_hash
+
+            merged = st.session_state["merged_df"]
+
+        # Fetch images for all wanted parts (works for both restored and fresh sessions)
+        merged_bytes = merged.to_csv(index=False).encode('utf-8')
         
         user_data_dir = paths.user_data_dir / username
         from core.auth.api_keys import load_api_key
